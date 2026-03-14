@@ -262,5 +262,14 @@ def main():
     os.makedirs(path_visual, exist_ok=True)
     plt.savefig(f"{path_visual}/target_tsne{TRAIN_EPOCHS}.png", dpi=200)
 
+    path_model = f"{path_result}/models"
+    os.makedirs(path_model, exist_ok=True)
+
+    torch.save(target_encoder.state_dict(), f"{path_model}/lejepa_target_encoder.pth")
+    torch.save(context_encoder.state_dict(), f"{path_model}/lejepa_context_encoder.pth")
+    torch.save(predictor.state_dict(), f"{path_model}/lejepa_predictor.pth")
+
+    print(f"Models saved to {path_model}")
+
 if __name__ == "__main__":
     main()
