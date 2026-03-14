@@ -9,8 +9,6 @@ import torchvision.transforms as transforms
 import os
 import rasterio
 import geopandas as gpd
-from rasterio.windows import from_bounds
-import geodatasets
 
 IMAGE_PATH = r"z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023\2023-01\25-PUC-C-DE-CPC-002-12_18032023_001_idw_transparent_mosaic_group1.tif"
 ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
@@ -18,9 +16,12 @@ ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids
 IMG_SIZE = 448
 PATCH_SIZE = 16
 
-# Le-JEPA : Encoder and Predictor Definition 
+CROP_MULTIPLIER = 4 
+CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
+HALF_CROP = CROP_SIZE // 2
+
 class LeJepaEncoder(nn.Module):
-    def __init__(self, img_size=448, patch_size=16, in_chans=3, embed_dim=128, depth=4, num_heads=4):
+    def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
         super().__init__()
         self.patch_size = patch_size
         self.embed_dim = embed_dim
@@ -41,7 +42,6 @@ class LeJepaEncoder(nn.Module):
         x = x.flatten(2).transpose(1, 2)
         x = x + self.pos_embed
         
-        # Exclude masked patches during training
         if ids_keep is not None:
             B, L, D = x.shape
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
@@ -74,17 +74,14 @@ class LeJepaPredictor(nn.Module):
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    img_size = 448
     epochs = 300
     model_dir = "data/models"
     embedding_dir = "data/embeddings"
     label_dir = "data/label"
-    plot_dir = "data/plots" 
+    plot_dir = "data/plots"
     
-    os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(embedding_dir, exist_ok=True)
-    os.makedirs(label_dir, exist_ok=True)
-    os.makedirs(plot_dir, exist_ok=True)
+    for d in [model_dir, embedding_dir, label_dir, plot_dir]:
+        os.makedirs(d, exist_ok=True)
 
     encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
     predictor = LeJepaPredictor().to(device)
@@ -102,38 +99,47 @@ def main():
     patches = []
     patch_labels = []
 
-    print("Extracting patches from coordinates...")
+    print(f"Extracting Patches from the coordinate")
     with rasterio.open(IMAGE_PATH) as src:
         for idx, row in gdf.iterrows():
             geom = row.geometry
             x, y = geom.x, geom.y
             
             window = rasterio.windows.Window(
-                src.index(x, y)[1] - 224, 
-                src.index(x, y)[0] - 224, 
-                448, 448
+                src.index(x, y)[1] - HALF_CROP, 
+                src.index(x, y)[0] - HALF_CROP, 
+                CROP_SIZE, CROP_SIZE
             )
             
             tile = src.read([1, 2, 3], window=window)
-            
             tile = np.moveaxis(tile, 0, -1)
-            if tile.shape[0] == 448 and tile.shape[1] == 448:
+            
+            if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
                 img_pil = Image.fromarray(tile.astype('uint8'))
-                patches.append(transform(img_pil))
-                label_val = row['id'] if 'id' in row else f"tree_{idx}"
+                patches.append(transform(img_pil)) 
+                
+                if 'Tree' in row:
+                    label_val = row['Tree']
+                elif 'tree' in row:
+                    label_val = row['tree']
+                elif 'id' in row:
+                    label_val = row['id']
+                else:
+                    label_val = f"tree_{idx}"
+                    
                 patch_labels.append(str(label_val))
 
     if not patches:
-        print("No valid patches found.")
+        print("Cannot find the patches corresponding")
         return
         
     input_tensor = torch.stack(patches).to(device) # (N, 3, 448, 448)
-    print(f"Total patches collected: {len(patch_labels)}")
+    print(f"Collected Patches: {len(patch_labels)}")
 
     encoder.train()
     predictor.train()
 
-    num_patches = (img_size // 16) ** 2  # 448/16 = 28 -> 28*28 = 784 patches
+    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2  # 448/16 = 28 -> 28*28 = 784 patches
     
     for epoch in range(epochs):
         optimizer.zero_grad()
@@ -169,12 +175,12 @@ def main():
     encoder.eval()
     with torch.no_grad():
         test_img = input_tensor[0:1] 
-        features = encoder(test_img)  # (1, 784, 128)
+        features = encoder(test_img) 
         
         L = features.shape[1]
         H_p = W_p = int(np.sqrt(L))
         
-        flat_features = features.squeeze(0).cpu().numpy() # (784, 128)
+        flat_features = features.squeeze(0).cpu().numpy()
         
         tsne = TSNE(
             n_components=3, 
@@ -195,18 +201,18 @@ def main():
         rgb_map_final = np.clip(rgb_map_large[0].permute(1, 2, 0).numpy(), 0, 1)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        plt.suptitle(f"t-SNE RGB Feature Map (Epoch {epochs})", fontsize=14)
+        plt.suptitle(f"Wide Context t-SNE RGB Map (Epoch {epochs})", fontsize=14)
         
         ax1.imshow(test_img[0].cpu().permute(1, 2, 0).numpy() * 0.2 + 0.5)
-        ax1.set_title("Input Image"); ax1.axis('off')
+        ax1.set_title("Input Image (Wide View)"); ax1.axis('off')
         
         ax2.imshow(rgb_map_final)
         ax2.set_title("t-SNE RGB Map"); ax2.axis('off')
         
         plt.tight_layout()
-        save_path = f"{plot_dir}/tsne_rgb_map.png"
+        save_path = f"{plot_dir}/tsne_rgb_map_wide.png"
         plt.savefig(save_path, dpi=150)
-        print(f"Visualisation: {save_path}")
+        print(f"Visualisation saved: {save_path}")
 
     torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
     
