@@ -122,18 +122,16 @@ def main():
     successful_rows = [] 
     extracted_temp_ids = set() 
 
-    # 3. Optimized Extraction Mechanism (1409개 추출 로직)
+    # 3. Optimized Extraction Mechanism
     print(f"\nStarting extraction for {len(tif_files)} TIF files...")
     
     for tif_path in tqdm(tif_files, desc="Processing TIFs"):
         try:
             with rasterio.open(tif_path) as src:
-                # 개별 TIF의 CRS에 맞게 변환하여 오차 최소화
                 current_gdf = gdf.copy()
                 if current_gdf.crs != src.crs:
                     current_gdf = current_gdf.to_crs(src.crs)
                 
-                # 공간 인덱스를 활용한 필터링
                 b = src.bounds
                 img_box = box(b.left, b.bottom, b.right, b.top)
                 contained = current_gdf[current_gdf.geometry.intersects(img_box)]
@@ -141,14 +139,12 @@ def main():
                 for idx, row in contained.iterrows():
                     temp_id = row['temp_id']
                     
-                    # 이미 다른 TIF에서 추출된 나무는 건너뜀 (중복 방지)
                     if temp_id in extracted_temp_ids:
                         continue
                         
                     x, y = row.geometry.x, row.geometry.y
                     py, px = src.index(x, y)
                     
-                    # Boundless=True를 사용하여 가장자리 나무들도 유실 없이 추출
                     window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
                     tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
                     tile = np.moveaxis(tile, 0, -1)
@@ -160,7 +156,6 @@ def main():
                         label_val = row.get('Tree') or row.get('tree') or row.get('id') or f"tree_{temp_id}"
                         patch_labels.append(str(label_val))
                         
-                        # 원본 CRS 속성을 유지하며 결과 리스트에 추가
                         successful_rows.append(gdf.loc[idx])
                         extracted_temp_ids.add(temp_id)
                             
@@ -172,11 +167,9 @@ def main():
         
     print(f"\nTotal Successfully Extracted Patches: {len(patches)}")
 
-    # 4. Save validated subset to Shapefile
+    # 4. Save Validated subset count for assertion (Shapefile saving removed)
     valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
-    labels_shp_path = os.path.join(label_dir, "labels.shp")
-    valid_points_gdf.drop(columns=['temp_id'], errors='ignore').to_file(labels_shp_path)
-    print(f"Saved filtered attributes to: {labels_shp_path}")
+    print(f"Kept {len(valid_points_gdf)} valid points for internal validation.")
 
     # 5. Dataloader Setup
     all_patches_tensor = torch.stack(patches)
@@ -223,7 +216,7 @@ def main():
     torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
     print("\nTraining Complete. Extracting Final Embeddings...")
     
-    # 7. Embedding Extraction
+    # 7. Embedding & Label Extraction (Saved as .npy)
     encoder.eval()
     all_embeddings = []
     eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
@@ -241,10 +234,12 @@ def main():
     assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Count mismatch!"
 
     np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
-    np.save(f"{label_dir}/labels.npy", final_labels)
+    np.save(f"{label_dir}/labels.npy", final_labels) # Labels saved as .npy here
     
     total_time = (time.time() - start_time) / 60
     print(f"\nSuccess! Extracted {len(final_embeddings)} samples.")
+    print(f"Saved embeddings to: {embedding_dir}/embeddings.npy")
+    print(f"Saved labels to: {label_dir}/labels.npy")
     print(f"Total Execution Time: {total_time:.2f} minutes")
 
 if __name__ == "__main__":
