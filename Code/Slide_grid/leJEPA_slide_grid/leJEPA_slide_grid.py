@@ -1,184 +1,224 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import box, Point
-import rasterio
 from PIL import Image
 import torchvision.transforms as transforms
-from tqdm import tqdm
 import os
+import rasterio
+import glob
+from shapely.geometry import box
+from tqdm import tqdm
+import torch.nn.functional as F
 
-# Import the model class defined in 1409.py (modify the filename as needed)
-from leJEPA_default import LeJepaEncoder 
+# --------------------------
+# 1. Config & Paths
+# --------------------------
+BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
+ORIGINAL_POINTS_SHP = r"../shapefiles/original_trees.shp" # Original coordinates with drift
+MODEL_PATH = r"data/models/lejepa_encoder.pth"
+EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
+LABEL_PATH = r"data/label/labels.npy"
 
-# -----------------------------------------
-# Configuration
-# -----------------------------------------
-ORIGINAL_COORDS_CSV = "original_coordinates.csv" # Original coordinates (including x, y, label)
-TIF_DIR = "/mnt/parscratch/.../2023"
-MODEL_WEIGHTS = "data/models/lejepa_encoder.pth"
-EMBEDDINGS_NPY = "data/embeddings/embeddings.npy"
-LABELS_NPY = "data/label/labels.npy"
+OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
 
-OUTPUT_GRID_SHP = "output/final_grids.shp"
-OUTPUT_CENTER_CSV = "output/final_centered_points.csv"
-
-CELL_SIZE = 1.2 # Grid size
+# Model & Image Parameters (Same as 1409.py)
 IMG_SIZE = 448
-HALF_CROP = IMG_SIZE * 4 // 2
-SIMILARITY_THRESHOLD = 0.8 # Use feature similarity threshold instead of intersection area
+PATCH_SIZE = 16
+CROP_MULTIPLIER = 4 
+CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
+HALF_CROP = CROP_SIZE // 2
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Grid Parameters
+CELL_SIZE = 1.2  # Size of each grid cell (adjust according to your CRS)
+LIKELIHOOD_THRESHOLD = 0.75 # Cosine similarity threshold (0.0 ~ 1.0)
 
-# -----------------------------------------
-# 1. Model and Reference Feature Preparation
-# -----------------------------------------
-encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
-encoder.load_state_dict(torch.load(MODEL_WEIGHTS, map_location=device))
-encoder.eval()
+# --------------------------
+# 2. LeJEPA Encoder Model Definition
+# --------------------------
+class LeJepaEncoder(nn.Module):
+    def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
+        super().__init__()
+        self.patch_size = patch_size
+        self.embed_dim = embed_dim
+        self.patch_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        num_patches = (img_size // patch_size) ** 2
+        self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4, 
+            activation='gelu', batch_first=True
+        )
+        self.blocks = nn.ModuleList([encoder_layer for _ in range(depth)])
+        self.norm = nn.LayerNorm(embed_dim)
 
-transform = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+    def forward(self, x, ids_keep=None):
+        x = self.patch_embed(x)
+        x = x.flatten(2).transpose(1, 2)
+        x = x + self.pos_embed
+        if ids_keep is not None:
+            D = x.shape[-1]
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
+        for block in self.blocks:
+            x = block(x)
+        return self.norm(x)
 
-# Calculate average embeddings (features) per label
-all_embeddings = np.load(EMBEDDINGS_NPY)
-all_labels = np.load(LABELS_NPY)
+# --------------------------
+# 3. Helper Functions
+# --------------------------
+def load_reference_embeddings(embed_path, label_path):
+    """
+    Load extracted embeddings and labels from 1409.py to compute 
+    the mean reference embedding for each species (label).
+    """
+    embeds = np.load(embed_path)
+    labels = np.load(label_path)
+    
+    ref_dict = {}
+    unique_labels = np.unique(labels)
+    for lbl in unique_labels:
+        idx = np.where(labels == lbl)[0]
+        mean_embed = np.mean(embeds[idx], axis=0)
+        ref_dict[lbl] = torch.tensor(mean_embed, dtype=torch.float32)
+    return ref_dict
 
-label_to_feature = {}
-unique_labels = np.unique(all_labels)
-for lbl in unique_labels:
-    idx = np.where(all_labels == lbl)[0]
-    mean_feat = np.mean(all_embeddings[idx], axis=0)
-    label_to_feature[lbl] = torch.tensor(mean_feat).to(device)
-
-def get_patch_embedding(src, px, py):
-    """Extract patches from specific pixel coordinates and extract model features"""
-    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, HALF_CROP*2, HALF_CROP*2)
+def extract_and_embed(src, x, y, encoder, transform, device):
+    """
+    Crop the image at the given coordinate (x, y) from the raster,
+    pass it through the LeJEPA encoder, and return the feature embedding.
+    """
+    py, px = src.index(x, y)
+    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
     tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
     tile = np.moveaxis(tile, 0, -1)
     
-    # Padding logic (refer to outOfBoundChecker)
-    if tile.shape[:2] != (HALF_CROP*2, HALF_CROP*2):
-        h, w, c = tile.shape
-        tile = np.pad(tile, ((0, max(0, HALF_CROP*2 - h)), (0, max(0, HALF_CROP*2 - w)), (0, 0)), mode='constant')
-        tile = tile[:HALF_CROP*2, :HALF_CROP*2, :]
+    # Check if the cropped tile matches the expected dimensions
+    if tile.shape[0] != CROP_SIZE or tile.shape[1] != CROP_SIZE:
+        return None
         
     img_pil = Image.fromarray(tile.astype('uint8'))
-    tensor = transform(img_pil).unsqueeze(0).to(device)
+    img_tensor = transform(img_pil).unsqueeze(0).to(device)
     
     with torch.no_grad():
-        feat = encoder(tensor).mean(dim=1).squeeze(0) # [128]
-    return feat
+        # Extract features and apply mean pooling (identical to 1409.py eval approach)
+        embed = encoder(img_tensor).mean(dim=1).squeeze(0).cpu() 
+    return embed
 
-def compute_similarity(feat1, feat2):
-    """Calculate cosine similarity between two features"""
-    return torch.nn.functional.cosine_similarity(feat1.unsqueeze(0), feat2.unsqueeze(0)).item()
+def scan_3x3_grid(cx, cy, src, encoder, transform, device, target_ref_embed):
+    """
+    Scan a 3x3 grid around the center coordinate (cx, cy).
+    Returns a list of cells with cosine similarity >= LIKELIHOOD_THRESHOLD.
+    """
+    results = []
+    for dx in [-1, 0, 1]:
+        for dy in [-1, 0, 1]:
+            gx = cx + dx * CELL_SIZE
+            gy = cy + dy * CELL_SIZE
+            
+            embed = extract_and_embed(src, gx, gy, encoder, transform, device)
+            if embed is not None:
+                # Calculate Cosine Similarity to represent "Likelihood"
+                similarity = F.cosine_similarity(embed.unsqueeze(0), target_ref_embed.unsqueeze(0)).item()
+                if similarity >= LIKELIHOOD_THRESHOLD:
+                    results.append({"x": gx, "y": gy, "likelihood": similarity})
+    return results
 
-# -----------------------------------------
-# 2. Integrated Main Logic (Grid -> Slide -> Center)
-# -----------------------------------------
-def process_points():
-    df = pd.read_csv(ORIGINAL_COORDS_CSV)
+def calculate_center(valid_cells):
+    """
+    Compute the geometric center of the valid grid cells.
+    """
+    xs = [cell["x"] for cell in valid_cells]
+    ys = [cell["y"] for cell in valid_cells]
+    return sum(xs) / len(xs), sum(ys) / len(ys)
+
+# --------------------------
+# 4. Main Inference Pipeline
+# --------------------------
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Loading LeJEPA Model and Reference Embeddings...")
     
-    final_results = []
-    grid_records = []
+    encoder = LeJepaEncoder().to(device)
+    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    encoder.eval()
     
-    # Assuming an arbitrary TIF file is opened (actually requires logic to find the TIF containing the coordinates)
-    # Utilize the spatial join logic from 1409.py to match src
-    # Here, for simplicity, we assume src is already matched.
+    ref_embeddings = load_reference_embeddings(EMBEDDING_PATH, LABEL_PATH)
     
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing Points"):
-        fid = row['feature_id']
-        cx, cy = row['x'], row['y']
-        target_label = str(row['label'])
-        
-        if target_label not in label_to_feature:
-            continue
-            
-        target_feat = label_to_feature[target_label]
-        
-        # --- 1st Grid Generation and Evaluation ---
-        def evaluate_grid(center_x, center_y):
-            eval_records = []
-            half = CELL_SIZE / 2
-            
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    gx = center_x + dx * CELL_SIZE
-                    gy = center_y + dy * CELL_SIZE
-                    
-                    # Calculate px, py of the coordinates in TIF and pass through the model
-                    # py, px = src.index(gx, gy) 
-                    # patch_feat = get_patch_embedding(src, px, py)
-                    # sim = compute_similarity(patch_feat, target_feat)
-                    
-                    # Return dummy similarity (uncomment the above in actual implementation)
-                    sim = 0.0 
-                    
-                    grid_geom = box(gx - half, gy - half, gx + half, gy + half)
-                    
-                    eval_records.append({
-                        "grid_geom": grid_geom,
-                        "likelihood": sim,
-                        "cx": gx, "cy": gy
-                    })
-                    
-                    grid_records.append({
-                        "point_id": fid, "geometry": grid_geom, "likelihood": sim
-                    })
-                    
-            return pd.DataFrame(eval_records)
-        
-        # 1st evaluation
-        grid_df = evaluate_grid(cx, cy)
-        high_prob = grid_df[grid_df['likelihood'] >= SIMILARITY_THRESHOLD]
-        
-        if len(high_prob) >= 3:
-            # Step 1 condition met: Assign Center
-            new_cx = high_prob['cx'].mean()
-            new_cy = high_prob['cy'].mean()
-            final_results.append({"feature_id": fid, "x": new_cx, "y": new_cy, "type": "center"})
-            
-        elif len(high_prob) in [1, 2]:
-            # Step 1 condition unmet: Assign Slide point and generate 2nd Grid (Step 2 & 3 integrated)
-            best_grid = high_prob.sort_values("likelihood", ascending=False).iloc[0]
-            slide_cx, slide_cy = best_grid['cx'], best_grid['cy']
-            
-            # 2nd evaluation at the Slide location
-            slide_grid_df = evaluate_grid(slide_cx, slide_cy)
-            slide_high_prob = slide_grid_df[slide_grid_df['likelihood'] >= SIMILARITY_THRESHOLD]
-            
-            if len(slide_high_prob) >= 3:
-                new_cx = slide_high_prob['cx'].mean()
-                new_cy = slide_high_prob['cy'].mean()
-            else:
-                # If 1~2 boxes in the 2nd evaluation, set the one with the highest similarity as the final Center (Step 3 logic)
-                best_final = slide_grid_df.sort_values("likelihood", ascending=False).iloc[0]
-                new_cx, new_cy = best_final['cx'], best_final['cy']
+    transform = transforms.Compose([
+        transforms.Resize((IMG_SIZE, IMG_SIZE)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    print("Loading Original Coordinates...")
+    gdf = gpd.read_file(ORIGINAL_POINTS_SHP)
+    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
+    
+    final_points = []
+
+    for tif_path in tqdm(tif_files, desc="Scanning TIFs for Grid Sliding"):
+        try:
+            with rasterio.open(tif_path) as src:
+                current_gdf = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
+                b = src.bounds
+                img_box = box(b.left, b.bottom, b.right, b.top)
+                contained = current_gdf[current_gdf.geometry.intersects(img_box)]
                 
-            final_results.append({"feature_id": fid, "x": new_cx, "y": new_cy, "type": "center"})
-            
-        else:
-            # If not found, keep original coordinates (or discard)
-            final_results.append({"feature_id": fid, "x": cx, "y": cy, "type": "unresolved"})
+                for idx, row in contained.iterrows():
+                    orig_x, orig_y = row.geometry.x, row.geometry.y
+                    
+                    # Adjust the column name to match the species/label column in your shapefile
+                    label_val = str(row.get('Tree') or row.get('species') or row.get('label')) 
+                    
+                    # Skip if the model has no reference embedding for this label
+                    if label_val not in ref_embeddings:
+                        continue 
+                        
+                    target_ref = ref_embeddings[label_val]
+                    
+                    # === STEP 1: Scan the first 3x3 grid around the original point ===
+                    step1_valid = scan_3x3_grid(orig_x, orig_y, src, encoder, transform, device, target_ref)
+                    
+                    if len(step1_valid) >= 3:
+                        # Case 1: 3 or more boxes have high likelihood -> calculate center
+                        nx, ny = calculate_center(step1_valid)
+                        final_points.append({"feature_id": row.get('id', idx), "x": nx, "y": ny, "type": "center"})
+                        
+                    elif len(step1_valid) > 0:
+                        # Case 2: 1 or 2 boxes have high likelihood -> temporally move (slide)
+                        best_cell = max(step1_valid, key=lambda c: c["likelihood"])
+                        slide_x, slide_y = best_cell["x"], best_cell["y"]
+                        
+                        # === STEP 2 & 3: Generate a new 3x3 grid on the slid coordinate ===
+                        step3_valid = scan_3x3_grid(slide_x, slide_y, src, encoder, transform, device, target_ref)
+                        
+                        if len(step3_valid) >= 3:
+                            nx, ny = calculate_center(step3_valid)
+                            final_points.append({"feature_id": row.get('id', idx), "x": nx, "y": ny, "type": "center"})
+                        elif len(step3_valid) > 0:
+                            best_cell_2 = max(step3_valid, key=lambda c: c["likelihood"])
+                            final_points.append({"feature_id": row.get('id', idx), "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
+                        else:
+                            # If step 3 yields no further improvement, keep the original slide point
+                            final_points.append({"feature_id": row.get('id', idx), "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
+                            
+                    else:
+                        # Case 3: None of the boxes meet the likelihood threshold -> abort/keep original
+                        final_points.append({"feature_id": row.get('id', idx), "x": orig_x, "y": orig_y, "type": "abort"})
+                        
+        except Exception as e:
+            # Handle potentially broken TIF files or rasterio reading errors silently
+            pass
 
-    # -----------------------------------------
-    # 3. Save Results (CSV and Shapefile)
-    # -----------------------------------------
-    # Final adjusted CSV
-    out_csv = pd.DataFrame(final_results)
-    out_csv.to_csv(OUTPUT_CENTER_CSV, index=False)
-    print(f"Saved centered coordinates to: {OUTPUT_CENTER_CSV}")
-    
-    # Save all evaluated Grids as Shapefile
-    grid_gdf = gpd.GeoDataFrame(grid_records, geometry="geometry", crs="EPSG:32718") # Use appropriate CRS
-    grid_gdf.to_file(OUTPUT_GRID_SHP)
-    print(f"Saved grid shapefile to: {OUTPUT_GRID_SHP}")
+    # === STEP 4: Merge and save final coordinates ===
+    if final_points:
+        final_df = pd.DataFrame(final_points)
+        final_df.to_csv(OUTPUT_CSV, index=False)
+        print(f"\nSuccessfully saved centered points to {OUTPUT_CSV}")
+        print("Summary of coordinate types:")
+        print(final_df["type"].value_counts())
+    else:
+        print("\nNo valid points found or processed. Please check your TIF files and CRS.")
 
 if __name__ == "__main__":
-    # process_points()
-    pass
+    main()
