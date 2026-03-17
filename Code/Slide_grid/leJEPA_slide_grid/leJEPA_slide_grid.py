@@ -24,9 +24,9 @@ LABEL_PATH = r"data/label/labels.npy"
 OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
 
 # Excel Column Config (Change these to match your Excel header names)
-X_COL = "X"           # Column name for X coordinate / Longitude / Easting
-Y_COL = "Y"           # Column name for Y coordinate / Latitude / Northing
-LABEL_COL = "Especie" # Column name for Species / Label (e.g., 'Tree', 'Especie')
+X_COL = "COORDENADA_ESTE"           # Column name for X coordinate / Longitude / Easting
+Y_COL = "COORDENADA_NORTE"           # Column name for Y coordinate / Latitude / Northing
+LABEL_COL = "NOMBRE_COMUN" # Column name for Species / Label (e.g., 'Tree', 'Especie')
 ID_COL = "ID"         # Column name for Unique ID (Optional)
 
 # Coordinate Reference System of the Excel points (e.g., "EPSG:4326" for lat/lon, "EPSG:32718" for UTM 18S)
@@ -148,7 +148,7 @@ def main():
     print("Loading LeJEPA Model and Reference Embeddings...")
     
     encoder = LeJepaEncoder().to(device)
-    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only= True))
     encoder.eval()
     
     ref_embeddings = load_reference_embeddings(EMBEDDING_PATH, LABEL_PATH)
