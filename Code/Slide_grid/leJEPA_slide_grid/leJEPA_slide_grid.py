@@ -11,9 +11,19 @@ import glob
 from shapely.geometry import box
 from tqdm import tqdm
 import torch.nn.functional as F
+import importlib
 
 # --------------------------
-# 1. Config & Paths
+# 1. Import Model from 1409.py
+# --------------------------
+# Since the filename starts with a number, we must use importlib to import it dynamically.
+# Note: Ensure that the training execution in 1409.py is wrapped inside `if __name__ == "__main__":` 
+# to prevent the training script from running automatically when imported.
+module_1409 = importlib.import_module("1409")
+LeJepaEncoder = module_1409.LeJepaEncoder
+
+# --------------------------
+# 2. Config & Paths
 # --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 ORIGINAL_POINTS_EXCEL = r"data/coordinate/Censo Forestal.xlsx" 
@@ -31,9 +41,8 @@ ID_COL = "ID"
 
 EXCEL_CRS = "EPSG:32718" 
 
-# Model & Image Parameters
+# Image Parameters (Should match the ones used in 1409.py)
 IMG_SIZE = 448
-PATCH_SIZE = 16
 CROP_MULTIPLIER = 4 
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
 HALF_CROP = CROP_SIZE // 2
@@ -41,35 +50,6 @@ HALF_CROP = CROP_SIZE // 2
 # Grid Parameters
 CELL_SIZE = 1.2  
 LIKELIHOOD_THRESHOLD = 0.75 
-
-# --------------------------
-# 2. LeJEPA Encoder Model Definition
-# --------------------------
-class LeJepaEncoder(nn.Module):
-    def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
-        super().__init__()
-        self.patch_size = patch_size
-        self.embed_dim = embed_dim
-        self.patch_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
-        num_patches = (img_size // patch_size) ** 2
-        self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4, 
-            activation='gelu', batch_first=True
-        )
-        self.blocks = nn.ModuleList([encoder_layer for _ in range(depth)])
-        self.norm = nn.LayerNorm(embed_dim)
-
-    def forward(self, x, ids_keep=None):
-        x = self.patch_embed(x)
-        x = x.flatten(2).transpose(1, 2)
-        x = x + self.pos_embed
-        if ids_keep is not None:
-            D = x.shape[-1]
-            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
-        for block in self.blocks:
-            x = block(x)
-        return self.norm(x)
 
 # --------------------------
 # 3. Helper Functions 
@@ -149,8 +129,9 @@ def calculate_center(valid_cells):
 # --------------------------
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Loading LeJEPA Model and Reference Embeddings...")
+    print("Loading LeJEPA Model from 1409.py and Reference Embeddings...")
     
+    # Initialize model using the imported class
     encoder = LeJepaEncoder().to(device)
     encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
     encoder.eval()
