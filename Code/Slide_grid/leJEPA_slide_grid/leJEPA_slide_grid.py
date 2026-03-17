@@ -141,17 +141,18 @@ def calculate_center(valid_cells):
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 # --------------------------
-# 4. Main Inference Pipeline
+# 4. Main Inference Pipeline (Debug Version)
 # --------------------------
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Loading LeJEPA Model and Reference Embeddings...")
     
     encoder = LeJepaEncoder().to(device)
-    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only= True))
+    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
     encoder.eval()
     
     ref_embeddings = load_reference_embeddings(EMBEDDING_PATH, LABEL_PATH)
+    print(f"[*] Model recognizes {len(ref_embeddings)} labels. Examples: {list(ref_embeddings.keys())[:5]}")
     
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -160,84 +161,79 @@ def main():
     ])
 
     print("Loading Original Coordinates from Excel...")
-    
-    # === Load Excel and Convert to GeoDataFrame ===
     df = pd.read_excel(ORIGINAL_POINTS_EXCEL)
-    
-    # Ensure X and Y are numeric, dropping rows with missing coordinates
     df[X_COL] = pd.to_numeric(df[X_COL], errors='coerce')
     df[Y_COL] = pd.to_numeric(df[Y_COL], errors='coerce')
     df = df.dropna(subset=[X_COL, Y_COL]).reset_index(drop=True)
     
-    # Convert Pandas DataFrame to GeoPandas GeoDataFrame
     gdf = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df[X_COL], df[Y_COL]),
         crs=EXCEL_CRS
     )
+    
+    print(f"[*] Successfully loaded {len(gdf)} coordinates from Excel.")
+    print(f"[*] Sample Excel Label: {gdf[LABEL_COL].iloc[0]}")
+    print(f"[*] Sample Excel Coordinate: X={gdf.geometry.x.iloc[0]}, Y={gdf.geometry.y.iloc[0]}")
 
     tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
     final_points = []
+    
+    points_inside_tifs = 0
+    points_label_matched = 0
 
     for tif_path in tqdm(tif_files, desc="Scanning TIFs for Grid Sliding"):
         try:
             with rasterio.open(tif_path) as src:
-                # Reproject points to match the TIF CRS if necessary
                 current_gdf = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
                 b = src.bounds
                 img_box = box(b.left, b.bottom, b.right, b.top)
                 
-                # Filter points that are inside the current TIF boundary
                 contained = current_gdf[current_gdf.geometry.intersects(img_box)]
+                points_inside_tifs += len(contained)
                 
                 for idx, row in contained.iterrows():
                     orig_x, orig_y = row.geometry.x, row.geometry.y
+                    label_val = str(row.get(LABEL_COL)).strip() # 공백 제거
                     
-                    # Read Label and ID from the specific columns
-                    label_val = str(row.get(LABEL_COL)) 
-                    feature_id = row.get(ID_COL, idx)
-                    
-                    # Skip if the model has no reference embedding for this label
                     if label_val not in ref_embeddings:
                         continue 
                         
+                    points_label_matched += 1
                     target_ref = ref_embeddings[label_val]
                     
-                    # === STEP 1: Scan the first 3x3 grid around the original point ===
+                    # === STEP 1: Scan the first 3x3 grid ===
                     step1_valid = scan_3x3_grid(orig_x, orig_y, src, encoder, transform, device, target_ref)
                     
                     if len(step1_valid) >= 3:
-                        # Case 1: 3 or more boxes have high likelihood -> calculate center
                         nx, ny = calculate_center(step1_valid)
-                        final_points.append({"feature_id": feature_id, "x": nx, "y": ny, "type": "center"})
-                        
+                        final_points.append({"feature_id": row.get(ID_COL, idx), "x": nx, "y": ny, "type": "center"})
                     elif len(step1_valid) > 0:
-                        # Case 2: 1 or 2 boxes have high likelihood -> temporally move (slide)
                         best_cell = max(step1_valid, key=lambda c: c["likelihood"])
                         slide_x, slide_y = best_cell["x"], best_cell["y"]
                         
-                        # === STEP 2 & 3: Generate a new 3x3 grid on the slid coordinate ===
+                        # === STEP 2 & 3: New 3x3 grid on slid coordinate ===
                         step3_valid = scan_3x3_grid(slide_x, slide_y, src, encoder, transform, device, target_ref)
                         
                         if len(step3_valid) >= 3:
                             nx, ny = calculate_center(step3_valid)
-                            final_points.append({"feature_id": feature_id, "x": nx, "y": ny, "type": "center"})
+                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": nx, "y": ny, "type": "center"})
                         elif len(step3_valid) > 0:
                             best_cell_2 = max(step3_valid, key=lambda c: c["likelihood"])
-                            final_points.append({"feature_id": feature_id, "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
+                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
                         else:
-                            # If step 3 yields no further improvement, keep the original slide point
-                            final_points.append({"feature_id": feature_id, "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
-                            
+                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
                     else:
-                        # Case 3: None of the boxes meet the likelihood threshold -> abort/keep original
-                        final_points.append({"feature_id": feature_id, "x": orig_x, "y": orig_y, "type": "abort"})
+                        final_points.append({"feature_id": row.get(ID_COL, idx), "x": orig_x, "y": orig_y, "type": "abort"})
                         
         except Exception as e:
-            # Handle potentially broken TIF files or rasterio reading errors silently
-            pass
+            print(f"\n[!] Error processing {os.path.basename(tif_path)}: {e}")
 
-    # === STEP 4: Merge and save final coordinates ===
+    print("\n--- Diagnostic Summary ---")
+    print(f"Total points overlapping with TIFs: {points_inside_tifs}")
+    print(f"Total points with matching labels: {points_label_matched}")
+
+    # === STEP 4: Merge and save ===
     if final_points:
         final_df = pd.DataFrame(final_points)
         final_df.to_csv(OUTPUT_CSV, index=False)
@@ -245,7 +241,7 @@ def main():
         print("Summary of coordinate types:")
         print(final_df["type"].value_counts())
     else:
-        print("\nNo valid points found or processed. Please check your TIF files and CRS.")
+        print("\nNo valid points found or processed. Please check the diagnostics above.")
 
 if __name__ == "__main__":
     main()
