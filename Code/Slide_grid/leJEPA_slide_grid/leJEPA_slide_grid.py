@@ -16,14 +16,23 @@ import torch.nn.functional as F
 # 1. Config & Paths
 # --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-ORIGINAL_POINTS_SHP = r"../shapefiles/original_trees.shp" # Original coordinates with drift
+ORIGINAL_POINTS_EXCEL = r"data/coordinate/Censo Forestal.xlsx" # Updated to Excel file
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
 LABEL_PATH = r"data/label/labels.npy"
 
 OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
 
-# Model & Image Parameters (Same as 1409.py)
+# Excel Column Config (Change these to match your Excel header names)
+X_COL = "X"           # Column name for X coordinate / Longitude / Easting
+Y_COL = "Y"           # Column name for Y coordinate / Latitude / Northing
+LABEL_COL = "Especie" # Column name for Species / Label (e.g., 'Tree', 'Especie')
+ID_COL = "ID"         # Column name for Unique ID (Optional)
+
+# Coordinate Reference System of the Excel points (e.g., "EPSG:4326" for lat/lon, "EPSG:32718" for UTM 18S)
+EXCEL_CRS = "EPSG:32718" 
+
+# Model & Image Parameters
 IMG_SIZE = 448
 PATCH_SIZE = 16
 CROP_MULTIPLIER = 4 
@@ -100,7 +109,7 @@ def extract_and_embed(src, x, y, encoder, transform, device):
     img_tensor = transform(img_pil).unsqueeze(0).to(device)
     
     with torch.no_grad():
-        # Extract features and apply mean pooling (identical to 1409.py eval approach)
+        # Extract features and apply mean pooling
         embed = encoder(img_tensor).mean(dim=1).squeeze(0).cpu() 
     return embed
 
@@ -150,25 +159,43 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    print("Loading Original Coordinates...")
-    gdf = gpd.read_file(ORIGINAL_POINTS_SHP)
-    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
+    print("Loading Original Coordinates from Excel...")
     
+    # === Load Excel and Convert to GeoDataFrame ===
+    df = pd.read_excel(ORIGINAL_POINTS_EXCEL)
+    
+    # Ensure X and Y are numeric, dropping rows with missing coordinates
+    df[X_COL] = pd.to_numeric(df[X_COL], errors='coerce')
+    df[Y_COL] = pd.to_numeric(df[Y_COL], errors='coerce')
+    df = df.dropna(subset=[X_COL, Y_COL]).reset_index(drop=True)
+    
+    # Convert Pandas DataFrame to GeoPandas GeoDataFrame
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df[X_COL], df[Y_COL]),
+        crs=EXCEL_CRS
+    )
+
+    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
     final_points = []
 
     for tif_path in tqdm(tif_files, desc="Scanning TIFs for Grid Sliding"):
         try:
             with rasterio.open(tif_path) as src:
+                # Reproject points to match the TIF CRS if necessary
                 current_gdf = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
                 b = src.bounds
                 img_box = box(b.left, b.bottom, b.right, b.top)
+                
+                # Filter points that are inside the current TIF boundary
                 contained = current_gdf[current_gdf.geometry.intersects(img_box)]
                 
                 for idx, row in contained.iterrows():
                     orig_x, orig_y = row.geometry.x, row.geometry.y
                     
-                    # Adjust the column name to match the species/label column in your shapefile
-                    label_val = str(row.get('Tree') or row.get('species') or row.get('label')) 
+                    # Read Label and ID from the specific columns
+                    label_val = str(row.get(LABEL_COL)) 
+                    feature_id = row.get(ID_COL, idx)
                     
                     # Skip if the model has no reference embedding for this label
                     if label_val not in ref_embeddings:
@@ -182,7 +209,7 @@ def main():
                     if len(step1_valid) >= 3:
                         # Case 1: 3 or more boxes have high likelihood -> calculate center
                         nx, ny = calculate_center(step1_valid)
-                        final_points.append({"feature_id": row.get('id', idx), "x": nx, "y": ny, "type": "center"})
+                        final_points.append({"feature_id": feature_id, "x": nx, "y": ny, "type": "center"})
                         
                     elif len(step1_valid) > 0:
                         # Case 2: 1 or 2 boxes have high likelihood -> temporally move (slide)
@@ -194,17 +221,17 @@ def main():
                         
                         if len(step3_valid) >= 3:
                             nx, ny = calculate_center(step3_valid)
-                            final_points.append({"feature_id": row.get('id', idx), "x": nx, "y": ny, "type": "center"})
+                            final_points.append({"feature_id": feature_id, "x": nx, "y": ny, "type": "center"})
                         elif len(step3_valid) > 0:
                             best_cell_2 = max(step3_valid, key=lambda c: c["likelihood"])
-                            final_points.append({"feature_id": row.get('id', idx), "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
+                            final_points.append({"feature_id": feature_id, "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
                         else:
                             # If step 3 yields no further improvement, keep the original slide point
-                            final_points.append({"feature_id": row.get('id', idx), "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
+                            final_points.append({"feature_id": feature_id, "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
                             
                     else:
                         # Case 3: None of the boxes meet the likelihood threshold -> abort/keep original
-                        final_points.append({"feature_id": row.get('id', idx), "x": orig_x, "y": orig_y, "type": "abort"})
+                        final_points.append({"feature_id": feature_id, "x": orig_x, "y": orig_y, "type": "abort"})
                         
         except Exception as e:
             # Handle potentially broken TIF files or rasterio reading errors silently
