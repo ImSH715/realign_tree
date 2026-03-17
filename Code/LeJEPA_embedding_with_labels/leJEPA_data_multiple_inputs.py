@@ -177,7 +177,13 @@ def main():
     # 3. Apply dataloader
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=10,        
+        pin_memory=True       
+    )
 
     encoder.train()
     predictor.train()
