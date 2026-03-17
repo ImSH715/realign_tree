@@ -14,8 +14,8 @@ from shapely.geometry import box
 from torch.utils.data import TensorDataset, DataLoader 
 
 # To access with the dataset folder
-BASE_DIR = r"Z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
-ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
+BASE_DIR = r"\shared\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
+ANNOTATED_COR = r"\shared\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
 
 IMG_SIZE = 448
 PATCH_SIZE = 16
@@ -177,7 +177,13 @@ def main():
     # 3. Apply dataloader
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=10,        
+        pin_memory=True       
+    )
 
     encoder.train()
     predictor.train()
