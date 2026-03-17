@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
+import pandas as pd
 from PIL import Image
 import torchvision.transforms as transforms
 import os
@@ -12,19 +10,24 @@ import geopandas as gpd
 import glob                                 
 from shapely.geometry import box          
 from torch.utils.data import TensorDataset, DataLoader 
+from tqdm import tqdm
+import time
 
-# To access with the dataset folder
+# Directory paths
 BASE_DIR = r"Z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
 ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
 
+# Hyperparameters
 IMG_SIZE = 448
 PATCH_SIZE = 16
-
 CROP_MULTIPLIER = 4 
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
 HALF_CROP = CROP_SIZE // 2
-BATCH_SIZE = 16 # Control based on the VRAM
+BATCH_SIZE = 16 
 
+# --------------------------
+# Model Definitions
+# --------------------------
 class LeJepaEncoder(nn.Module):
     def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
         super().__init__()
@@ -48,7 +51,7 @@ class LeJepaEncoder(nn.Module):
         x = x + self.pos_embed
         
         if ids_keep is not None:
-            B, L, D = x.shape
+            D = x.shape[-1]
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
             
         for block in self.blocks:
@@ -76,16 +79,18 @@ class LeJepaPredictor(nn.Module):
         x = self.norm(x)
         return x[:, -N_mask:, :]
 
+# --------------------------
+# Main Execution
+# --------------------------
 def main():
+    start_time = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
     epochs = 300
+    
     model_dir = "data/models"
     embedding_dir = "data/embeddings"
     label_dir = "data/label"
-    plot_dir = "data/plots"
-    
-    for d in [model_dir, embedding_dir, label_dir, plot_dir]:
+    for d in [model_dir, embedding_dir, label_dir]:
         os.makedirs(d, exist_ok=True)
 
     encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
@@ -99,196 +104,166 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    print("Loading shapefile...")
+    print("Loading Original Shapefile...")
     gdf = gpd.read_file(ANNOTATED_COR)
+    original_crs = gdf.crs
     
+    if 'temp_id' not in gdf.columns:
+        gdf['temp_id'] = range(len(gdf))
+
+    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
+    if not tif_files:
+        print("No .tif files found.")
+        return
+
     patches = []
     patch_labels = []
+    successful_rows = [] 
+    extracted_temp_ids = set() 
 
-    # 1. Get the folder 2023 and get tif file
-
-    search_pattern = os.path.join(BASE_DIR, "2023-*", "*.tif") # for the under branch specification.
-    #search_pattern = os.path.join(BASE_DIR, "*.tif")
-    tif_files = glob.glob(search_pattern)
+    print(f"\nStarting Bulletproof Patch Extraction from {len(tif_files)} TIF files...")
     
-    if not tif_files:
-        print(f"Cannot find any .tif files in {BASE_DIR}")
-        return
-        
-    print(f"Found {len(tif_files)} .tif files. Starting extraction...")
-
-    # 2. find tif files and patch them
-    for tif_path in tif_files:
-        print(f"Processing: {os.path.basename(tif_path)}")
+    # 1. Image extraction
+    for tif_path in tqdm(tif_files, desc="Processing TIFs", unit="file"):
         try:
             with rasterio.open(tif_path) as src:
-                # find boundary
-                bounds = src.bounds
-                tif_bbox = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
+                current_gdf = gdf.copy()
+                if current_gdf.crs != src.crs:
+                    current_gdf = current_gdf.to_crs(src.crs)
                 
-                # Filter the coordinates
-                points_in_tif = gdf[gdf.geometry.intersects(tif_bbox)]
+                b = src.bounds
+                img_box = box(b.left, b.bottom, b.right, b.top)
+                contained = current_gdf[current_gdf.geometry.intersects(img_box)]
                 
-                if points_in_tif.empty:
-                    continue
+                # 채널 개수 확인 (이미지가 1채널 흑백일 경우를 대비해 예외 방지)
+                bands_to_read = [1, 2, 3] if src.count >= 3 else [1] * 3 
+                
+                # 각 점(Point)마다 개별적으로 Try-Except 적용 (하나 에러나도 다른 점은 무사히 통과)
+                for idx, row in contained.iterrows():
+                    temp_id = row['temp_id']
                     
-                for idx, row in points_in_tif.iterrows():
-                    geom = row.geometry
-                    x, y = geom.x, geom.y
-                    
-                    py, px = src.index(x, y)
-                    
-                    # handle coordinate over the image
-                    if (px - HALF_CROP >= 0 and py - HALF_CROP >= 0 and 
-                        px + HALF_CROP <= src.width and py + HALF_CROP <= src.height):
+                    if temp_id in extracted_temp_ids:
+                        continue
                         
-                        window = rasterio.windows.Window(
-                            px - HALF_CROP, 
-                            py - HALF_CROP, 
-                            CROP_SIZE, CROP_SIZE
-                        )
+                    try:
+                        x, y = row.geometry.x, row.geometry.y
+                        py, px = src.index(x, y)
                         
-                        tile = src.read([1, 2, 3], window=window)
+                        window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
+                        tile = src.read(bands_to_read, window=window, boundless=True, fill_value=0)
                         tile = np.moveaxis(tile, 0, -1)
                         
-                        if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
-                            img_pil = Image.fromarray(tile.astype('uint8'))
-                            patches.append(transform(img_pil)) 
+                        # 타일 크기가 예상과 다를 경우 강제로 패딩하여 살림 (가장자리 점 방어)
+                        if tile.shape[:2] != (CROP_SIZE, CROP_SIZE):
+                            h, w, c = tile.shape
+                            pad_h = max(0, CROP_SIZE - h)
+                            pad_w = max(0, CROP_SIZE - w)
+                            tile = np.pad(tile, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant', constant_values=0)
+                            tile = tile[:CROP_SIZE, :CROP_SIZE, :] # 혹시라도 더 커졌을 경우 잘라냄
                             
-                            if 'Tree' in row:
-                                label_val = row['Tree']
-                            elif 'tree' in row:
-                                label_val = row['tree']
-                            elif 'id' in row:
-                                label_val = row['id']
-                            else:
-                                label_val = f"tree_{idx}"
-                                
-                            patch_labels.append(str(label_val))
-        except Exception as e:
-            print(f"Error reading {tif_path}: {e}")
+                        img_pil = Image.fromarray(tile.astype('uint8'))
+                        patches.append(transform(img_pil))
+                        
+                        label_val = row.get('Tree') or row.get('tree') or row.get('id') or f"tree_{temp_id}"
+                        patch_labels.append(str(label_val))
+                        
+                        successful_rows.append(gdf.loc[idx])
+                        extracted_temp_ids.add(temp_id)
+                        
+                    except Exception as e_point:
+                        # 점 단위 에러 출력 (전체 TIF를 중단시키지 않음)
+                        # tqdm.write(f"Point {temp_id} skipped: {e_point}")
+                        pass
+                        
+        except Exception as e_file:
+            tqdm.write(f"Error opening/processing {os.path.basename(tif_path)}: {e_file}")
 
     if not patches:
-        print("Cannot find any matching patches across all images.")
+        print("Cannot find any matching patches. Exiting.")
         return
         
-    print(f"Total Collected Patches: {len(patch_labels)}")
+    print(f"\n==============================================")
+    print(f"✅ Total Successfully Extracted Patches: {len(patches)}")
+    print(f"==============================================\n")
 
-    # 3. Apply dataloader
+    # 2. Save validated subset
+    valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
+    cols_to_drop = ['temp_id']
+    valid_points_gdf = valid_points_gdf.drop(columns=[c for c in cols_to_drop if c in valid_points_gdf.columns], errors='ignore')
+    
+    labels_shp_path = os.path.join(label_dir, "labels.shp")
+    valid_points_gdf.to_file(labels_shp_path)
+    print(f"Saved filtered attributes to: {labels_shp_path}")
+
+    # 3. Dataloader Setup
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=10,        
-        pin_memory=True       
-    )
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     encoder.train()
     predictor.train()
 
-    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2  # 784 patches
+    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2 
     keep_num = int(num_patches * 0.25)
     
-    # 4. Change training loop
-    for epoch in range(epochs):
+    # 4. Training Loop
+    print("\nStarting LeJEPA Training...")
+    epoch_pbar = tqdm(range(epochs), desc="Training Model", unit="epoch")
+    for epoch in epoch_pbar:
         epoch_loss = 0.0
-        
         for batch in dataloader:
             batch_imgs = batch[0].to(device)
             current_batch_size = batch_imgs.shape[0]
             
             optimizer.zero_grad()
-
             with torch.no_grad():
-                all_features = encoder(batch_imgs)
-                target = all_features.detach()
+                target = encoder(batch_imgs).detach()
 
             ids_shuffle = torch.argsort(torch.rand(current_batch_size, num_patches, device=device), dim=1)
             ids_keep = ids_shuffle[:, :keep_num] 
             ids_mask = ids_shuffle[:, keep_num:] 
 
             context_embeds = encoder(batch_imgs, ids_keep=ids_keep)
-
             mask_pos_embeds = encoder.pos_embed.expand(current_batch_size, -1, -1)
             mask_pos_embeds = torch.gather(mask_pos_embeds, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
             
             pred_features = predictor(context_embeds, mask_pos_embeds)
-
             actual_target_features = torch.gather(target, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
             
             loss = criterion(pred_features, actual_target_features)
             loss.backward()
             optimizer.step()
-            
             epoch_loss += loss.item()
             
         avg_loss = epoch_loss / len(dataloader)
-        print(f"Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.6f}")
-
-    print("\n[Fast t-SNE Visualisation]")
-    encoder.eval()
-    with torch.no_grad():
-        # Get first patch and apply visulaisation
-        test_img = dataset[0][0].unsqueeze(0).to(device)
-        features = encoder(test_img) 
-        
-        L = features.shape[1]
-        H_p = W_p = int(np.sqrt(L))
-        
-        flat_features = features.squeeze(0).cpu().numpy()
-        
-        tsne = TSNE(
-            n_components=3, 
-            perplexity=min(30, L-1), 
-            n_iter=500, 
-            init='pca', 
-            learning_rate='auto', 
-            random_state=42
-        )
-        tsne_results = tsne.fit_transform(flat_features)
-        
-        t_min, t_max = tsne_results.min(axis=0), tsne_results.max(axis=0)
-        rgb_values = (tsne_results - t_min) / (t_max - t_min + 1e-8)
-        
-        rgb_map_small = rgb_values.reshape(H_p, W_p, 3)
-        rgb_tensor = torch.tensor(rgb_map_small).permute(2, 0, 1).unsqueeze(0).float()
-        rgb_map_large = F.interpolate(rgb_tensor, size=(IMG_SIZE, IMG_SIZE), mode='bicubic', align_corners=True)
-        rgb_map_final = np.clip(rgb_map_large[0].permute(1, 2, 0).numpy(), 0, 1)
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        plt.suptitle(f"Wide Context t-SNE RGB Map (Epoch {epochs})", fontsize=14)
-        
-        ax1.imshow(test_img[0].cpu().permute(1, 2, 0).numpy() * 0.2 + 0.5)
-        ax1.set_title("Input Image (Wide View)"); ax1.axis('off')
-        
-        ax2.imshow(rgb_map_final)
-        ax2.set_title("t-SNE RGB Map"); ax2.axis('off')
-        
-        plt.tight_layout()
-        save_path = f"{plot_dir}/tsne_rgb_map_wide.png"
-        plt.savefig(save_path, dpi=150)
-        print(f"Visualisation saved: {save_path}")
+        epoch_pbar.set_postfix(Loss=f"{avg_loss:.4f}")
 
     torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
+    print("\nTraining Complete.")
     
-    # Use dataloader while embedding extraction.
+    # 5. Embedding Extraction
+    encoder.eval()
     all_embeddings = []
+    eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in tqdm(eval_dataloader, desc="Extracting Embeddings", unit="batch"):
             batch_imgs = batch[0].to(device)
             embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
             all_embeddings.append(embeds)
             
     final_embeddings = np.concatenate(all_embeddings, axis=0)
-    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
+    final_labels = np.array(patch_labels)
     
-    with open(f"{label_dir}/labels.txt", "w") as f:
-        for lbl in patch_labels:
-            f.write(f"{lbl}\n")
+    assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Mismatch in extracted counts!"
 
-    print(f"Saved {len(final_embeddings)} embeddings and labels.")
+    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
+    np.save(f"{label_dir}/labels.npy", final_labels)
+    
+    print(f"\nSuccessfully saved {len(final_embeddings)} embeddings and labels.")
+    
+    total_time = time.time() - start_time
+    print(f"Total Execution Time: {total_time/60:.2f} minutes")
 
 if __name__ == "__main__":
     main()

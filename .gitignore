@@ -1,0 +1,4 @@
+shapefileTIF
+*.shp
+*.shx
+*.cpg

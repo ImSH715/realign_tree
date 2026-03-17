@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
 from PIL import Image
 import torchvision.transforms as transforms
 import os
@@ -14,9 +11,8 @@ from shapely.geometry import box
 from torch.utils.data import TensorDataset, DataLoader 
 
 # To access with the dataset folder
-BASE_DIR = r"Z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
-ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
-
+BASE_DIR = "2023/2023-01" 
+ANNOTATED_COR = "trees_32718.shp"
 IMG_SIZE = 448
 PATCH_SIZE = 16
 
@@ -78,14 +74,14 @@ class LeJepaPredictor(nn.Module):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
     
     epochs = 300
     model_dir = "data/models"
     embedding_dir = "data/embeddings"
     label_dir = "data/label"
-    plot_dir = "data/plots"
     
-    for d in [model_dir, embedding_dir, label_dir, plot_dir]:
+    for d in [model_dir, embedding_dir, label_dir]:
         os.makedirs(d, exist_ok=True)
 
     encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
@@ -105,10 +101,8 @@ def main():
     patches = []
     patch_labels = []
 
-    # 1. Get the folder 2023 and get tif file
-
-    search_pattern = os.path.join(BASE_DIR, "2023-*", "*.tif") # for the under branch specification.
-    #search_pattern = os.path.join(BASE_DIR, "*.tif")
+    #search_pattern = os.path.join(BASE_DIR, "2023-*", "*.tif") 
+    search_pattern = os.path.join(BASE_DIR, "*.tif")
     tif_files = glob.glob(search_pattern)
     
     if not tif_files:
@@ -117,16 +111,13 @@ def main():
         
     print(f"Found {len(tif_files)} .tif files. Starting extraction...")
 
-    # 2. find tif files and patch them
     for tif_path in tif_files:
         print(f"Processing: {os.path.basename(tif_path)}")
         try:
             with rasterio.open(tif_path) as src:
-                # find boundary
                 bounds = src.bounds
                 tif_bbox = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
                 
-                # Filter the coordinates
                 points_in_tif = gdf[gdf.geometry.intersects(tif_bbox)]
                 
                 if points_in_tif.empty:
@@ -135,17 +126,13 @@ def main():
                 for idx, row in points_in_tif.iterrows():
                     geom = row.geometry
                     x, y = geom.x, geom.y
-                    
                     py, px = src.index(x, y)
                     
-                    # handle coordinate over the image
                     if (px - HALF_CROP >= 0 and py - HALF_CROP >= 0 and 
                         px + HALF_CROP <= src.width and py + HALF_CROP <= src.height):
                         
                         window = rasterio.windows.Window(
-                            px - HALF_CROP, 
-                            py - HALF_CROP, 
-                            CROP_SIZE, CROP_SIZE
+                            px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE
                         )
                         
                         tile = src.read([1, 2, 3], window=window)
@@ -174,28 +161,23 @@ def main():
         
     print(f"Total Collected Patches: {len(patch_labels)}")
 
-    # 3. Apply dataloader
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=10,        
-        pin_memory=True       
-    )
+    
+    train_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     encoder.train()
     predictor.train()
 
-    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2  # 784 patches
+    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2  
     keep_num = int(num_patches * 0.25)
     
-    # 4. Change training loop
+    print("Starting Training Loop...")
     for epoch in range(epochs):
         epoch_loss = 0.0
         
-        for batch in dataloader:
+        for batch in train_dataloader:
             batch_imgs = batch[0].to(device)
             current_batch_size = batch_imgs.shape[0]
             
@@ -215,7 +197,6 @@ def main():
             mask_pos_embeds = torch.gather(mask_pos_embeds, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
             
             pred_features = predictor(context_embeds, mask_pos_embeds)
-
             actual_target_features = torch.gather(target, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
             
             loss = criterion(pred_features, actual_target_features)
@@ -224,71 +205,29 @@ def main():
             
             epoch_loss += loss.item()
             
-        avg_loss = epoch_loss / len(dataloader)
+        avg_loss = epoch_loss / len(train_dataloader)
         print(f"Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.6f}")
 
-    print("\n[Fast t-SNE Visualisation]")
-    encoder.eval()
-    with torch.no_grad():
-        # Get first patch and apply visulaisation
-        test_img = dataset[0][0].unsqueeze(0).to(device)
-        features = encoder(test_img) 
-        
-        L = features.shape[1]
-        H_p = W_p = int(np.sqrt(L))
-        
-        flat_features = features.squeeze(0).cpu().numpy()
-        
-        tsne = TSNE(
-            n_components=3, 
-            perplexity=min(30, L-1), 
-            n_iter=500, 
-            init='pca', 
-            learning_rate='auto', 
-            random_state=42
-        )
-        tsne_results = tsne.fit_transform(flat_features)
-        
-        t_min, t_max = tsne_results.min(axis=0), tsne_results.max(axis=0)
-        rgb_values = (tsne_results - t_min) / (t_max - t_min + 1e-8)
-        
-        rgb_map_small = rgb_values.reshape(H_p, W_p, 3)
-        rgb_tensor = torch.tensor(rgb_map_small).permute(2, 0, 1).unsqueeze(0).float()
-        rgb_map_large = F.interpolate(rgb_tensor, size=(IMG_SIZE, IMG_SIZE), mode='bicubic', align_corners=True)
-        rgb_map_final = np.clip(rgb_map_large[0].permute(1, 2, 0).numpy(), 0, 1)
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        plt.suptitle(f"Wide Context t-SNE RGB Map (Epoch {epochs})", fontsize=14)
-        
-        ax1.imshow(test_img[0].cpu().permute(1, 2, 0).numpy() * 0.2 + 0.5)
-        ax1.set_title("Input Image (Wide View)"); ax1.axis('off')
-        
-        ax2.imshow(rgb_map_final)
-        ax2.set_title("t-SNE RGB Map"); ax2.axis('off')
-        
-        plt.tight_layout()
-        save_path = f"{plot_dir}/tsne_rgb_map_wide.png"
-        plt.savefig(save_path, dpi=150)
-        print(f"Visualisation saved: {save_path}")
-
     torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
+    print("Model saved.")
     
-    # Use dataloader while embedding extraction.
+    encoder.eval()
     all_embeddings = []
+    
+    print("Extracting embeddings...")
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in eval_dataloader:
             batch_imgs = batch[0].to(device)
             embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
             all_embeddings.append(embeds)
             
     final_embeddings = np.concatenate(all_embeddings, axis=0)
-    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
     
-    with open(f"{label_dir}/labels.txt", "w") as f:
-        for lbl in patch_labels:
-            f.write(f"{lbl}\n")
+    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
+    np.save(f"{label_dir}/labels.npy", np.array(patch_labels))
 
-    print(f"Saved {len(final_embeddings)} embeddings and labels.")
+    print(f"Saved {len(final_embeddings)} embeddings to {embedding_dir}/embeddings.npy")
+    print(f"Saved {len(patch_labels)} labels to {label_dir}/labels.npy")
 
 if __name__ == "__main__":
     main()

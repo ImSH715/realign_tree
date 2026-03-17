@@ -14,7 +14,7 @@ from shapely.geometry import box
 from torch.utils.data import TensorDataset, DataLoader 
 
 # To access with the dataset folder
-BASE_DIR = r"Z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
+BASE_DIR = r"Z:\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023\2023-01"
 ANNOTATED_COR = r"Z:\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
 
 IMG_SIZE = 448
@@ -107,8 +107,8 @@ def main():
 
     # 1. Get the folder 2023 and get tif file
 
-    search_pattern = os.path.join(BASE_DIR, "2023-*", "*.tif") # for the under branch specification.
-    #search_pattern = os.path.join(BASE_DIR, "*.tif")
+    # search_pattern = os.path.join(BASE_DIR, "2023-*", "*.tif") # for the under branch specification.
+    search_pattern = os.path.join(BASE_DIR, "*.tif")
     tif_files = glob.glob(search_pattern)
     
     if not tif_files:
@@ -177,13 +177,7 @@ def main():
     # 3. Apply dataloader
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=10,        
-        pin_memory=True       
-    )
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     encoder.train()
     predictor.train()
