@@ -47,13 +47,9 @@ class LeJepaEncoder(nn.Module):
 
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim,
-                nhead=num_heads,
-                dim_feedforward=embed_dim * 4,
-                activation='gelu',
-                batch_first=True
-            )
-            for _ in range(depth)
+                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
+                activation='gelu', batch_first=True
+            ) for _ in range(depth)
         ])
         self.norm = nn.LayerNorm(embed_dim)
 
@@ -77,13 +73,9 @@ class LeJepaPredictor(nn.Module):
 
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim,
-                nhead=num_heads,
-                dim_feedforward=embed_dim * 4,
-                activation='gelu',
-                batch_first=True
-            )
-            for _ in range(predictor_depth)
+                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
+                activation='gelu', batch_first=True
+            ) for _ in range(predictor_depth)
         ])
         self.norm = nn.LayerNorm(embed_dim)
 
@@ -108,7 +100,6 @@ def set_seed(seed=SEED):
 
 def split_arrays(embeddings, labels, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42):
     assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-8, "Ratios must sum to 1"
-
     n = len(embeddings)
     indices = np.arange(n)
     rng = np.random.default_rng(seed)
@@ -143,7 +134,6 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # 0. Setup output directories
     model_dir = "data/models"
     embedding_dir = "data/embeddings"
     label_dir = "data/label"
@@ -152,7 +142,6 @@ def main():
     for d in [model_dir, embedding_dir, label_dir, split_dir]:
         os.makedirs(d, exist_ok=True)
 
-    # 1. Initialize Model & Tools
     encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
     predictor = LeJepaPredictor().to(device)
     optimizer = torch.optim.AdamW(list(encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
@@ -164,7 +153,6 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # 2. Load Shapefile & Prep IDs
     print("Loading Original Shapefile...")
     gdf = gpd.read_file(ANNOTATED_COR)
     original_crs = gdf.crs
@@ -181,19 +169,32 @@ def main():
     successful_rows = []
     extracted_temp_ids = set()
 
-    # 3. Optimized Extraction Mechanism
+    # ---------------------------------------------------------
+    # ⚡ Speed Optimization: Fast extraction using Bounding Box ⚡
+    # ---------------------------------------------------------
     print(f"\nStarting extraction for {len(tif_files)} TIF files...")
 
     for tif_path in tqdm(tif_files, desc="Processing TIFs"):
         try:
             with rasterio.open(tif_path) as src:
-                current_gdf = gdf.copy()
-                if current_gdf.crs != src.crs:
-                    current_gdf = current_gdf.to_crs(src.crs)
-
                 b = src.bounds
                 img_box = box(b.left, b.bottom, b.right, b.top)
-                contained = current_gdf[current_gdf.geometry.intersects(img_box)]
+                
+                # Transform TIF bounding box to Shapefile CRS
+                bbox_gdf = gpd.GeoDataFrame({'geometry': [img_box]}, crs=src.crs)
+                if bbox_gdf.crs != gdf.crs:
+                    bbox_gdf = bbox_gdf.to_crs(gdf.crs)
+                img_box_transformed = bbox_gdf.geometry.iloc[0]
+
+                # Fast filtering of intersecting points
+                contained = gdf[gdf.geometry.intersects(img_box_transformed)]
+                if contained.empty:
+                    continue 
+                
+                # Transform ONLY the filtered points to TIF CRS (Massive speedup)
+                contained = contained.copy()
+                if contained.crs != src.crs:
+                    contained = contained.to_crs(src.crs)
 
                 for idx, row in contained.iterrows():
                     temp_id = row['temp_id']
@@ -220,6 +221,7 @@ def main():
 
         except Exception as e:
             tqdm.write(f"Error reading {tif_path}: {e}")
+    # ---------------------------------------------------------
 
     if not patches:
         print("No patches extracted. Check file paths and CRS.")
@@ -227,22 +229,21 @@ def main():
 
     print(f"\nTotal Successfully Extracted Patches: {len(patches)}")
 
-    # 4. Save Validated subset count for assertion
     valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
     print(f"Kept {len(valid_points_gdf)} valid points for internal validation.")
 
-    # 5. Dataloader Setup
+    # 5. Dataloader Setup (Full dataset)
     all_patches_tensor = torch.stack(patches)
     dataset = TensorDataset(all_patches_tensor)
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    # 6. LeJEPA Training Loop
+    # 6. LeJEPA Training Loop (Training on Full Dataset)
     encoder.train()
     predictor.train()
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
     keep_num = int(num_patches * 0.25)
 
-    print("\nStarting LeJEPA Training...")
+    print("\nStarting LeJEPA Training on Full Dataset...")
     epoch_pbar = tqdm(range(EPOCHS), desc="Training Model")
     for epoch in epoch_pbar:
         epoch_loss = 0.0
@@ -261,16 +262,12 @@ def main():
             context_embeds = encoder(batch_imgs, ids_keep=ids_keep)
             mask_pos_embeds = encoder.pos_embed.expand(curr_batch_size, -1, -1)
             mask_pos_embeds = torch.gather(
-                mask_pos_embeds,
-                dim=1,
-                index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
+                mask_pos_embeds, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
             )
 
             pred_features = predictor(context_embeds, mask_pos_embeds)
             actual_target_features = torch.gather(
-                target,
-                dim=1,
-                index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
+                target, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
             )
 
             loss = criterion(pred_features, actual_target_features)
@@ -300,18 +297,13 @@ def main():
 
     assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Count mismatch!"
 
-    # Save full outputs too
     np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
     np.save(f"{label_dir}/labels.npy", final_labels)
 
-    # 8. Split AFTER training / embedding extraction
+    # 8. Split AFTER training / embedding extraction (Maintained as intended)
     split_data = split_arrays(
-        final_embeddings,
-        final_labels,
-        train_ratio=TRAIN_RATIO,
-        val_ratio=VAL_RATIO,
-        test_ratio=TEST_RATIO,
-        seed=SEED
+        final_embeddings, final_labels,
+        train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, test_ratio=TEST_RATIO, seed=SEED
     )
 
     np.save(f"{embedding_dir}/train_embeddings.npy", split_data["train_embeddings"])
@@ -328,14 +320,6 @@ def main():
 
     total_time = (time.time() - start_time) / 60
     print(f"\nSuccess! Extracted {len(final_embeddings)} samples.")
-    print(f"Full embeddings: {embedding_dir}/embeddings.npy")
-    print(f"Full labels: {label_dir}/labels.npy")
-    print(f"Train embeddings: {embedding_dir}/train_embeddings.npy")
-    print(f"Val embeddings: {embedding_dir}/val_embeddings.npy")
-    print(f"Test embeddings: {embedding_dir}/test_embeddings.npy")
-    print(f"Train labels: {label_dir}/train_labels.npy")
-    print(f"Val labels: {label_dir}/val_labels.npy")
-    print(f"Test labels: {label_dir}/test_labels.npy")
     print(f"Total Execution Time: {total_time:.2f} minutes")
 
 if __name__ == "__main__":
