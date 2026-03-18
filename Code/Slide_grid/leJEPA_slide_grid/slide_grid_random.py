@@ -19,7 +19,7 @@ BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosai
 r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
 
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
-EMBEDDING_PATH = r"data/embeddings/combined_embeddings.npy"
+EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
 LABEL_PATH = r"data/label/combined_labels.npy"
 
 OUTPUT_DIR = r"data/coordinate/sliding_results"
