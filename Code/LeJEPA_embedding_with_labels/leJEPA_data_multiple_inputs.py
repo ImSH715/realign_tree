@@ -14,7 +14,7 @@ from shapely.geometry import box
 from torch.utils.data import TensorDataset, DataLoader 
 
 # To access with the dataset folder
-BASE_DIR = r"\shared\ai4eo\Shared\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
+BASE_DIR = r"\mnt\parscratch\users\aca21jo\2025_Forge\OSINFOR_data\01. Ortomosaicos\2023"
 ANNOTATED_COR = r"\shared\ai4eo\Shared\2025_Turing_L\Project\Annotated tree centroids\trees_32718.shp"
 
 IMG_SIZE = 448
