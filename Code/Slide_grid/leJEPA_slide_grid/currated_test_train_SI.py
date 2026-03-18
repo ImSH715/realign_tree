@@ -170,7 +170,7 @@ def main():
     extracted_temp_ids = set()
 
     # ---------------------------------------------------------
-    # ⚡ Speed Optimization: Fast extraction using Bounding Box ⚡
+    # Speed Optimization: Fast extraction using Bounding Box
     # ---------------------------------------------------------
     print(f"\nStarting extraction for {len(tif_files)} TIF files...")
 
