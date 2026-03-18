@@ -283,10 +283,32 @@ def main():
         step_df = pd.DataFrame(step_records)
         out_csv = os.path.join(OUTPUT_DIR, f"step{step}_results.csv")
         step_df.to_csv(out_csv, index=False)
-        
         print(f"\nSaved: {out_csv}")
-        print("Status Breakdown:")
-        print(step_df["status"].value_counts().to_string())
+
+    # ---------------------------------------------------------
+    # Generate Final Combined CSV (All points with their final state)
+    # ---------------------------------------------------------
+    print("\n--- Generating Final Combined Results ---")
+    final_records = []
+    
+    # We extract the state at MAX_STEPS for every point
+    for fid, data in point_trajectories.items():
+        if MAX_STEPS in data:
+            final_records.append({
+                "id": fid,
+                "label": data["label"],
+                "x": data[MAX_STEPS]["x"],
+                "y": data[MAX_STEPS]["y"],
+                "final_status": data[MAX_STEPS]["status"]
+            })
+            
+    final_df = pd.DataFrame(final_records)
+    final_csv = os.path.join(OUTPUT_DIR, "final_results.csv")
+    final_df.to_csv(final_csv, index=False)
+    
+    print(f"Saved final combined coordinates to: {final_csv}")
+    print("\nFinal Status Breakdown:")
+    print(final_df["final_status"].value_counts().to_string())
 
     print("\nSliding Grid Algorithm completed successfully!")
 
