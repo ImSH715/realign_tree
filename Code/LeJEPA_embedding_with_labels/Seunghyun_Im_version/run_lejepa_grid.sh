@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# --- 1. Slurm Resource Configuration ---
+#SBATCH --job-name=LeJEPA_train
+#SBATCH --partition=gpu                # Partition: gpu
+#SBATCH --qos=gpu                      # QOS: gpu
+#SBATCH --gres=gpu:1                   # Request 1 GPU
+#SBATCH --mem=82G                      # Request 82GB RAM
+#SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
+#SBATCH --nodes=1                      # Single node
+#SBATCH --ntasks=1                     # Single task
+#SBATCH --time=12:00:00                # Time limit (HH:MM:SS)
+#SBATCH --output=result_%j.out         # Standard output log
+#SBATCH --error=result_%j.err          # Error log
+
+# --- 2. Email Notification Settings ---
+#SBATCH --mail-type=END,FAIL           # Notify when finished or failed
+
+# --- 3. Environment Setup (Stanage Optimized) ---
+module load Anaconda3
+
+eval "$(conda shell.bash hook)"
+
+conda activate lejepa
+
+echo "Using Python from: $(which python)"
+python --version
+
+# --- 4. Execution ---
+python -u currated_test_train_SI.py
+
+echo "Job finished at $(date)"
