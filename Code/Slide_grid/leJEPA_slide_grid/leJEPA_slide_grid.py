@@ -15,10 +15,10 @@ import importlib
 import sys
 
 # --------------------------
-# 1. Import Model from 1409.py
+# 1. Import Model from leJEPA_default
 # --------------------------
-module_1409 = importlib.import_module("1409")
-LeJepaEncoder = module_1409.LeJepaEncoder
+module_default = importlib.import_module("leJEPA_default")
+LeJepaEncoder = module_default.LeJepaEncoder
 
 # --------------------------
 # 2. Config & Paths (HPC Paths)
