@@ -175,7 +175,7 @@ def main():
                 points_inside_tifs += len(contained)
                 
                 inner_pbar = tqdm(contained.iterrows(), total=len(contained), 
-                                  desc=f"Trees in {os.path.basename(tif_path)[:15]}...", 
+                                  desc="Trees in {}...".format(os.path.basename(tif_path)[:15]),
                                   leave=False, position=1)
                 
                 for idx, row in inner_pbar:
