@@ -1,231 +1,246 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 from PIL import Image
 import torchvision.transforms as transforms
 import os
 import rasterio
-import glob
-from shapely.geometry import box
+import geopandas as gpd
+import glob                                 
+from shapely.geometry import box          
+from torch.utils.data import TensorDataset, DataLoader 
 from tqdm import tqdm
-import torch.nn.functional as F
+import time
 
 # --------------------------
-# 1. Import Model
-# --------------------------
-# Import the LeJepaEncoder class directly from LeJEPA_default.py
-# Ensure LeJEPA_default.py is in the same directory as this script.
-from leJEPA_default import LeJepaEncoder
-
-# --------------------------
-# 2. Config & Paths
+# Hyperparameters & Paths
 # --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-ORIGINAL_POINTS_EXCEL = r"data/coordinate/Censo Forestal.xlsx" 
-MODEL_PATH = r"data/models/lejepa_encoder.pth"
-EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
-LABEL_PATH = r"data/label/labels.npy"
+ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
 
-OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
-
-# Excel Column Config 
-X_COL = "COORDENADA_ESTE"           
-Y_COL = "COORDENADA_NORTE"          
-LABEL_COL = "NOMBRE_COMUN" 
-ID_COL = "ID"        
-
-EXCEL_CRS = "EPSG:32718" 
-
-# Image Parameters
 IMG_SIZE = 448
+PATCH_SIZE = 16
 CROP_MULTIPLIER = 4 
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
 HALF_CROP = CROP_SIZE // 2
-
-# Grid Parameters
-CELL_SIZE = 1.2  
-LIKELIHOOD_THRESHOLD = 0.75 
+BATCH_SIZE = 16 
+EPOCHS = 300
 
 # --------------------------
-# 3. Helper Functions 
+# Model Definitions
 # --------------------------
-def load_reference_embeddings(embed_path, label_path):
-    """Load embeddings and labels, compute mean reference embedding per label."""
-    embeds = np.load(embed_path)
-    labels = np.load(label_path)
-    
-    ref_dict = {}
-    unique_labels = np.unique(labels)
-    for lbl in unique_labels:
-        idx = np.where(labels == lbl)[0]
-        mean_embed = np.mean(embeds[idx], axis=0)
-        ref_dict[lbl] = torch.tensor(mean_embed, dtype=torch.float32)
-    return ref_dict
-
-def extract_tile(src, x, y, transform):
-    """Crop the image and convert to Tensor (excluding GPU computation)."""
-    py, px = src.index(x, y)
-    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
-    tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-    tile = np.moveaxis(tile, 0, -1)
-    
-    # Check if the cropped tile matches the expected dimensions
-    if tile.shape[0] != CROP_SIZE or tile.shape[1] != CROP_SIZE:
-        return None
+class LeJepaEncoder(nn.Module):
+    def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
+        super().__init__()
+        self.patch_size = patch_size
+        self.embed_dim = embed_dim
+        self.patch_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         
-    img_pil = Image.fromarray(tile.astype('uint8'))
-    return transform(img_pil)
-
-def scan_3x3_grid_batched(cx, cy, src, encoder, transform, device, target_ref_embed):
-    """Batch process 9 grid images at once for massive speedup."""
-    coords = []
-    tensors = []
-    
-    # 1. Collect 9 grid images
-    for dx in [-1, 0, 1]:
-        for dy in [-1, 0, 1]:
-            gx = cx + dx * CELL_SIZE
-            gy = cy + dy * CELL_SIZE
-            
-            tensor = extract_tile(src, gx, gy, transform)
-            if tensor is not None:
-                coords.append({"x": gx, "y": gy})
-                tensors.append(tensor)
-                
-    if not tensors:
-        return []
-
-    # 2. Stack 9 images into a single batch and pass through GPU
-    batch_tensor = torch.stack(tensors).to(device)
-    
-    with torch.no_grad():
-        embeds = encoder(batch_tensor).mean(dim=1).cpu() 
+        num_patches = (img_size // patch_size) ** 2
+        self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
         
-    # 3. Calculate cosine similarity for the batch
-    target_ref_expanded = target_ref_embed.unsqueeze(0).expand(len(embeds), -1)
-    similarities = F.cosine_similarity(embeds, target_ref_expanded).numpy()
-    
-    # 4. Format results
-    results = []
-    for i, sim in enumerate(similarities):
-        if sim >= LIKELIHOOD_THRESHOLD:
-            results.append({"x": coords[i]["x"], "y": coords[i]["y"], "likelihood": sim})
-            
-    return results
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4, 
+            activation='gelu', batch_first=True
+        )
+        self.blocks = nn.ModuleList([encoder_layer for _ in range(depth)])
+        self.norm = nn.LayerNorm(embed_dim)
 
-def calculate_center(valid_cells):
-    """Compute the geometric center of the valid grid cells."""
-    xs = [cell["x"] for cell in valid_cells]
-    ys = [cell["y"] for cell in valid_cells]
-    return sum(xs) / len(xs), sum(ys) / len(ys)
+    def forward(self, x, ids_keep=None):
+        x = self.patch_embed(x)
+        x = x.flatten(2).transpose(1, 2)
+        x = x + self.pos_embed
+        
+        if ids_keep is not None:
+            D = x.shape[-1]
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
+            
+        for block in self.blocks:
+            x = block(x)
+        return self.norm(x)
+
+class LeJepaPredictor(nn.Module):
+    def __init__(self, embed_dim=128, predictor_depth=2, num_heads=4):
+        super().__init__()
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        predictor_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4, 
+            activation='gelu', batch_first=True
+        )
+        self.blocks = nn.ModuleList([predictor_layer for _ in range(predictor_depth)])
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, context_embeds, mask_pos_embeds):
+        B = context_embeds.shape[0]
+        N_mask = mask_pos_embeds.shape[1]
+        mask_tokens = self.mask_token.repeat(B, N_mask, 1) + mask_pos_embeds 
+        x = torch.cat([context_embeds, mask_tokens], dim=1)
+        for block in self.blocks:
+            x = block(x)
+        x = self.norm(x)
+        return x[:, -N_mask:, :]
 
 # --------------------------
-# 4. Main Inference Pipeline
+# Main Execution
 # --------------------------
 def main():
+    start_time = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Loading LeJEPA Model and Reference Embeddings...")
     
-    # Initialize model using the imported class
-    encoder = LeJepaEncoder().to(device)
-    encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
-    encoder.eval()
-    
-    # Convert to lowercase and strip to ensure exact label matching
-    raw_ref_embeddings = load_reference_embeddings(EMBEDDING_PATH, LABEL_PATH)
-    ref_embeddings = {str(k).strip().lower(): v for k, v in raw_ref_embeddings.items()}
-    
+    # 0. Setup output directories
+    model_dir, embedding_dir, label_dir = "data/models", "data/embeddings", "data/label"
+    for d in [model_dir, embedding_dir, label_dir]:
+        os.makedirs(d, exist_ok=True)
+
+    # 1. Initialize Model & Tools
+    encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
+    predictor = LeJepaPredictor().to(device)
+    optimizer = torch.optim.AdamW(list(encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
+    criterion = nn.MSELoss()
+
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    print("Loading Original Coordinates from Excel...")
-    df = pd.read_excel(ORIGINAL_POINTS_EXCEL)
-    df[X_COL] = pd.to_numeric(df[X_COL], errors='coerce')
-    df[Y_COL] = pd.to_numeric(df[Y_COL], errors='coerce')
-    df = df.dropna(subset=[X_COL, Y_COL]).reset_index(drop=True)
-    
-    gdf = gpd.GeoDataFrame(
-        df,
-        geometry=gpd.points_from_xy(df[X_COL], df[Y_COL]),
-        crs=EXCEL_CRS
-    )
-    
-    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
-    final_points = []
-    
-    points_inside_tifs = 0
-    points_label_matched = 0
+    # 2. Load Shapefile & Prep IDs
+    print("Loading Original Shapefile...")
+    gdf = gpd.read_file(ANNOTATED_COR)
+    original_crs = gdf.crs
+    if 'temp_id' not in gdf.columns:
+        gdf['temp_id'] = range(len(gdf))
 
-    for tif_path in tqdm(tif_files, desc="Processing TIF Files", position=0):
+    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
+    if not tif_files:
+        print("No .tif files found.")
+        return
+
+    patches = []
+    patch_labels = []
+    successful_rows = [] 
+    extracted_temp_ids = set() 
+
+    # 3. Optimized Extraction Mechanism
+    print(f"\nStarting extraction for {len(tif_files)} TIF files...")
+    
+    for tif_path in tqdm(tif_files, desc="Processing TIFs"):
         try:
             with rasterio.open(tif_path) as src:
-                current_gdf = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
+                current_gdf = gdf.copy()
+                if current_gdf.crs != src.crs:
+                    current_gdf = current_gdf.to_crs(src.crs)
+                
                 b = src.bounds
                 img_box = box(b.left, b.bottom, b.right, b.top)
-                
                 contained = current_gdf[current_gdf.geometry.intersects(img_box)]
                 
-                if len(contained) == 0:
-                    continue 
-                
-                points_inside_tifs += len(contained)
-                
-                inner_pbar = tqdm(contained.iterrows(), total=len(contained), 
-                                  desc="Trees in {}...".format(os.path.basename(tif_path)[:15]),
-                                  leave=False, position=1)
-                
-                for idx, row in inner_pbar:
-                    orig_x, orig_y = row.geometry.x, row.geometry.y
-                    label_val = str(row.get(LABEL_COL)).strip().lower() 
+                for idx, row in contained.iterrows():
+                    temp_id = row['temp_id']
                     
-                    if label_val not in ref_embeddings:
-                        continue 
+                    if temp_id in extracted_temp_ids:
+                        continue
                         
-                    points_label_matched += 1
-                    target_ref = ref_embeddings[label_val]
+                    x, y = row.geometry.x, row.geometry.y
+                    py, px = src.index(x, y)
                     
-                    # === STEP 1: Scan the first 3x3 grid (Batched) ===
-                    step1_valid = scan_3x3_grid_batched(orig_x, orig_y, src, encoder, transform, device, target_ref)
+                    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
+                    tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+                    tile = np.moveaxis(tile, 0, -1)
                     
-                    if len(step1_valid) >= 3:
-                        nx, ny = calculate_center(step1_valid)
-                        final_points.append({"feature_id": row.get(ID_COL, idx), "x": nx, "y": ny, "type": "center"})
-                    elif len(step1_valid) > 0:
-                        best_cell = max(step1_valid, key=lambda c: c["likelihood"])
-                        slide_x, slide_y = best_cell["x"], best_cell["y"]
+                    if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
+                        img_pil = Image.fromarray(tile.astype('uint8'))
+                        patches.append(transform(img_pil))
                         
-                        # === STEP 2 & 3: New 3x3 grid on slid coordinate (Batched) ===
-                        step3_valid = scan_3x3_grid_batched(slide_x, slide_y, src, encoder, transform, device, target_ref)
+                        label_val = row.get('Tree') or row.get('tree') or row.get('id') or f"tree_{temp_id}"
+                        patch_labels.append(str(label_val))
                         
-                        if len(step3_valid) >= 3:
-                            nx, ny = calculate_center(step3_valid)
-                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": nx, "y": ny, "type": "center"})
-                        elif len(step3_valid) > 0:
-                            best_cell_2 = max(step3_valid, key=lambda c: c["likelihood"])
-                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": best_cell_2["x"], "y": best_cell_2["y"], "type": "center"})
-                        else:
-                            final_points.append({"feature_id": row.get(ID_COL, idx), "x": slide_x, "y": slide_y, "type": "slide_unresolved"})
-                    else:
-                        final_points.append({"feature_id": row.get(ID_COL, idx), "x": orig_x, "y": orig_y, "type": "abort"})
-                        
+                        successful_rows.append(gdf.loc[idx])
+                        extracted_temp_ids.add(temp_id)
+                            
         except Exception as e:
-            pass  # Silently skip corrupted TIF files to avoid cluttering the terminal
+            tqdm.write(f"Error reading {tif_path}: {e}")
 
-    print("\n\n--- Diagnostic Summary ---")
-    print(f"Total points overlapping with TIFs: {points_inside_tifs}")
-    print(f"Total points with matching labels: {points_label_matched}")
+    if not patches:
+        print("No patches extracted. Check file paths and CRS."); return
+        
+    print(f"\nTotal Successfully Extracted Patches: {len(patches)}")
 
-    if final_points:
-        final_df = pd.DataFrame(final_points)
-        final_df.to_csv(OUTPUT_CSV, index=False)
-        print(f"\nSuccessfully saved centered points to {OUTPUT_CSV}")
-        print(final_df["type"].value_counts())
-    else:
-        print("\nNo valid points found or processed.")
+    # 4. Save Validated subset count for assertion (Shapefile saving removed)
+    valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
+    print(f"Kept {len(valid_points_gdf)} valid points for internal validation.")
+
+    # 5. Dataloader Setup
+    all_patches_tensor = torch.stack(patches)
+    dataset = TensorDataset(all_patches_tensor)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    # 6. LeJEPA Training Loop
+    encoder.train()
+    predictor.train()
+    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2 
+    keep_num = int(num_patches * 0.25)
+    
+    print("\nStarting LeJEPA Training...")
+    epoch_pbar = tqdm(range(EPOCHS), desc="Training Model")
+    for epoch in epoch_pbar:
+        epoch_loss = 0.0
+        for batch in dataloader:
+            batch_imgs = batch[0].to(device)
+            curr_batch_size = batch_imgs.shape[0]
+            
+            optimizer.zero_grad()
+            with torch.no_grad():
+                target = encoder(batch_imgs).detach()
+
+            ids_shuffle = torch.argsort(torch.rand(curr_batch_size, num_patches, device=device), dim=1)
+            ids_keep = ids_shuffle[:, :keep_num] 
+            ids_mask = ids_shuffle[:, keep_num:] 
+
+            context_embeds = encoder(batch_imgs, ids_keep=ids_keep)
+            mask_pos_embeds = encoder.pos_embed.expand(curr_batch_size, -1, -1)
+            mask_pos_embeds = torch.gather(mask_pos_embeds, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
+            
+            pred_features = predictor(context_embeds, mask_pos_embeds)
+            actual_target_features = torch.gather(target, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, 128))
+            
+            loss = criterion(pred_features, actual_target_features)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+            
+        avg_loss = epoch_loss / len(dataloader)
+        epoch_pbar.set_postfix(Loss=f"{avg_loss:.6f}")
+
+    torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
+    print("\nTraining Complete. Extracting Final Embeddings...")
+    
+    # 7. Embedding & Label Extraction (Saved as .npy)
+    encoder.eval()
+    all_embeddings = []
+    eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
+    with torch.no_grad():
+        for batch in tqdm(eval_dataloader, desc="Extracting Embeddings"):
+            batch_imgs = batch[0].to(device)
+            embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
+            all_embeddings.append(embeds)
+            
+    final_embeddings = np.concatenate(all_embeddings, axis=0)
+    final_labels = np.array(patch_labels)
+    
+    # Final Validation
+    assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Count mismatch!"
+
+    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
+    np.save(f"{label_dir}/labels.npy", final_labels) # Labels saved as .npy here
+    
+    total_time = (time.time() - start_time) / 60
+    print(f"\nSuccess! Extracted {len(final_embeddings)} samples.")
+    print(f"Saved embeddings to: {embedding_dir}/embeddings.npy")
+    print(f"Saved labels to: {label_dir}/labels.npy")
+    print(f"Total Execution Time: {total_time:.2f} minutes")
 
 if __name__ == "__main__":
     main()
