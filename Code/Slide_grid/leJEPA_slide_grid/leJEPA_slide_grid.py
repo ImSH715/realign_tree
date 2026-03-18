@@ -31,7 +31,7 @@ MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
 LABEL_PATH = r"data/label/labels.npy"
 
-OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
+OUTPUT_CSV = r"data/coordinate/final_lejepa_centered_points.csv"
 
 # Excel Column Config 
 X_COL = "COORDENADA_ESTE"           
