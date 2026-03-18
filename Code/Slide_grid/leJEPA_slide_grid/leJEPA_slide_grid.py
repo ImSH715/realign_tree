@@ -14,7 +14,7 @@ import torch.nn.functional as F
 # --------------------------
 # 1. Import Model
 # --------------------------
-from leJEPA_default import LeJepaEncoder
+from currated_test_train_SI import LeJepaEncoder
 
 # --------------------------
 # 2. Config & Paths
@@ -24,8 +24,8 @@ ORIGINAL_POINTS_EXCEL = r"data/coordinate/Censo Forestal.xlsx"
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
 
 # Use TRAIN embeddings as the reference "fingerprints" to prevent data leakage
-EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
-LABEL_PATH = r"data/label/train_labels.npy"
+EMBEDDING_PATH = r"data/embeddings/combined_embeddings.npy"
+LABEL_PATH = r"data/label/combined_labels.npy"
 
 OUTPUT_CSV = r"../coordinate/final_lejepa_centered_points.csv"
 
