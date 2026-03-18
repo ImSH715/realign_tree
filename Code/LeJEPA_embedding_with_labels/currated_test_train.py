@@ -1,19 +1,18 @@
-import os
-import time
-import glob
-import random
-
-import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader, Subset
+import numpy as np
+import pandas as pd
 from PIL import Image
 import torchvision.transforms as transforms
+import os
 import rasterio
 import geopandas as gpd
+import glob
+import random
 from shapely.geometry import box
+from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
+import time
 
 # --------------------------
 # Hyperparameters & Paths
@@ -29,12 +28,9 @@ HALF_CROP = CROP_SIZE // 2
 BATCH_SIZE = 16
 EPOCHS = 300
 
-# Split ratios
-TRAIN_RATIO = 0.70
+TRAIN_RATIO = 0.7
 VAL_RATIO = 0.15
 TEST_RATIO = 0.15
-
-# Reproducibility
 SEED = 42
 
 # --------------------------
@@ -50,14 +46,16 @@ class LeJepaEncoder(nn.Module):
         num_patches = (img_size // patch_size) ** 2
         self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
 
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim,
-            nhead=num_heads,
-            dim_feedforward=embed_dim * 4,
-            activation='gelu',
-            batch_first=True
-        )
-        self.blocks = nn.ModuleList([encoder_layer for _ in range(depth)])
+        self.blocks = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
+            )
+            for _ in range(depth)
+        ])
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x, ids_keep=None):
@@ -73,19 +71,21 @@ class LeJepaEncoder(nn.Module):
             x = block(x)
         return self.norm(x)
 
-
 class LeJepaPredictor(nn.Module):
     def __init__(self, embed_dim=128, predictor_depth=2, num_heads=4):
         super().__init__()
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        predictor_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim,
-            nhead=num_heads,
-            dim_feedforward=embed_dim * 4,
-            activation='gelu',
-            batch_first=True
-        )
-        self.blocks = nn.ModuleList([predictor_layer for _ in range(predictor_depth)])
+
+        self.blocks = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
+            )
+            for _ in range(predictor_depth)
+        ])
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, context_embeds, mask_pos_embeds):
@@ -98,7 +98,6 @@ class LeJepaPredictor(nn.Module):
         x = self.norm(x)
         return x[:, -N_mask:, :]
 
-
 # --------------------------
 # Utility Functions
 # --------------------------
@@ -108,41 +107,32 @@ def set_seed(seed=SEED):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+def split_arrays(embeddings, labels, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42):
+    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-8, "Ratios must sum to 1"
 
-def make_split_indices(n_samples, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, test_ratio=TEST_RATIO, seed=SEED):
-    if not np.isclose(train_ratio + val_ratio + test_ratio, 1.0):
-        raise ValueError("TRAIN_RATIO + VAL_RATIO + TEST_RATIO must sum to 1.0")
-
+    n = len(embeddings)
+    indices = np.arange(n)
     rng = np.random.default_rng(seed)
-    indices = np.arange(n_samples)
     rng.shuffle(indices)
 
-    train_end = int(n_samples * train_ratio)
-    val_end = train_end + int(n_samples * val_ratio)
+    train_end = int(n * train_ratio)
+    val_end = train_end + int(n * val_ratio)
 
     train_idx = indices[:train_end]
     val_idx = indices[train_end:val_end]
     test_idx = indices[val_end:]
 
-    return train_idx, val_idx, test_idx
-
-
-def extract_embeddings_for_subset(encoder, dataset_subset, device, batch_size=BATCH_SIZE):
-    loader = DataLoader(dataset_subset, batch_size=batch_size, shuffle=False)
-    all_embeddings = []
-
-    encoder.eval()
-    with torch.no_grad():
-        for batch in tqdm(loader, desc="Extracting Embeddings", leave=False):
-            batch_imgs = batch[0].to(device)
-            embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
-            all_embeddings.append(embeds)
-
-    if len(all_embeddings) == 0:
-        return np.empty((0, encoder.embed_dim), dtype=np.float32)
-
-    return np.concatenate(all_embeddings, axis=0)
-
+    return {
+        "train_embeddings": embeddings[train_idx],
+        "val_embeddings": embeddings[val_idx],
+        "test_embeddings": embeddings[test_idx],
+        "train_labels": labels[train_idx],
+        "val_labels": labels[val_idx],
+        "test_labels": labels[test_idx],
+        "train_idx": train_idx,
+        "val_idx": val_idx,
+        "test_idx": test_idx,
+    }
 
 # --------------------------
 # Main Execution
@@ -152,6 +142,7 @@ def main():
     set_seed(SEED)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     # 0. Setup output directories
     model_dir = "data/models"
@@ -165,17 +156,13 @@ def main():
     # 1. Initialize Model & Tools
     encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
     predictor = LeJepaPredictor().to(device)
-    optimizer = torch.optim.AdamW(
-        list(encoder.parameters()) + list(predictor.parameters()),
-        lr=1e-4
-    )
+    optimizer = torch.optim.AdamW(list(encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
     criterion = nn.MSELoss()
 
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     # 2. Load Shapefile & Prep IDs
@@ -218,12 +205,7 @@ def main():
                     x, y = row.geometry.x, row.geometry.y
                     py, px = src.index(x, y)
 
-                    window = rasterio.windows.Window(
-                        px - HALF_CROP,
-                        py - HALF_CROP,
-                        CROP_SIZE,
-                        CROP_SIZE
-                    )
+                    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
                     tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
                     tile = np.moveaxis(tile, 0, -1)
 
@@ -246,74 +228,38 @@ def main():
 
     print(f"\nTotal Successfully Extracted Patches: {len(patches)}")
 
-    # 4. Internal validation count
+    # 4. Save Validated subset count for assertion
     valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
     print(f"Kept {len(valid_points_gdf)} valid points for internal validation.")
 
-    # 5. Build full dataset
+    # 5. Dataloader Setup
     all_patches_tensor = torch.stack(patches)
-    final_labels = np.array(patch_labels)
+    dataset = TensorDataset(all_patches_tensor)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    assert len(all_patches_tensor) == len(final_labels) == len(valid_points_gdf), "Count mismatch before split!"
-
-    full_dataset = TensorDataset(all_patches_tensor)
-
-    # 6. Train / Val / Test split
-    n_samples = len(full_dataset)
-    train_idx, val_idx, test_idx = make_split_indices(
-        n_samples,
-        train_ratio=TRAIN_RATIO,
-        val_ratio=VAL_RATIO,
-        test_ratio=TEST_RATIO,
-        seed=SEED
-    )
-
-    train_dataset = Subset(full_dataset, train_idx)
-    val_dataset = Subset(full_dataset, val_idx)
-    test_dataset = Subset(full_dataset, test_idx)
-
-    print("\nDataset split:")
-    print(f"  Train: {len(train_dataset)}")
-    print(f"  Val:   {len(val_dataset)}")
-    print(f"  Test:  {len(test_dataset)}")
-
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-
-    # Save split indices for reproducibility
-    np.save(os.path.join(split_dir, "train_indices.npy"), train_idx)
-    np.save(os.path.join(split_dir, "val_indices.npy"), val_idx)
-    np.save(os.path.join(split_dir, "test_indices.npy"), test_idx)
-
-    # 7. LeJEPA Training Loop (train split only)
+    # 6. LeJEPA Training Loop
     encoder.train()
     predictor.train()
-
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
     keep_num = int(num_patches * 0.25)
 
-    print("\nStarting LeJEPA Training on TRAIN split only...")
+    print("\nStarting LeJEPA Training...")
     epoch_pbar = tqdm(range(EPOCHS), desc="Training Model")
     for epoch in epoch_pbar:
         epoch_loss = 0.0
-
-        for batch in train_loader:
+        for batch in dataloader:
             batch_imgs = batch[0].to(device)
             curr_batch_size = batch_imgs.shape[0]
 
             optimizer.zero_grad()
-
             with torch.no_grad():
                 target = encoder(batch_imgs).detach()
 
-            ids_shuffle = torch.argsort(
-                torch.rand(curr_batch_size, num_patches, device=device),
-                dim=1
-            )
+            ids_shuffle = torch.argsort(torch.rand(curr_batch_size, num_patches, device=device), dim=1)
             ids_keep = ids_shuffle[:, :keep_num]
             ids_mask = ids_shuffle[:, keep_num:]
 
             context_embeds = encoder(batch_imgs, ids_keep=ids_keep)
-
             mask_pos_embeds = encoder.pos_embed.expand(curr_batch_size, -1, -1)
             mask_pos_embeds = torch.gather(
                 mask_pos_embeds,
@@ -331,57 +277,67 @@ def main():
             loss = criterion(pred_features, actual_target_features)
             loss.backward()
             optimizer.step()
-
             epoch_loss += loss.item()
 
-        avg_loss = epoch_loss / len(train_loader)
+        avg_loss = epoch_loss / len(dataloader)
         epoch_pbar.set_postfix(Loss=f"{avg_loss:.6f}")
 
-    torch.save(encoder.state_dict(), os.path.join(model_dir, "lejepa_encoder.pth"))
-    print("\nTraining Complete. Extracting Final Embeddings by split...")
+    torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
+    print("\nTraining Complete. Extracting Final Embeddings...")
 
-    # 8. Extract embeddings for each split
-    train_embeddings = extract_embeddings_for_subset(encoder, train_dataset, device)
-    val_embeddings = extract_embeddings_for_subset(encoder, val_dataset, device)
-    test_embeddings = extract_embeddings_for_subset(encoder, test_dataset, device)
+    # 7. Embedding & Label Extraction
+    encoder.eval()
+    all_embeddings = []
+    eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    train_labels = final_labels[train_idx]
-    val_labels = final_labels[val_idx]
-    test_labels = final_labels[test_idx]
+    with torch.no_grad():
+        for batch in tqdm(eval_dataloader, desc="Extracting Embeddings"):
+            batch_imgs = batch[0].to(device)
+            embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
+            all_embeddings.append(embeds)
 
-    # Final checks
-    assert len(train_embeddings) == len(train_labels), "Train count mismatch!"
-    assert len(val_embeddings) == len(val_labels), "Val count mismatch!"
-    assert len(test_embeddings) == len(test_labels), "Test count mismatch!"
+    final_embeddings = np.concatenate(all_embeddings, axis=0)
+    final_labels = np.array(patch_labels)
 
-    # 9. Save outputs
-    np.save(os.path.join(embedding_dir, "train_embeddings.npy"), train_embeddings)
-    np.save(os.path.join(embedding_dir, "val_embeddings.npy"), val_embeddings)
-    np.save(os.path.join(embedding_dir, "test_embeddings.npy"), test_embeddings)
+    assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Count mismatch!"
 
-    np.save(os.path.join(label_dir, "train_labels.npy"), train_labels)
-    np.save(os.path.join(label_dir, "val_labels.npy"), val_labels)
-    np.save(os.path.join(label_dir, "test_labels.npy"), test_labels)
+    # Save full outputs too
+    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
+    np.save(f"{label_dir}/labels.npy", final_labels)
 
-    # Optional: save full labels too
-    np.save(os.path.join(label_dir, "labels_all.npy"), final_labels)
+    # 8. Split AFTER training / embedding extraction
+    split_data = split_arrays(
+        final_embeddings,
+        final_labels,
+        train_ratio=TRAIN_RATIO,
+        val_ratio=VAL_RATIO,
+        test_ratio=TEST_RATIO,
+        seed=SEED
+    )
+
+    np.save(f"{embedding_dir}/train_embeddings.npy", split_data["train_embeddings"])
+    np.save(f"{embedding_dir}/val_embeddings.npy", split_data["val_embeddings"])
+    np.save(f"{embedding_dir}/test_embeddings.npy", split_data["test_embeddings"])
+
+    np.save(f"{label_dir}/train_labels.npy", split_data["train_labels"])
+    np.save(f"{label_dir}/val_labels.npy", split_data["val_labels"])
+    np.save(f"{label_dir}/test_labels.npy", split_data["test_labels"])
+
+    np.save(f"{split_dir}/train_indices.npy", split_data["train_idx"])
+    np.save(f"{split_dir}/val_indices.npy", split_data["val_idx"])
+    np.save(f"{split_dir}/test_indices.npy", split_data["test_idx"])
 
     total_time = (time.time() - start_time) / 60
-    print(f"\nSuccess! Total samples: {n_samples}")
-    print(f"Train samples: {len(train_embeddings)}")
-    print(f"Val samples:   {len(val_embeddings)}")
-    print(f"Test samples:  {len(test_embeddings)}")
-
-    print(f"\nSaved model to: {os.path.join(model_dir, 'lejepa_encoder.pth')}")
-    print(f"Saved train embeddings to: {os.path.join(embedding_dir, 'train_embeddings.npy')}")
-    print(f"Saved val embeddings to:   {os.path.join(embedding_dir, 'val_embeddings.npy')}")
-    print(f"Saved test embeddings to:  {os.path.join(embedding_dir, 'test_embeddings.npy')}")
-    print(f"Saved train labels to:     {os.path.join(label_dir, 'train_labels.npy')}")
-    print(f"Saved val labels to:       {os.path.join(label_dir, 'val_labels.npy')}")
-    print(f"Saved test labels to:      {os.path.join(label_dir, 'test_labels.npy')}")
-    print(f"Saved split indices to:    {split_dir}")
+    print(f"\nSuccess! Extracted {len(final_embeddings)} samples.")
+    print(f"Full embeddings: {embedding_dir}/embeddings.npy")
+    print(f"Full labels: {label_dir}/labels.npy")
+    print(f"Train embeddings: {embedding_dir}/train_embeddings.npy")
+    print(f"Val embeddings: {embedding_dir}/val_embeddings.npy")
+    print(f"Test embeddings: {embedding_dir}/test_embeddings.npy")
+    print(f"Train labels: {label_dir}/train_labels.npy")
+    print(f"Val labels: {label_dir}/val_labels.npy")
+    print(f"Test labels: {label_dir}/test_labels.npy")
     print(f"Total Execution Time: {total_time:.2f} minutes")
-
 
 if __name__ == "__main__":
     main()
