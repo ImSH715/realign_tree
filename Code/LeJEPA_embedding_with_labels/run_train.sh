@@ -14,7 +14,6 @@
 #SBATCH --error=result_%j.err          # Error log
 
 # --- 2. Email Notification Settings ---
-#SBATCH --mail-user=seunghyunim2@gmail.com
 #SBATCH --mail-type=END,FAIL           # Notify when finished or failed
 
 # --- 3. Environment Setup (Stanage Optimized) ---
