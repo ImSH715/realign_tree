@@ -5,7 +5,7 @@ import os
 
 # 1. Configuration & Paths
 # 1) Final aligned coordinates from the AI pipeline
-FINAL_CSV = "final_results.csv"
+FINAL_CSV = "data/result_coordinate/final_results.csv"
 
 # 2) Original (noisy/shifted) coordinates before running the pipeline
 ORIGINAL_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
