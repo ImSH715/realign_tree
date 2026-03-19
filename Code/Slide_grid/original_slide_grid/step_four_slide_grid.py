@@ -4,9 +4,8 @@ import os
 """
 Merge step1_points_lejepa.csv and step3_points_lejepa.csv.
 step1_points: Coordinates of 'center' and 'slide' after the initial grid evaluation.
-step3_points: Coordinates that were 'slide' and successfully converted to 'center' after the second evaluation.
-This script merges step3_points into step1_points based on feature_id.
-Now all the coordinates in the resulting .csv file are updated to their final positions.
+step3_points: Coordinates processed in the second evaluation (some became 'center', some remained 'slide').
+This script replaces the original 'slide' coordinates in step1 with the updated coordinates from step3.
 """
 
 # ==========================================
@@ -45,22 +44,21 @@ def main():
     step1_center = step1[step1["type"] == "center"].copy()
     step1_slide = step1[step1["type"] == "slide"].copy()
 
-    # Prepare step3 (slide -> center)
-    step3_fixed = step3.copy()
-    if not step3_fixed.empty:
-        step3_fixed["type"] = "center"
+    # Step 3 already contains the updated 'type' ('center' for success, 'slide' for unresolved)
+    # We just need to replace the old step1_slide records with the new step3 records.
+    step3_updated = step3.copy()
 
-    # Remove slide rows from Step 1 that were successfully re-centered in Step 3
-    if not step3_fixed.empty:
-        slide_ids_fixed = set(step3_fixed["feature_id"])
+    # Remove slide rows from Step 1 that were processed and updated in Step 3
+    if not step3_updated.empty:
+        processed_in_step3 = set(step3_updated["feature_id"])
     else:
-        slide_ids_fixed = set()
+        processed_in_step3 = set()
         
-    step1_slide_remaining = step1_slide[~step1_slide["feature_id"].isin(slide_ids_fixed)]
+    step1_slide_remaining = step1_slide[~step1_slide["feature_id"].isin(processed_in_step3)]
 
     # Combine final result
     final_df = pd.concat(
-        [step1_center, step3_fixed, step1_slide_remaining],
+        [step1_center, step3_updated, step1_slide_remaining],
         ignore_index=True
     )
 

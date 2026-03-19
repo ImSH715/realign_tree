@@ -12,16 +12,14 @@ from shapely.geometry import box
 from tqdm import tqdm
 
 # Import the existing LeJEPA model class
-from leJepa import LeJepaEncoder
+from LeJepa import LeJepaEncoder
 
 # ==========================================
 # 1. Hyperparameters & Paths
 # ==========================================
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-# Point features containing the labels and initial locations
 INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
-# Pre-generated grid shapefile
-GRID_SHP = r"grid_result/3x3_grid_result.shp"
+GRID_SHP = r"C:\Users\naya0\Uni\1.COM-Turing\realign_tree\Code\Slide_grid\original_slide_grid\grid_result\3x3_grid_result.shp"
 
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
@@ -31,7 +29,7 @@ OUTPUT_CSV = "step1_points_lejepa.csv"
 
 # Thresholds and parameters
 LIKELIHOOD_THRESHOLD = 0.5
-SEARCH_RADIUS = 2.5  # Radius in meters to find the 9 grid cells around a point
+SEARCH_RADIUS = 2.5
 
 IMG_SIZE = 448
 CROP_MULTIPLIER = 4 
@@ -42,7 +40,6 @@ HALF_CROP = CROP_SIZE // 2
 # 2. Helper Functions
 # ==========================================
 def load_reference_embeddings(embed_path, label_path):
-    """Load combined embeddings and compute the mean reference vector (fingerprint) per label."""
     embeds = np.load(embed_path)
     labels = np.load(label_path)
     
@@ -55,7 +52,6 @@ def load_reference_embeddings(embed_path, label_path):
     return ref_dict
 
 def extract_tile(src, x, y, transform):
-    """Crop the 448x448 image patch from the TIF at the given coordinates."""
     try:
         py, px = src.index(x, y)
         window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
@@ -71,7 +67,6 @@ def extract_tile(src, x, y, transform):
         return None
 
 def center_from_cells(cells):
-    """Calculates the center of the total bounds of the selected grids."""
     minx, miny, maxx, maxy = cells.total_bounds
     return (minx + maxx) / 2, (miny + maxy) / 2
 
@@ -83,7 +78,6 @@ def main():
     print(f"Device: {device}")
 
     print("Loading LeJEPA Model and References...")
-    # Initialize the model imported from LeJepa.py
     encoder = LeJepaEncoder().to(device)
     encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
     encoder.eval()
@@ -112,7 +106,6 @@ def main():
             with rasterio.open(tif_path) as src:
                 bbox_gdf = gpd.GeoDataFrame({'geometry': [box(*src.bounds)]}, crs=src.crs)
                 
-                # Check projection
                 if bbox_gdf.crs != feat_gdf.crs:
                     bbox_gdf = bbox_gdf.to_crs(feat_gdf.crs)
                     
@@ -134,24 +127,26 @@ def main():
                         
                     target_ref = ref_embeddings[label_val]
 
-                    # Find grids belonging to this point using a small buffer
                     search_area = feat_geom.buffer(SEARCH_RADIUS)
                     cand_idx = list(grid_sindex.intersection(search_area.bounds))
                     
                     if not cand_idx:
+                        # 주변에 그리드가 아예 없는 경우 원래 좌표로 강제 할당하여 누락 방지
+                        results.append({
+                            "x": feat_geom.x, "y": feat_geom.y,
+                            "feature_id": fid, "label": label_val, "type": "slide"
+                        })
+                        processed_fids.add(fid)
                         continue
                         
-                    cell_records = []
                     tensors = []
                     valid_gids = []
 
-                    # Extract image and evaluate for each nearby grid cell
                     for gi in cand_idx:
                         grid_geom = grid_gdf.geometry.iloc[gi]
                         if not grid_geom.intersects(search_area):
                             continue
                             
-                        # Use the centroid of the grid cell for the camera location
                         cx, cy = grid_geom.centroid.x, grid_geom.centroid.y
                         tensor = extract_tile(src, cx, cy, transform)
                         
@@ -160,59 +155,63 @@ def main():
                             valid_gids.append(gi)
 
                     if not tensors:
+                        results.append({
+                            "x": feat_geom.x, "y": feat_geom.y,
+                            "feature_id": fid, "label": label_val, "type": "slide"
+                        })
+                        processed_fids.add(fid)
                         continue
 
-                    # Batch process through model
                     batch_tensor = torch.stack(tensors).to(device)
                     with torch.no_grad():
                         embeds = encoder(batch_tensor).mean(dim=1).cpu() 
                         
-                    # Compute Cosine Similarity (New Likelihood)
                     target_ref_expanded = target_ref.unsqueeze(0).expand(len(embeds), -1)
                     similarities = F.cosine_similarity(embeds, target_ref_expanded).numpy()
 
-                    # Filter based on your LIKELIHOOD_THRESHOLD
                     df_records = []
                     for i, sim in enumerate(similarities):
                         if sim >= LIKELIHOOD_THRESHOLD:
                             df_records.append({"grid_id": valid_gids[i], "likelihood": sim})
                             
+                    # ================================================
+                    # [누락 방지 로직] 0.5를 넘는 박스가 하나도 없을 때
+                    # ================================================
                     if not df_records:
+                        best_idx = int(np.argmax(similarities))
+                        best_gid = valid_gids[best_idx]
+                        best_geom = grid_gdf.geometry.iloc[best_gid]
+                        
+                        results.append({
+                            "x": best_geom.centroid.x,
+                            "y": best_geom.centroid.y,
+                            "feature_id": fid,
+                            "label": label_val,
+                            "type": "slide"  # 강제로 Step 2로 보냄
+                        })
                         processed_fids.add(fid)
                         continue
                         
                     df = pd.DataFrame(df_records)
 
-                    # ------------------------------------------------
-                    # Apply the rule set
-                    # ------------------------------------------------
-                    # Case 1: 3 or more grid cells
+                    # Case 1: 3 or more grid cells -> Center
                     if len(df) >= 3:
                         selected_cells = grid_gdf.loc[df["grid_id"]]
                         cx, cy = center_from_cells(selected_cells)
                         
                         results.append({
-                            "x": cx,
-                            "y": cy,
-                            "feature_id": fid,
-                            "label": label_val,
-                            "type": "center"
+                            "x": cx, "y": cy,
+                            "feature_id": fid, "label": label_val, "type": "center"
                         })
                         
-                    # Case 2: 1 or 2 grid cells
+                    # Case 2: 1 or 2 grid cells -> Slide
                     else:
                         best_gid = df.sort_values("likelihood", ascending=False).iloc[0]["grid_id"]
                         best_geom = grid_gdf.geometry.loc[best_gid]
                         
-                        # In the semantic space, the "overlap point" is simply the center of the best matching grid
-                        pt_x, pt_y = best_geom.centroid.x, best_geom.centroid.y
-                        
                         results.append({
-                            "x": pt_x,
-                            "y": pt_y,
-                            "feature_id": fid,
-                            "label": label_val,
-                            "type": "slide"
+                            "x": best_geom.centroid.x, "y": best_geom.centroid.y,
+                            "feature_id": fid, "label": label_val, "type": "slide"
                         })
                     
                     processed_fids.add(fid)
@@ -220,7 +219,6 @@ def main():
         except Exception as e:
             pass
 
-    # Save output
     if results:
         df_out = pd.DataFrame(results)
         df_out.to_csv(OUTPUT_CSV, index=False)

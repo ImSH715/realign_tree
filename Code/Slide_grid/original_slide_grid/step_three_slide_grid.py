@@ -17,6 +17,7 @@ from leJepa import LeJepaEncoder
 Do the same procedure as step one using LeJEPA embeddings.
 Evaluate the 3x3 grids generated in Step 2.
 Turn type 'slide' to 'center' based on the newly calculated coordinates.
+(Fallback logic included to prevent any dropped points)
 """
 
 # ==========================================
@@ -169,7 +170,17 @@ def main():
                             tensors.append(tensor)
                             valid_gids.append(gi)
 
+                    # [누락 방지] 이미지를 아예 추출하지 못했을 경우 Step 1의 원본 좌표 유지
                     if not tensors:
+                        orig_row = step1_df[step1_df["feature_id"] == fid].iloc[0]
+                        results.append({
+                            "x": orig_row["x"],
+                            "y": orig_row["y"],
+                            "feature_id": fid,
+                            "label": label_val,
+                            "type": "slide" # 최종 실패로 기록
+                        })
+                        processed_fids.add(fid)
                         continue
 
                     # Batch process through model
@@ -187,14 +198,28 @@ def main():
                         if sim >= LIKELIHOOD_THRESHOLD:
                             df_records.append({"grid_index": valid_gids[i], "likelihood": sim})
                             
+                    # ================================================
+                    # [누락 방지] 0.5를 넘는 박스가 하나도 없을 때
+                    # ================================================
                     if not df_records:
+                        best_idx = int(np.argmax(similarities))
+                        best_gid = valid_gids[best_idx]
+                        best_geom = grid_gdf.geometry.loc[best_gid]
+                        
+                        results.append({
+                            "x": best_geom.centroid.x,
+                            "y": best_geom.centroid.y,
+                            "feature_id": fid,
+                            "label": label_val,
+                            "type": "slide" # 최종 실패 (0.5 못 넘음)
+                        })
                         processed_fids.add(fid)
                         continue
                         
                     df = pd.DataFrame(df_records)
 
                     # ------------------------------------------------
-                    # Apply the rule set (All output as 'center')
+                    # Apply the rule set (Success output as 'center')
                     # ------------------------------------------------
                     # Case A: 3 or more boxes
                     if len(df) >= 3:
@@ -205,8 +230,6 @@ def main():
                     else:
                         best_idx = df.sort_values("likelihood", ascending=False).iloc[0]["grid_index"]
                         best_geom = grid_gdf.geometry.loc[best_idx]
-                        
-                        # In semantic space, overlap point is the centroid of the best matching cell
                         cx, cy = best_geom.centroid.x, best_geom.centroid.y
                         
                     results.append({
@@ -214,7 +237,7 @@ def main():
                         "y": cy,
                         "feature_id": fid,
                         "label": label_val,
-                        "type": "center"
+                        "type": "center" # 성공
                     })
                     
                     processed_fids.add(fid)
@@ -226,10 +249,10 @@ def main():
     if results:
         out_df = pd.DataFrame(results)
         out_df.to_csv(OUTPUT_CSV, index=False)
-        print(f"\nSaved {len(out_df)} updated centers to: {OUTPUT_CSV}")
-        print("Total centers (slide -> center):", len(out_df))
+        print(f"\nSaved {len(out_df)} updated points to: {OUTPUT_CSV}")
+        print(out_df["type"].value_counts().to_string())
     else:
-        print("\nNo points were successfully converted to center.")
+        print("\nNo points were processed.")
 
 if __name__ == "__main__":
     main()
