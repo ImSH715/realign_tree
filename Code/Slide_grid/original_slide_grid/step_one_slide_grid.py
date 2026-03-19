@@ -19,7 +19,7 @@ from leJepa import LeJepaEncoder
 # ==========================================
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
-GRID_SHP = r"C:\Users\naya0\Uni\1.COM-Turing\realign_tree\Code\Slide_grid\original_slide_grid\grid_result\3x3_grid_result.shp"
+GRID_SHP = r"grid_result/3x3_grid_result.shp"
 
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
