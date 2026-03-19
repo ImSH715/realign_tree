@@ -23,7 +23,7 @@ from leJepa import LeJepaEncoder
 # ==========================================
 # 1. Configuration & Paths
 # ==========================================
-FINAL_CSV = r"data/coordinate/sliding_results/final_results.csv"
+FINAL_CSV = r"data/coordinate/sliding_results/final_centered_points_lejepa.csv"
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 MODEL_PATH = r"data/models/lejepa_encoder.pth"
 
