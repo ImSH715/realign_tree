@@ -11,7 +11,7 @@ import glob
 from shapely.geometry import box
 from tqdm import tqdm
 
-from LeJepa import LeJepaEncoder
+from leJepa import LeJepaEncoder
 
 """
 Do the same procedure as step one using LeJEPA embeddings.
