@@ -3,11 +3,11 @@ from shapely.geometry import box
 import os
 
 # 1. Configuration
-shp_path = r"C:\Users\naya0\Uni\1.COM-Turing\HPC\results\random_trees_32718.shp"
+shp_path = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
 cell_size = 5.2  # Grid cell size
 
 # FIX: Added a filename (e.g., result.shp) to the end of the path
-output_dir = r"C:\Users\naya0\Uni\1.COM-Turing\realign_tree\Code\Slide_grid\original_slide_grid\grid_result"
+output_dir = r"grid_result"
 output_shp = os.path.join(output_dir, "3x3_grid_result.shp")
 
 # 2. Check if input file exists
