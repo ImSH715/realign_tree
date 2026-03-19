@@ -15,7 +15,7 @@ MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
 LABEL_PATH = r"data/label/train_labels.npy"
 
-CELL_SIZE = 1
+CELL_SIZE = 8
 def load_data():
     """
     Load shapefiles and numpy arrays.
