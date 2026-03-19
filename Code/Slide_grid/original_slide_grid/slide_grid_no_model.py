@@ -168,7 +168,7 @@ def main():
         print(f"Algorithm finished. Total final points: {len(final_points_gdf)}")
         
         # Save the result
-        save_dir = f"data/slided_coordinate/slide_grid_results_d:{DISTANCE}_cz:{CELL_SIZE}.shp"
+        save_dir = f"data/distance/slide_grid_results_d:{DISTANCE}_cz:{CELL_SIZE}.shp"
         final_points_gdf.to_file(save_dir)
         print(f"Results saved to '{save_dir}'")
     else:
