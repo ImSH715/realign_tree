@@ -12,7 +12,7 @@ from shapely.geometry import box
 from tqdm import tqdm
 
 # Import the existing LeJEPA model class
-from LeJepa import LeJepaEncoder
+from leJepa import LeJepaEncoder
 
 # ==========================================
 # 1. Hyperparameters & Paths
