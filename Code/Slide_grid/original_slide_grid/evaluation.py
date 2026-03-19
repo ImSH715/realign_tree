@@ -8,7 +8,7 @@ import os
 # ==========================================
 FINAL_CSV = r"data/coordinate/sliding_results/final_results.csv"
 ORIGINAL_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
-GROUND_TRUTH_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/ground_truth_32718.shp" 
+GROUND_TRUTH_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp" 
 
 TARGET_CRS = "EPSG:32718"
 
