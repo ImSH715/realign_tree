@@ -194,50 +194,55 @@ def main():
     print("Extracting patches...")
 
     for tif_path in tqdm(tif_files):
-        with rasterio.open(tif_path) as src:
+        try:
+            with rasterio.open(tif_path) as src:
 
-            bounds = src.bounds
-            img_box = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
+                bounds = src.bounds
+                img_box = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
 
-            bbox_gdf = gpd.GeoDataFrame({'geometry': [img_box]}, crs=src.crs)
-            if bbox_gdf.crs != gdf.crs:
-                bbox_gdf = bbox_gdf.to_crs(gdf.crs)
+                bbox_gdf = gpd.GeoDataFrame({'geometry': [img_box]}, crs=src.crs)
+                if bbox_gdf.crs != gdf.crs:
+                    bbox_gdf = bbox_gdf.to_crs(gdf.crs)
 
-            intersecting = gdf[gdf.geometry.intersects(bbox_gdf.geometry.iloc[0])]
+                intersecting = gdf[gdf.geometry.intersects(bbox_gdf.geometry.iloc[0])]
 
-            if intersecting.empty:
-                continue
-
-            if intersecting.crs != src.crs:
-                intersecting = intersecting.to_crs(src.crs)
-
-            for idx, row in intersecting.iterrows():
-                temp_id = row['temp_id']
-                if temp_id in extracted_ids:
+                if intersecting.empty:
                     continue
 
-                x, y = row.geometry.x, row.geometry.y
-                py, px = src.index(x, y)
+                if intersecting.crs != src.crs:
+                    intersecting = intersecting.to_crs(src.crs)
 
-                window = rasterio.windows.Window(
-                    px - HALF_CROP,
-                    py - HALF_CROP,
-                    CROP_SIZE,
-                    CROP_SIZE
-                )
+                for idx, row in intersecting.iterrows():
+                    temp_id = row['temp_id']
+                    if temp_id in extracted_ids:
+                        continue
 
-                tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-                tile = np.moveaxis(tile, 0, -1)
+                    x, y = row.geometry.x, row.geometry.y
+                    py, px = src.index(x, y)
 
-                if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
-                    img = Image.fromarray(tile.astype('uint8'))
-                    patches.append(transform(img))
+                    window = rasterio.windows.Window(
+                        px - HALF_CROP,
+                        py - HALF_CROP,
+                        CROP_SIZE,
+                        CROP_SIZE
+                    )
 
-                    label_val = row.get('Tree', f"id_{temp_id}")
-                    patch_labels.append(str(label_val))
+                    tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+                    tile = np.moveaxis(tile, 0, -1)
 
-                    successful_rows.append(row)
-                    extracted_ids.add(temp_id)
+                    if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
+                        img = Image.fromarray(tile.astype('uint8'))
+                        patches.append(transform(img))
+
+                        label_val = row.get('Tree', f"id_{temp_id}")
+                        patch_labels.append(str(label_val))
+
+                        successful_rows.append(row)
+                        extracted_ids.add(temp_id)
+        except Exception as e:
+            # 에러가 발생하면 파일 이름을 출력하고 스킵합니다.
+            print(f"\nSkipping {os.path.basename(tif_path)} due to error: {e}")
+            continue
 
     if not patches:
         print("No patches extracted.")

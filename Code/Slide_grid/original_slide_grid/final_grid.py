@@ -1,44 +1,38 @@
 import numpy as np
 import geopandas as gpd
-import pandas as pd
 from shapely.geometry import Point, Polygon
-from sklearn.metrics.pairwise import cosine_similarity
+from scipy.spatial.distance import cdist
 
-INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_13.shp"
+# --------------------------
+# Paths
+# --------------------------
+RANDOM_TREES_SHP = "data/random_trees.shp"
 
-EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
-LABEL_PATH = r"data/label/train_labels.npy"
+EMBEDDING_PATH = "data/embeddings/embeddings.npy"
+COORD_PATH = "data/embeddings/coords.npy"
+LABEL_PATH = "data/label/labels.npy"
 
 OUTPUT_SHP = "slide_grid_results.shp"
 
-
+# --------------------------
+# Load Data
+# --------------------------
 def load_data():
-    """
-    Load shapefile, embeddings, and labels.
-    Assumes that the order of shapefile rows matches embeddings and labels.
-    """
-    random_trees = gpd.read_file(INPUT_SHP)
+    random_trees = gpd.read_file(RANDOM_TREES_SHP)
+
     embeddings = np.load(EMBEDDING_PATH)
+    coords = np.load(COORD_PATH)
     labels = np.load(LABEL_PATH)
 
-    return random_trees, embeddings, labels
+    return random_trees, embeddings, coords, labels
 
-
-def extract_coordinates(gdf):
-    """
-    Extract (x, y) coordinates from GeoDataFrame geometry.
-    """
-    return np.array([[geom.x, geom.y] for geom in gdf.geometry])
-
-
+# --------------------------
+# Create 3x3 Grid
+# --------------------------
 def create_3x3_grid(center_point, cell_size=5.0):
-    """
-    Create a 3x3 grid (9 boxes) around a center point.
-    Each box has size defined by cell_size.
-    """
     x, y = center_point.x, center_point.y
-    boxes = []
 
+    boxes = []
     for i in range(-1, 2):
         for j in range(-1, 2):
             minx = x + (j * cell_size) - (cell_size / 2)
@@ -46,21 +40,19 @@ def create_3x3_grid(center_point, cell_size=5.0):
             miny = y - (i * cell_size) - (cell_size / 2)
             maxy = y - (i * cell_size) + (cell_size / 2)
 
-            box = Polygon([
+            boxes.append(Polygon([
                 (minx, miny),
                 (maxx, miny),
                 (maxx, maxy),
                 (minx, maxy)
-            ])
-            boxes.append(box)
+            ]))
 
     return boxes
 
-
+# --------------------------
+# Find points inside box
+# --------------------------
 def get_points_in_box(box, coords):
-    """
-    Return indices of points inside a given box.
-    """
     minx, miny, maxx, maxy = box.bounds
 
     mask = (
@@ -70,49 +62,55 @@ def get_points_in_box(box, coords):
         (coords[:, 1] <= maxy)
     )
 
-    return np.where(mask)[0]
+    return mask
 
+# --------------------------
+# Cosine similarity
+# --------------------------
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-def calculate_likelihood(box, tree_label, coords, embeddings, labels):
-    """
-    Compute likelihood that a box contains the target tree crown.
+# --------------------------
+# Likelihood calculation
+# --------------------------
+def calculate_likelihood(box, tree_label, query_embedding, embeddings, coords, labels):
+    mask = get_points_in_box(box, coords)
 
-    Steps:
-    1. Find points inside the box
-    2. Filter points by same species
-    3. Measure embedding consistency using cosine similarity
-    """
-    indices = get_points_in_box(box, coords)
-
-    if len(indices) == 0:
+    if np.sum(mask) == 0:
         return 0.0
 
-    # Filter by same species
-    same_species_indices = [i for i in indices if labels[i] == tree_label]
+    box_embeddings = embeddings[mask]
+    box_labels = labels[mask]
 
-    if len(same_species_indices) == 0:
+    # Only same species
+    same_species_mask = (box_labels == tree_label)
+
+    if np.sum(same_species_mask) == 0:
         return 0.0
 
-    # Extract embeddings
-    selected_embeddings = embeddings[same_species_indices]
+    candidate_embeddings = box_embeddings[same_species_mask]
 
-    # Compute similarity to mean embedding
-    mean_embedding = selected_embeddings.mean(axis=0, keepdims=True)
-    similarity = cosine_similarity(mean_embedding, selected_embeddings).mean()
+    # Compute similarity
+    sims = [
+        cosine_similarity(query_embedding, emb)
+        for emb in candidate_embeddings
+    ]
 
-    return similarity
+    return np.max(sims)
 
+# --------------------------
+# Nearest embedding finder
+# --------------------------
+def get_query_embedding(point, coords, embeddings):
+    dists = cdist([[point.x, point.y]], coords)
+    idx = np.argmin(dists)
+    return embeddings[idx]
 
-def process_slide_grid(current_points, coords, embeddings, labels, cell_size=5.0):
-    """
-    Perform one iteration of the sliding grid algorithm.
-
-    Returns:
-    - center points (confident locations)
-    - slide points (uncertain, to be refined further)
-    """
-    new_centers = []
-    new_slides = []
+# --------------------------
+# Sliding Grid Step
+# --------------------------
+def process_slide_grid(current_points, embeddings, coords, labels, cell_size=5.0):
+    new_points = []
 
     label_col = current_points.columns[0]
 
@@ -120,111 +118,57 @@ def process_slide_grid(current_points, coords, embeddings, labels, cell_size=5.0
         point = row.geometry
         tree_label = row[label_col]
 
+        query_embedding = get_query_embedding(point, coords, embeddings)
+
         boxes = create_3x3_grid(point, cell_size)
 
-        valid_boxes = []
+        best_score = -1
+        best_center = point
 
         for box in boxes:
-            likelihood = calculate_likelihood(
-                box, tree_label, coords, embeddings, labels
+            score = calculate_likelihood(
+                box,
+                tree_label,
+                query_embedding,
+                embeddings,
+                coords,
+                labels
             )
 
-            if likelihood >= 0.7:
-                valid_boxes.append(box)
+            if score > best_score:
+                best_score = score
+                best_center = box.centroid
 
-        num_valid = len(valid_boxes)
+        new_points.append({
+            'geometry': best_center,
+            label_col: tree_label
+        })
 
-        if num_valid >= 3:
-            avg_x = np.mean([b.centroid.x for b in valid_boxes])
-            avg_y = np.mean([b.centroid.y for b in valid_boxes])
+    return gpd.GeoDataFrame(new_points, crs=current_points.crs)
 
-            new_centers.append({
-                label_col: tree_label,
-                "geometry": Point(avg_x, avg_y)
-            })
-
-        elif 1 <= num_valid <= 2:
-            avg_x = np.mean([b.centroid.x for b in valid_boxes])
-            avg_y = np.mean([b.centroid.y for b in valid_boxes])
-
-            new_slides.append({
-                label_col: tree_label,
-                "geometry": Point(avg_x, avg_y)
-            })
-
-        else:
-            new_slides.append({
-                label_col: tree_label,
-                "geometry": point
-            })
-
-    crs = current_points.crs
-
-    gdf_centers = (
-        gpd.GeoDataFrame(new_centers, crs=crs)
-        if new_centers else
-        gpd.GeoDataFrame(columns=[label_col, "geometry"], crs=crs)
-    )
-
-    gdf_slides = (
-        gpd.GeoDataFrame(new_slides, crs=crs)
-        if new_slides else
-        gpd.GeoDataFrame(columns=[label_col, "geometry"], crs=crs)
-    )
-
-    return gdf_centers, gdf_slides
-
-
+# --------------------------
+# Main
+# --------------------------
 def main():
-    print("Loading data...")
-    random_trees, embeddings, labels = load_data()
+    random_trees, embeddings, coords, labels = load_data()
 
-    # Validate data alignment
-    assert len(random_trees) == len(embeddings) == len(labels), \
-        "Mismatch in data lengths"
+    current = random_trees.copy()
 
-    coords = extract_coordinates(random_trees)
+    NUM_STEPS = 3
+    CELL_SIZE = 6.0
 
-    grid_cell_size = 5.5
-    num_iterations = 2
-
-    all_centers = []
-    current_slides = random_trees
-
-    print("Starting sliding grid process...")
-
-    for step in range(num_iterations):
-        print(f"Step {step + 1}")
-
-        if current_slides.empty:
-            break
-
-        centers, current_slides = process_slide_grid(
-            current_slides,
-            coords,
+    for step in range(NUM_STEPS):
+        print(f"Step {step+1}")
+        current = process_slide_grid(
+            current,
             embeddings,
+            coords,
             labels,
-            cell_size=grid_cell_size
+            CELL_SIZE
         )
 
-        if not centers.empty:
-            all_centers.append(centers)
-
-        print(f"Centers: {len(centers)}, Slides: {len(current_slides)}")
-
-    if not current_slides.empty:
-        all_centers.append(current_slides)
-
-    if all_centers:
-        final_gdf = pd.concat(all_centers, ignore_index=True)
-        final_gdf = gpd.GeoDataFrame(final_gdf, crs=random_trees.crs)
-
-        print(f"Total output points: {len(final_gdf)}")
-
-        final_gdf.to_file(OUTPUT_SHP)
-        print(f"Saved to {OUTPUT_SHP}")
-    else:
-        print("No output generated")
+    current.to_file(OUTPUT_SHP)
+    print("Saved results:", OUTPUT_SHP)
 
 
 if __name__ == "__main__":
