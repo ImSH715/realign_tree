@@ -4,7 +4,7 @@ import pandas as pd
 from shapely.geometry import Point, Polygon
 from sklearn.metrics.pairwise import cosine_similarity
 
-INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
+INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_13.shp"
 
 EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
 LABEL_PATH = r"data/label/train_labels.npy"
