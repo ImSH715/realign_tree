@@ -1,73 +1,94 @@
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import box
+
 """
-Scan type 'slide' from the step1_points.csv
-Generate new 3x3 grid just for those coordinates with type 'slide'
-generate shapefile.
+Scan type 'slide' from the step1_points_lejepa.csv
+Generate a new 3x3 grid just for those coordinates with type 'slide'
+and generate a shapefile for the next step.
 """
-# Config
-STEP1_CSV = "../coordinate/step1_points.csv"
-OUTPUT_GRID_SHP = "../shapefiles/step2_slide_grids.shp"
 
-CELL_SIZE = 1.2  # grid cell size
+# ==========================================
+# 1. Configuration & Paths
+# ==========================================
+STEP1_CSV = "step1_points_lejepa.csv"
+OUTPUT_GRID_SHP = "step2_slide_grids_lejepa.shp"
 
-# Load step1 result
-df = pd.read_csv(STEP1_CSV)
+CELL_SIZE = 5.2  # Grid cell size in meters
+TARGET_CRS = "EPSG:32718"  # Set the CRS to match your project
 
-# Use only slide points
-df = df[df["type"] == "slide"].copy()
+def main():
+    print(f"Loading Step 1 results from: {STEP1_CSV}")
+    try:
+        df = pd.read_csv(STEP1_CSV)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Could not find {STEP1_CSV}. Please run Step 1 first.")
 
-if df.empty:
-    raise ValueError("No slide points found in step1 result.")
+    # Use only points that require a slide
+    df_slide = df[df["type"] == "slide"].copy()
 
-df["x"] = pd.to_numeric(df["x"], errors="coerce")
-df["y"] = pd.to_numeric(df["y"], errors="coerce")
-df = df.dropna(subset=["x", "y"]).reset_index(drop=True)
+    if df_slide.empty:
+        print("No slide points found in Step 1 result. The algorithm can terminate early.")
+        return
 
-# Create point GeoDataFrame
-points_gdf = gpd.GeoDataFrame(
-    df,
-    geometry=gpd.points_from_xy(df["x"], df["y"]),
-    crs=None
-)
+    print(f"Found {len(df_slide)} points requiring a slide.")
 
-# Create 3x3 grid centered on slide point
-records = []
-geometries = []
+    # Ensure coordinates are numeric
+    df_slide["x"] = pd.to_numeric(df_slide["x"], errors="coerce")
+    df_slide["y"] = pd.to_numeric(df_slide["y"], errors="coerce")
+    df_slide = df_slide.dropna(subset=["x", "y"]).reset_index(drop=True)
 
-half = CELL_SIZE / 2
+    # Create point GeoDataFrame
+    points_gdf = gpd.GeoDataFrame(
+        df_slide,
+        geometry=gpd.points_from_xy(df_slide["x"], df_slide["y"]),
+        crs=TARGET_CRS
+    )
 
-for pid, row in points_gdf.iterrows():
-    cx = row.geometry.x
-    cy = row.geometry.y
+    # ==========================================
+    # 2. Generate 3x3 Grids
+    # ==========================================
+    records = []
+    geometries = []
+    
+    half = CELL_SIZE / 2.0
 
-    for dx in [-1, 0, 1]:
-        for dy in [-1, 0, 1]:
-            x_min = cx + dx * CELL_SIZE - half
-            x_max = cx + dx * CELL_SIZE + half
-            y_min = cy + dy * CELL_SIZE - half
-            y_max = cy + dy * CELL_SIZE + half
+    print("Generating 3x3 grids for each slide point...")
+    for _, row in points_gdf.iterrows():
+        cx = row.geometry.x
+        cy = row.geometry.y
+        feature_id = row["feature_id"]
 
-            records.append({
-                "point_id": row["feature_id"],
-                "dx": dx,
-                "dy": dy,
-                "source": "slide"
-            })
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                # Calculate bounding box coordinates for each cell
+                x_min = cx + dx * CELL_SIZE - half
+                x_max = cx + dx * CELL_SIZE + half
+                y_min = cy + dy * CELL_SIZE - half
+                y_max = cy + dy * CELL_SIZE + half
 
-            geometries.append(
-                box(x_min, y_min, x_max, y_max)
-            )
+                records.append({
+                    "point_id": feature_id,
+                    "dx": dx,
+                    "dy": dy,
+                    "source": "slide"
+                })
 
-# Create grid GeoDataFrame
-grid_gdf = gpd.GeoDataFrame(
-    records,
-    geometry=geometries,
-    crs=None
-)
+                geometries.append(box(x_min, y_min, x_max, y_max))
 
-# Save
-grid_gdf.to_file(OUTPUT_GRID_SHP)
-print(f"Saved: {OUTPUT_GRID_SHP}")
-print(f"Total slide grids created: {grid_gdf['point_id'].nunique()}")
+    # Create grid GeoDataFrame
+    grid_gdf = gpd.GeoDataFrame(
+        records,
+        geometry=geometries,
+        crs=TARGET_CRS
+    )
+
+    # ==========================================
+    # 3. Save Output
+    # ==========================================
+    grid_gdf.to_file(OUTPUT_GRID_SHP)
+    print(f"Saved generated grids to: {OUTPUT_GRID_SHP}")
+    print(f"Total slide points processed: {grid_gdf['point_id'].nunique()} (Total cells generated: {len(grid_gdf)})")
+
+if __name__ == "__main__":
+    main()
