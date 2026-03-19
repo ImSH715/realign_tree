@@ -15,7 +15,7 @@ MODEL_PATH = r"data/models/lejepa_encoder.pth"
 EMBEDDING_PATH = r"data/embeddings/train_embeddings.npy"
 LABEL_PATH = r"data/label/train_labels.npy"
 
-
+CELL_SIZE = 3.0
 def load_data():
     """
     Load shapefiles and numpy arrays.
@@ -129,7 +129,7 @@ def main():
     random_trees, embeddings, labels = load_data()
     
     # Grid cell size configuration
-    grid_cell_size = 5.5 
+    grid_cell_size = CELL_SIZE
     
     all_centers = []
     current_slides = random_trees
@@ -168,7 +168,7 @@ def main():
         print(f"Algorithm finished. Total final points: {len(final_points_gdf)}")
         
         # Save the result
-        final_points_gdf.to_file(f"data/slided_coordinate/slide_grid_results_{DISTANCE}.shp")
+        final_points_gdf.to_file(f"data/slided_coordinate/slide_grid_results_d:{DISTANCE}_cz:{CELL_SIZE}.shp")
         print("Results saved to 'slide_grid_results_13.shp'")
     else:
         print("No points generated.")
