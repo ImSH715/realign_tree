@@ -85,9 +85,6 @@ def main():
     # - 원래도 수관 안이었고, 지금도 수관 안인 경우 (잘 버텼다!)
     stable_inside = ((eval_df["inside_crown_before"] == True) & (eval_df["inside_crown_after"] == True)).sum()
     
-    # - 수관 밖이었는데, 알고리즘이 수관 안으로 데리고 온 경우 (구출됨!)
-    rescued_inside = ((eval_df["inside_crown_before"] == False) & (eval_df["inside_crown_after"] == True)).sum()
-    
     # - 수관 안이었는데, 알고리즘이 엉뚱한 곳으로 보내버린 경우 (이탈)
     lost_outside = ((eval_df["inside_crown_before"] == True) & (eval_df["inside_crown_after"] == False)).sum()
 
@@ -98,7 +95,7 @@ def main():
     # 6. Print Report
     # ==========================================
     print("\n" + "="*55)
-    print(" 🌳 LeJEPA Tree Crown & Alignment Evaluation")
+    print("LeJEPA Tree Crown & Alignment Evaluation")
     print("="*55)
     print(f"Total points evaluated: {total_points}")
     print(f"Assumed Tree Crown Radius: {CROWN_RADIUS} meters")
@@ -110,7 +107,6 @@ def main():
     
     print("\n[ 2. Detailed Movement Analysis ]")
     print(f" - Stable (Stayed inside crown)  : {stable_inside} points")
-    print(f" - Rescued (Moved into crown)    : {rescued_inside} points")
     print(f" - Lost (Wandered outside crown) : {lost_outside} points")
     
     print("-" * 55)
@@ -122,7 +118,7 @@ def main():
     print(f"[ 4. Absolute Distance Error (For reference) ]")
     print(f" - Mean Error Before : {eval_df['error_before'].mean():.2f} m")
     print(f" - Mean Error After  : {eval_df['error_after'].mean():.2f} m")
-    print(f" - Avg. Distance AI moved the point : {eval_df['shift_distance'].mean():.2f} m")
+    print(f" - Avg. Distance moved the point : {eval_df['shift_distance'].mean():.2f} m")
     print("="*55)
 
     # Save detailed output
