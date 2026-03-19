@@ -30,7 +30,7 @@ CROP_MULTIPLIER = 4
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 
 HALF_CROP = CROP_SIZE // 2
 
-CELL_SIZE = 1.2  # Distance between grid centers in meters
+CELL_SIZE = 5.5  # Distance between grid centers in meters
 LIKELIHOOD_THRESHOLD = 0.75  # Cosine similarity threshold to be "checked"
 
 MAX_STEPS = 3  # Step 1, Step 2, and Final Step 3
