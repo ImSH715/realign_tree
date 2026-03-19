@@ -4,7 +4,7 @@ import pandas as pd
 from shapely.geometry import Point, Polygon
 from scipy.spatial.distance import cdist
 
-INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
+INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_13.shp"
 
 STEP3_CSV = "step3_points_lejepa.csv"
 GRID_SHP = "step4_slide_grids_lejepa.shp"
