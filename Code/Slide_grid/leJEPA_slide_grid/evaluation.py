@@ -11,8 +11,7 @@ FINAL_CSV = "data/result_coordinate/final_results.csv"
 ORIGINAL_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718.shp"
 
 # 3) Ground Truth (actual correct) coordinates
-# (Note: Please update this to your actual Ground Truth shapefile path!)
-GROUND_TRUTH_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/ground_truth_32718.shp" 
+GROUND_TRUTH_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp" 
 
 TARGET_CRS = "EPSG:32718"
 
