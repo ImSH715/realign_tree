@@ -27,6 +27,6 @@ echo "Using Python from: $(which python)"
 python --version
 
 # --- 4. Execution ---
-python -u slide_grid_random.py
+python -u correct_slide_grid.py
 
 echo "Job finished at $(date)"

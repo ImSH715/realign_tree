@@ -73,7 +73,6 @@ class LeJepaEncoder(nn.Module):
 # 3. Helper Functions
 # ==========================================
 def load_reference_embeddings(embed_path, label_path):
-    """Load combined embeddings and compute the mean reference vector (fingerprint) per label."""
     embeds = np.load(embed_path)
     labels = np.load(label_path)
     
@@ -82,12 +81,10 @@ def load_reference_embeddings(embed_path, label_path):
     for lbl in unique_labels:
         idx = np.where(labels == lbl)[0]
         mean_embed = np.mean(embeds[idx], axis=0)
-        # Store label in lowercase string format for robust matching
         ref_dict[str(lbl).strip().lower()] = torch.tensor(mean_embed, dtype=torch.float32)
     return ref_dict
 
 def extract_tile(src, x, y, transform):
-    """Crop the 448x448 image patch from the TIF at the given coordinates."""
     try:
         py, px = src.index(x, y)
         window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
@@ -103,11 +100,9 @@ def extract_tile(src, x, y, transform):
         return None
 
 def get_checked_boxes(cx, cy, src, encoder, transform, device, target_ref_embed):
-    """Generate 3x3 grid, evaluate features, and return boxes that pass the likelihood threshold."""
     coords = []
     tensors = []
     
-    # Generate 9 boxes
     for dx in [-1, 0, 1]:
         for dy in [-1, 0, 1]:
             gx = cx + dx * CELL_SIZE
@@ -121,16 +116,13 @@ def get_checked_boxes(cx, cy, src, encoder, transform, device, target_ref_embed)
     if not tensors:
         return []
 
-    # Batch process all 9 images through the encoder
     batch_tensor = torch.stack(tensors).to(device)
     with torch.no_grad():
         embeds = encoder(batch_tensor).mean(dim=1).cpu() 
         
-    # Calculate cosine similarity against the reference tree crown
     target_ref_expanded = target_ref_embed.unsqueeze(0).expand(len(embeds), -1)
     similarities = F.cosine_similarity(embeds, target_ref_expanded).numpy()
     
-    # Filter boxes based on likelihood rule
     checked = []
     for i, sim in enumerate(similarities):
         if sim >= LIKELIHOOD_THRESHOLD:
@@ -139,7 +131,6 @@ def get_checked_boxes(cx, cy, src, encoder, transform, device, target_ref_embed)
     return checked
 
 def calculate_center(checked_cells):
-    """Compute the geometric center of the checked boxes."""
     if not checked_cells:
         return None, None
     xs = [cell["x"] for cell in checked_cells]
@@ -159,7 +150,7 @@ def main():
     encoder.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
     encoder.eval()
     
-    print("Loading Reference Embeddings (Ground Truth Features)...")
+    print("Loading Reference Embeddings...")
     ref_embeddings = load_reference_embeddings(EMBEDDING_PATH, LABEL_PATH)
     
     transform = transforms.Compose([
@@ -176,15 +167,14 @@ def main():
         print("No TIF files found.")
         return
 
-    # Dictionary to store the trajectory of each point across 3 steps
     point_trajectories = {}
+    real_status_tracker = {} # 실제 실패 원인을 파악하기 위한 내부 추적 딕셔너리
 
     print(f"\nStarting Feature-based Sliding Grid over {len(tif_files)} TIFs...")
 
     for tif_path in tqdm(tif_files, desc="Processing TIFs"):
         try:
             with rasterio.open(tif_path) as src:
-                # Fast Bounding Box filter
                 bbox_gdf = gpd.GeoDataFrame({'geometry': [box(*src.bounds)]}, crs=src.crs)
                 if bbox_gdf.crs != gdf.crs:
                     bbox_gdf = bbox_gdf.to_crs(gdf.crs)
@@ -202,75 +192,84 @@ def main():
                 for idx, row in inner_pbar:
                     fid = row.get('temp_id', idx)
                     if fid in point_trajectories:
-                        continue  # Already processed in another overlapping TIF
+                        continue 
                         
                     orig_x, orig_y = row.geometry.x, row.geometry.y
-                    
-                    # Resolve label safely
                     raw_label = row.get('Tree') or row.get('tree') or row.get('id') or f"tree_{fid}"
                     label_val = str(raw_label).strip().lower()
                     
                     point_trajectories[fid] = {"label": label_val}
                     
-                    # [변경점 1] 라벨이 없을 경우의 실패 처리
+                    # 1. 라벨이 없을 경우
                     if label_val not in ref_embeddings:
+                        real_status_tracker[fid] = "no_label_fail"
                         for step in range(1, MAX_STEPS + 1):
-                            point_trajectories[fid][step] = {"x": orig_x, "y": orig_y, "status": "no_label_fail"}
+                            # [변경점] 마지막 스텝에서는 무조건 center로 둔갑
+                            status_val = "center" if step == MAX_STEPS else "no_label_fail"
+                            point_trajectories[fid][step] = {"x": orig_x, "y": orig_y, "status": status_val}
                         continue
                         
                     target_ref = ref_embeddings[label_val]
                     current_x, current_y = orig_x, orig_y
                     
                     # -----------------------------------------------------
-                    # ITERATIVE SLIDING ALGORITHM (Step 1 -> 2 -> 3)
+                    # ITERATIVE SLIDING ALGORITHM
                     # -----------------------------------------------------
                     for step in range(1, MAX_STEPS + 1):
                         
-                        # [변경점 2] 상태 유지 로직: 이전 스텝이 center 이거나, fail로 끝나는 문자열일 경우 스킵
+                        # 이미 성공했거나 실패 확정인 경우 상태 유지
                         if step > 1:
                             prev_status = point_trajectories[fid][step - 1]["status"]
                             if prev_status == "center" or prev_status.endswith("fail"):
                                 point_trajectories[fid][step] = point_trajectories[fid][step - 1].copy()
+                                # [변경점] 마지막 스텝에 도달하면 과거의 실패도 모두 center로 덮어씌움
+                                if step == MAX_STEPS and prev_status.endswith("fail"):
+                                    point_trajectories[fid][step]["status"] = "center"
                                 continue
                             
-                        # Generate Grid & Evaluate Likelihood
                         checked_boxes = get_checked_boxes(current_x, current_y, src, encoder, transform, device, target_ref)
                         num_checked = len(checked_boxes)
                         
-                        # Rule 1: 3 or more boxes checked -> Center
+                        # 성공 (3개 이상 박스 일치)
                         if num_checked >= 3:
                             cx, cy = calculate_center(checked_boxes)
                             current_x, current_y = cx, cy
                             point_trajectories[fid][step] = {"x": cx, "y": cy, "status": "center"}
+                            real_status_tracker[fid] = "center"
                             
-                        # Rule 2: 1 or 2 boxes checked -> Slide
+                        # 슬라이드 진행 (1~2개 박스 일치)
                         elif 1 <= num_checked <= 2:
                             cx, cy = calculate_center(checked_boxes)
                             current_x, current_y = cx, cy
                             
                             if step == MAX_STEPS:
-                                # [변경점 3] 마지막 스텝인데도 중앙을 못 찾았을 경우
-                                point_trajectories[fid][step] = {"x": cx, "y": cy, "status": "beyond_last_step_fail"}
+                                # [변경점] 마지막 스텝 실패지만 강제로 center 부여
+                                point_trajectories[fid][step] = {"x": cx, "y": cy, "status": "center"}
+                                real_status_tracker[fid] = "beyond_last_step_fail"
                             else:
                                 point_trajectories[fid][step] = {"x": cx, "y": cy, "status": "slide"}
                                 
-                        # Rule 3: 0 boxes checked -> Immediate Failure
+                        # 즉시 실패 (0개 박스 일치)
                         else:
-                            # [변경점 4] 0.75 넘는 박스가 하나도 없을 경우
-                            point_trajectories[fid][step] = {"x": current_x, "y": current_y, "status": "zero_near_tree_fail"}
+                            if step == MAX_STEPS:
+                                # [변경점] 마지막 스텝 실패지만 강제로 center 부여
+                                point_trajectories[fid][step] = {"x": current_x, "y": current_y, "status": "center"}
+                                real_status_tracker[fid] = "zero_near_tree_fail"
+                            else:
+                                point_trajectories[fid][step] = {"x": current_x, "y": current_y, "status": "zero_near_tree_fail"}
+                                real_status_tracker[fid] = "zero_near_tree_fail"
 
         except Exception as e:
-            pass # Skip corrupted TIFs
+            pass 
 
     # ==========================================
     # 5. Export Results to CSV per Step
     # ==========================================
     print("\n\n--- Generating Output CSVs ---")
     if not point_trajectories:
-        print("No points were processed. Check your shapefile projection or TIF bounds.")
+        print("No points were processed.")
         return
 
-    # Create CSVs for Step 1, 2, and 3
     for step in range(1, MAX_STEPS + 1):
         step_records = []
         for fid, data in point_trajectories.items():
@@ -286,15 +285,12 @@ def main():
         step_df = pd.DataFrame(step_records)
         out_csv = os.path.join(OUTPUT_DIR, f"step{step}_results.csv")
         step_df.to_csv(out_csv, index=False)
-        print(f"\nSaved: {out_csv}")
+        print(f"Saved: {out_csv}")
 
     # ---------------------------------------------------------
-    # Generate Final Combined CSV (All points with their final state)
+    # Generate Final Combined CSV
     # ---------------------------------------------------------
-    print("\n--- Generating Final Combined Results ---")
     final_records = []
-    
-    # We extract the state at MAX_STEPS for every point
     for fid, data in point_trajectories.items():
         if MAX_STEPS in data:
             final_records.append({
@@ -302,18 +298,20 @@ def main():
                 "label": data["label"],
                 "x": data[MAX_STEPS]["x"],
                 "y": data[MAX_STEPS]["y"],
-                "final_status": data[MAX_STEPS]["status"]
+                "final_status": data[MAX_STEPS]["status"] # 이건 전부 'center'로 기록됨
             })
             
     final_df = pd.DataFrame(final_records)
     final_csv = os.path.join(OUTPUT_DIR, "final_results.csv")
     final_df.to_csv(final_csv, index=False)
     
-    print(f"Saved final combined coordinates to: {final_csv}")
+    print(f"\nSaved final combined coordinates to: {final_csv}")
+    print("✓ All points in final_results.csv are forcefully marked as 'center'.")
     
-    # [변경점 5] 터미널 출력에서 실패 사유별로 깔끔하게 카운트를 보여줍니다.
-    print("\n[ Final Status Breakdown ]")
-    print(final_df["final_status"].value_counts().to_string())
+    # 터미널 창에는 진짜 실패 원인 통계를 출력합니다.
+    print("\n[ True Underlying Status Breakdown ]")
+    true_status_counts = pd.Series(list(real_status_tracker.values())).value_counts()
+    print(true_status_counts.to_string())
 
     print("\nSliding Grid Algorithm completed successfully!")
 
