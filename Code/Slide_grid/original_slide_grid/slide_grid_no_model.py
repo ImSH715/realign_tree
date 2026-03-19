@@ -4,7 +4,9 @@ import pandas as pd
 from shapely.geometry import Point, Polygon
 from scipy.spatial.distance import cdist
 
-INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_13.shp"
+DISTANCE = 13
+
+INPUT_SHP = f"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_{DISTANCE}.shp"
 
 STEP3_CSV = "step3_points_lejepa.csv"
 GRID_SHP = "step4_slide_grids_lejepa.shp"
@@ -166,8 +168,8 @@ def main():
         print(f"Algorithm finished. Total final points: {len(final_points_gdf)}")
         
         # Save the result
-        final_points_gdf.to_file("slide_grid_results.shp")
-        print("Results saved to 'slide_grid_results.shp'")
+        final_points_gdf.to_file(f"slide_grid_results_{DISTANCE}.shp")
+        print("Results saved to 'slide_grid_results_13.shp'")
     else:
         print("No points generated.")
 
