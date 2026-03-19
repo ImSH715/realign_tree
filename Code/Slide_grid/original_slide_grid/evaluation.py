@@ -3,7 +3,9 @@ import geopandas as gpd
 import numpy as np
 import os
 
+# ==========================================
 # 1. Configuration & Paths
+# ==========================================
 # 1) Final aligned coordinates from the AI pipeline
 FINAL_CSV = "final_centered_points_lejepa.csv"
 
@@ -44,7 +46,9 @@ def main():
     orig_gdf["feature_id"] = orig_gdf.get("temp_id", orig_gdf.index)
     gt_gdf["feature_id"] = gt_gdf.get("temp_id", gt_gdf.index)
 
+    # ==========================================
     # 2. Merge Data for Comparison
+    # ==========================================
     # Merge Final with Ground Truth
     eval_df = final_gdf.merge(gt_gdf[["feature_id", "geometry"]], on="feature_id", suffixes=("_final", "_gt"))
     
@@ -56,7 +60,9 @@ def main():
         print("Error: Could not match any feature_ids between the datasets. Check your ID columns.")
         return
 
+    # ==========================================
     # 3. Calculate Distances (Errors)
+    # ==========================================
     # Distance between Original and Ground Truth (Before)
     eval_df["error_before"] = eval_df.apply(
         lambda row: row["geometry_orig"].distance(row["geometry_gt"]), axis=1
@@ -72,7 +78,9 @@ def main():
         lambda row: row["geometry_orig"].distance(row["geometry_final"]), axis=1
     )
 
+    # ==========================================
     # 4. Compute Metrics
+    # ==========================================
     mae_before = eval_df["error_before"].mean()
     mae_after = eval_df["error_after"].mean()
     

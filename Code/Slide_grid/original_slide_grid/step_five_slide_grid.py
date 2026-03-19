@@ -29,7 +29,7 @@ LABEL_PATH = r"data/label/train_labels.npy"
 # 출력 파일
 OUTPUT_CSV = "step5_points_lejepa.csv"
 
-LIKELIHOOD_THRESHOLD = 0.5
+LIKELIHOOD_THRESHOLD = 0.75
 IMG_SIZE = 448
 CROP_MULTIPLIER = 4 
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER 

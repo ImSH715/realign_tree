@@ -28,7 +28,7 @@ LABEL_PATH = r"data/label/train_labels.npy"
 OUTPUT_CSV = "step1_points_lejepa.csv"
 
 # Thresholds and parameters
-LIKELIHOOD_THRESHOLD = 0.5
+LIKELIHOOD_THRESHOLD = 0.75
 SEARCH_RADIUS = 2.5
 
 IMG_SIZE = 448
