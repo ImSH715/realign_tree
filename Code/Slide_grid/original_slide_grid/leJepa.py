@@ -19,11 +19,13 @@ import time
 # --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
+
 IMG_SIZE = 448
 PATCH_SIZE = 16
 CROP_MULTIPLIER = 4
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER
 HALF_CROP = CROP_SIZE // 2
+
 BATCH_SIZE = 16
 EPOCHS = 300
 
@@ -40,6 +42,7 @@ class LeJepaEncoder(nn.Module):
         super().__init__()
         self.patch_size = patch_size
         self.embed_dim = embed_dim
+
         self.patch_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
 
         num_patches = (img_size // patch_size) ** 2
@@ -47,10 +50,14 @@ class LeJepaEncoder(nn.Module):
 
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
-                activation='gelu', batch_first=True
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
             ) for _ in range(depth)
         ])
+
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x, ids_keep=None):
@@ -64,28 +71,38 @@ class LeJepaEncoder(nn.Module):
 
         for block in self.blocks:
             x = block(x)
+
         return self.norm(x)
+
 
 class LeJepaPredictor(nn.Module):
     def __init__(self, embed_dim=128, predictor_depth=2, num_heads=4):
         super().__init__()
+
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
 
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
-                activation='gelu', batch_first=True
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
             ) for _ in range(predictor_depth)
         ])
+
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, context_embeds, mask_pos_embeds):
         B = context_embeds.shape[0]
         N_mask = mask_pos_embeds.shape[1]
+
         mask_tokens = self.mask_token.repeat(B, N_mask, 1) + mask_pos_embeds
         x = torch.cat([context_embeds, mask_tokens], dim=1)
+
         for block in self.blocks:
             x = block(x)
+
         x = self.norm(x)
         return x[:, -N_mask:, :]
 
@@ -98,10 +115,11 @@ def set_seed(seed=SEED):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def split_arrays(embeddings, labels, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42):
-    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-8, "Ratios must sum to 1"
+
+def split_arrays(embeddings, labels, train_ratio, val_ratio, test_ratio, seed):
     n = len(embeddings)
     indices = np.arange(n)
+
     rng = np.random.default_rng(seed)
     rng.shuffle(indices)
 
@@ -137,190 +155,172 @@ def main():
     model_dir = "data/models"
     embedding_dir = "data/embeddings"
     label_dir = "data/label"
-    split_dir = "data/splits"
 
-    for d in [model_dir, embedding_dir, label_dir, split_dir]:
-        os.makedirs(d, exist_ok=True)
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(embedding_dir, exist_ok=True)
+    os.makedirs(label_dir, exist_ok=True)
 
-    encoder = LeJepaEncoder(img_size=IMG_SIZE).to(device)
+    encoder = LeJepaEncoder().to(device)
     predictor = LeJepaPredictor().to(device)
-    optimizer = torch.optim.AdamW(list(encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
+
+    optimizer = torch.optim.AdamW(
+        list(encoder.parameters()) + list(predictor.parameters()),
+        lr=1e-4
+    )
+
     criterion = nn.MSELoss()
 
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
     ])
 
-    print("Loading Original Shapefile...")
+    print("Loading shapefile...")
     gdf = gpd.read_file(ANNOTATED_COR)
     original_crs = gdf.crs
+
     if 'temp_id' not in gdf.columns:
         gdf['temp_id'] = range(len(gdf))
 
     tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
-    if not tif_files:
-        print("No .tif files found.")
-        return
 
     patches = []
     patch_labels = []
     successful_rows = []
-    extracted_temp_ids = set()
+    extracted_ids = set()
 
-    # ---------------------------------------------------------
-    # Speed Optimization: Fast extraction using Bounding Box
-    # ---------------------------------------------------------
-    print(f"\nStarting extraction for {len(tif_files)} TIF files...")
+    print("Extracting patches...")
 
-    for tif_path in tqdm(tif_files, desc="Processing TIFs"):
-        try:
-            with rasterio.open(tif_path) as src:
-                b = src.bounds
-                img_box = box(b.left, b.bottom, b.right, b.top)
-                
-                # Transform TIF bounding box to Shapefile CRS
-                bbox_gdf = gpd.GeoDataFrame({'geometry': [img_box]}, crs=src.crs)
-                if bbox_gdf.crs != gdf.crs:
-                    bbox_gdf = bbox_gdf.to_crs(gdf.crs)
-                img_box_transformed = bbox_gdf.geometry.iloc[0]
+    for tif_path in tqdm(tif_files):
+        with rasterio.open(tif_path) as src:
 
-                # Fast filtering of intersecting points
-                contained = gdf[gdf.geometry.intersects(img_box_transformed)]
-                if contained.empty:
-                    continue 
-                
-                # Transform ONLY the filtered points to TIF CRS (Massive speedup)
-                contained = contained.copy()
-                if contained.crs != src.crs:
-                    contained = contained.to_crs(src.crs)
+            bounds = src.bounds
+            img_box = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
 
-                for idx, row in contained.iterrows():
-                    temp_id = row['temp_id']
+            bbox_gdf = gpd.GeoDataFrame({'geometry': [img_box]}, crs=src.crs)
+            if bbox_gdf.crs != gdf.crs:
+                bbox_gdf = bbox_gdf.to_crs(gdf.crs)
 
-                    if temp_id in extracted_temp_ids:
-                        continue
+            intersecting = gdf[gdf.geometry.intersects(bbox_gdf.geometry.iloc[0])]
 
-                    x, y = row.geometry.x, row.geometry.y
-                    py, px = src.index(x, y)
+            if intersecting.empty:
+                continue
 
-                    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
-                    tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-                    tile = np.moveaxis(tile, 0, -1)
+            if intersecting.crs != src.crs:
+                intersecting = intersecting.to_crs(src.crs)
 
-                    if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
-                        img_pil = Image.fromarray(tile.astype('uint8'))
-                        patches.append(transform(img_pil))
+            for idx, row in intersecting.iterrows():
+                temp_id = row['temp_id']
+                if temp_id in extracted_ids:
+                    continue
 
-                        label_val = row.get('Tree') or row.get('tree') or row.get('id') or f"tree_{temp_id}"
-                        patch_labels.append(str(label_val))
+                x, y = row.geometry.x, row.geometry.y
+                py, px = src.index(x, y)
 
-                        successful_rows.append(gdf.loc[idx])
-                        extracted_temp_ids.add(temp_id)
+                window = rasterio.windows.Window(
+                    px - HALF_CROP,
+                    py - HALF_CROP,
+                    CROP_SIZE,
+                    CROP_SIZE
+                )
 
-        except Exception as e:
-            tqdm.write(f"Error reading {tif_path}: {e}")
-    # ---------------------------------------------------------
+                tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+                tile = np.moveaxis(tile, 0, -1)
+
+                if tile.shape[0] == CROP_SIZE and tile.shape[1] == CROP_SIZE:
+                    img = Image.fromarray(tile.astype('uint8'))
+                    patches.append(transform(img))
+
+                    label_val = row.get('Tree', f"id_{temp_id}")
+                    patch_labels.append(str(label_val))
+
+                    successful_rows.append(row)
+                    extracted_ids.add(temp_id)
 
     if not patches:
-        print("No patches extracted. Check file paths and CRS.")
+        print("No patches extracted.")
         return
 
-    print(f"\nTotal Successfully Extracted Patches: {len(patches)}")
+    print(f"Total patches: {len(patches)}")
 
-    valid_points_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
-    print(f"Kept {len(valid_points_gdf)} valid points for internal validation.")
+    valid_gdf = gpd.GeoDataFrame(successful_rows, crs=original_crs)
 
-    # 5. Dataloader Setup (Full dataset)
-    all_patches_tensor = torch.stack(patches)
-    dataset = TensorDataset(all_patches_tensor)
+    # Extract coordinates (CRITICAL PART)
+    coords = np.array([[geom.x, geom.y] for geom in valid_gdf.geometry])
+
+    dataset = TensorDataset(torch.stack(patches))
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    # 6. LeJEPA Training Loop (Training on Full Dataset)
     encoder.train()
     predictor.train()
+
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
     keep_num = int(num_patches * 0.25)
 
-    print("\nStarting LeJEPA Training on Full Dataset...")
-    epoch_pbar = tqdm(range(EPOCHS), desc="Training Model")
-    for epoch in epoch_pbar:
-        epoch_loss = 0.0
+    print("Training LeJEPA...")
+
+    for epoch in tqdm(range(EPOCHS)):
         for batch in dataloader:
-            batch_imgs = batch[0].to(device)
-            curr_batch_size = batch_imgs.shape[0]
+            imgs = batch[0].to(device)
 
             optimizer.zero_grad()
-            with torch.no_grad():
-                target = encoder(batch_imgs).detach()
 
-            ids_shuffle = torch.argsort(torch.rand(curr_batch_size, num_patches, device=device), dim=1)
+            with torch.no_grad():
+                target = encoder(imgs)
+
+            ids_shuffle = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
             ids_keep = ids_shuffle[:, :keep_num]
             ids_mask = ids_shuffle[:, keep_num:]
 
-            context_embeds = encoder(batch_imgs, ids_keep=ids_keep)
-            mask_pos_embeds = encoder.pos_embed.expand(curr_batch_size, -1, -1)
-            mask_pos_embeds = torch.gather(
-                mask_pos_embeds, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
+            context = encoder(imgs, ids_keep)
+            pos_embed = encoder.pos_embed.expand(imgs.shape[0], -1, -1)
+
+            mask_pos = torch.gather(
+                pos_embed,
+                1,
+                ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
             )
 
-            pred_features = predictor(context_embeds, mask_pos_embeds)
-            actual_target_features = torch.gather(
-                target, dim=1, index=ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
+            pred = predictor(context, mask_pos)
+
+            target_mask = torch.gather(
+                target,
+                1,
+                ids_mask.unsqueeze(-1).expand(-1, -1, encoder.embed_dim)
             )
 
-            loss = criterion(pred_features, actual_target_features)
+            loss = criterion(pred, target_mask)
             loss.backward()
             optimizer.step()
-            epoch_loss += loss.item()
 
-        avg_loss = epoch_loss / len(dataloader)
-        epoch_pbar.set_postfix(Loss=f"{avg_loss:.6f}")
+    print("Extracting embeddings...")
 
-    torch.save(encoder.state_dict(), f"{model_dir}/lejepa_encoder.pth")
-    print("\nTraining Complete. Extracting Final Embeddings...")
-
-    # 7. Embedding & Label Extraction
     encoder.eval()
     all_embeddings = []
-    eval_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     with torch.no_grad():
-        for batch in tqdm(eval_dataloader, desc="Extracting Embeddings"):
-            batch_imgs = batch[0].to(device)
-            embeds = encoder(batch_imgs).mean(dim=1).cpu().numpy()
-            all_embeddings.append(embeds)
+        for batch in DataLoader(dataset, batch_size=BATCH_SIZE):
+            imgs = batch[0].to(device)
+            emb = encoder(imgs).mean(dim=1).cpu().numpy()
+            all_embeddings.append(emb)
 
-    final_embeddings = np.concatenate(all_embeddings, axis=0)
-    final_labels = np.array(patch_labels)
+    embeddings = np.concatenate(all_embeddings)
+    labels = np.array(patch_labels)
 
-    assert len(final_embeddings) == len(final_labels) == len(valid_points_gdf), "Count mismatch!"
+    assert len(embeddings) == len(labels) == len(coords)
 
-    np.save(f"{embedding_dir}/embeddings.npy", final_embeddings)
-    np.save(f"{label_dir}/labels.npy", final_labels)
+    # Save EVERYTHING needed for sliding grid
+    np.save(f"{embedding_dir}/embeddings.npy", embeddings)
+    np.save(f"{label_dir}/labels.npy", labels)
+    np.save(f"{embedding_dir}/coords.npy", coords)
 
-    # 8. Split AFTER training / embedding extraction (Maintained as intended)
-    split_data = split_arrays(
-        final_embeddings, final_labels,
-        train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, test_ratio=TEST_RATIO, seed=SEED
-    )
-
-    np.save(f"{embedding_dir}/train_embeddings.npy", split_data["train_embeddings"])
-    np.save(f"{embedding_dir}/val_embeddings.npy", split_data["val_embeddings"])
-    np.save(f"{embedding_dir}/test_embeddings.npy", split_data["test_embeddings"])
-
-    np.save(f"{label_dir}/train_labels.npy", split_data["train_labels"])
-    np.save(f"{label_dir}/val_labels.npy", split_data["val_labels"])
-    np.save(f"{label_dir}/test_labels.npy", split_data["test_labels"])
-
-    np.save(f"{split_dir}/train_indices.npy", split_data["train_idx"])
-    np.save(f"{split_dir}/val_indices.npy", split_data["val_idx"])
-    np.save(f"{split_dir}/test_indices.npy", split_data["test_idx"])
+    print("Saved embeddings, labels, and coordinates")
 
     total_time = (time.time() - start_time) / 60
-    print(f"\nSuccess! Extracted {len(final_embeddings)} samples.")
-    print(f"Total Execution Time: {total_time:.2f} minutes")
+    print(f"Done in {total_time:.2f} minutes")
+
 
 if __name__ == "__main__":
     main()
