@@ -1,81 +1,57 @@
 import pandas as pd
-import os
-
-"""
-Merge step1_points_lejepa.csv and step3_points_lejepa.csv.
-step1_points: Coordinates of 'center' and 'slide' after the initial grid evaluation.
-step3_points: Coordinates processed in the second evaluation (some became 'center', some remained 'slide').
-This script replaces the original 'slide' coordinates in step1 with the updated coordinates from step3.
-"""
+import geopandas as gpd
+from shapely.geometry import box
 
 # ==========================================
 # 1. Configuration & Paths
 # ==========================================
-STEP1_CSV = "step1_points_lejepa.csv"
-STEP3_CSV = "step3_points_lejepa.csv"
-OUTPUT_CSV = "final_centered_points_lejepa.csv"
+INPUT_CSV = "step3_points_lejepa.csv"
+OUTPUT_GRID_SHP = "step4_slide_grids_lejepa.shp"
+
+CELL_SIZE = 5.2  
+TARGET_CRS = "EPSG:32718"  
 
 def main():
-    print("Loading Step 1 and Step 3 CSV files...")
-    
-    # Load Step 1
-    if not os.path.exists(STEP1_CSV):
-        raise FileNotFoundError(f"Error: {STEP1_CSV} not found. Please run Step 1.")
-    step1 = pd.read_csv(STEP1_CSV)
+    print(f"Loading Step 3 results from: {INPUT_CSV}")
+    try:
+        df = pd.read_csv(INPUT_CSV)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Could not find {INPUT_CSV}. Run Step 3 first.")
 
-    # Load Step 3 (Handle case where Step 3 might be empty or missing if no slides were needed)
-    if os.path.exists(STEP3_CSV):
-        step3 = pd.read_csv(STEP3_CSV)
-    else:
-        print(f"Warning: {STEP3_CSV} not found. Assuming no points required Step 3 sliding.")
-        # Create an empty DataFrame with the expected columns
-        step3 = pd.DataFrame(columns=["x", "y", "feature_id", "label", "type"])
+    # Use only points that STILL require a slide
+    df_slide = df[df["type"] == "slide"].copy()
 
-    # Ensure coordinates are numeric for safety
-    for df in (step1, step3):
-        if not df.empty:
-            df["x"] = pd.to_numeric(df["x"], errors="coerce")
-            df["y"] = pd.to_numeric(df["y"], errors="coerce")
+    if df_slide.empty:
+        print("No more slide points! The algorithm can terminate.")
+        return
 
-    # ==========================================
-    # 2. Data Merging Logic
-    # ==========================================
-    # Split step1 into center / slide
-    step1_center = step1[step1["type"] == "center"].copy()
-    step1_slide = step1[step1["type"] == "slide"].copy()
+    print(f"Found {len(df_slide)} points requiring another slide.")
 
-    # Step 3 already contains the updated 'type' ('center' for success, 'slide' for unresolved)
-    # We just need to replace the old step1_slide records with the new step3 records.
-    step3_updated = step3.copy()
+    df_slide["x"] = pd.to_numeric(df_slide["x"], errors="coerce")
+    df_slide["y"] = pd.to_numeric(df_slide["y"], errors="coerce")
+    df_slide = df_slide.dropna(subset=["x", "y"]).reset_index(drop=True)
 
-    # Remove slide rows from Step 1 that were processed and updated in Step 3
-    if not step3_updated.empty:
-        processed_in_step3 = set(step3_updated["feature_id"])
-    else:
-        processed_in_step3 = set()
-        
-    step1_slide_remaining = step1_slide[~step1_slide["feature_id"].isin(processed_in_step3)]
-
-    # Combine final result
-    final_df = pd.concat(
-        [step1_center, step3_updated, step1_slide_remaining],
-        ignore_index=True
+    points_gdf = gpd.GeoDataFrame(
+        df_slide, geometry=gpd.points_from_xy(df_slide["x"], df_slide["y"]), crs=TARGET_CRS
     )
 
-    # Final cleanup (sort by ID for clean output)
-    final_df = final_df.sort_values("feature_id").reset_index(drop=True)
+    records = []
+    geometries = []
+    half = CELL_SIZE / 2.0
 
-    # ==========================================
-    # 3. Save Output
-    # ==========================================
-    final_df.to_csv(OUTPUT_CSV, index=False)
+    print("Generating new 3x3 grids...")
+    for _, row in points_gdf.iterrows():
+        cx, cy, feature_id = row.geometry.x, row.geometry.y, row["feature_id"]
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                x_min, x_max = cx + dx * CELL_SIZE - half, cx + dx * CELL_SIZE + half
+                y_min, y_max = cy + dy * CELL_SIZE - half, cy + dy * CELL_SIZE + half
+                records.append({"point_id": feature_id, "dx": dx, "dy": dy, "source": "slide_v2"})
+                geometries.append(box(x_min, y_min, x_max, y_max))
 
-    print(f"\nSaved final merged dataset to: {OUTPUT_CSV}")
-    print("-" * 40)
-    print(f"Total points processed: {len(final_df)}")
-    print(f"Successfully Centered: {(final_df['type'] == 'center').sum()}")
-    print(f"Unresolved Slides (Failed to center): {(final_df['type'] == 'slide').sum()}")
-    print("-" * 40)
+    grid_gdf = gpd.GeoDataFrame(records, geometry=geometries, crs=TARGET_CRS)
+    grid_gdf.to_file(OUTPUT_GRID_SHP)
+    print(f"Saved: {OUTPUT_GRID_SHP} (Total cells: {len(grid_gdf)})")
 
 if __name__ == "__main__":
     main()
