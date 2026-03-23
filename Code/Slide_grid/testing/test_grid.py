@@ -10,7 +10,7 @@ from scipy.spatial import cKDTree
 # --------------------------
 DISTANCE = 13
 CELL_SIZE = 8
-NUM_ITERATIONS = 2
+NUM_ITERATIONS = 10
 
 INPUT_SHP = f"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_{DISTANCE}.shp"
 EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
