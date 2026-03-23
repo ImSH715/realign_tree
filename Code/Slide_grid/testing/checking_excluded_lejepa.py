@@ -14,7 +14,7 @@ from tqdm import tqdm
 # --------------------------
 # Configuration & Paths
 # --------------------------
-BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data"
+BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
 
 OUTPUT_DIR = "data/label"
