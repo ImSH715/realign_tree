@@ -1,8 +1,3 @@
-"""
-    Check if there is any points out of bound from the tif file.
-    Then extract the points into .shp file excluding missing points.
-"""
-
 import os
 import glob
 import rasterio
@@ -19,6 +14,7 @@ ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
 
 OUTPUT_DIR = "data/label"
 OUTPUT_MISSING_SHP = os.path.join(OUTPUT_DIR, "missing_points.shp")
+OUTPUT_VALID_POINTS_SHP = os.path.join(OUTPUT_DIR, "valid_points.shp") # New output for in-bound points
 OUTPUT_FOOTPRINTS_SHP = os.path.join(OUTPUT_DIR, "valid_tif_footprints.shp")
 
 def main():
@@ -66,41 +62,54 @@ def main():
             error_files.append((os.path.basename(tif_path), str(e)))
             continue
 
-    # --- Out of Bounds Calculation ---
+    # --- Filter Points ---
+    # Points found inside any TIF (In-bounds)
+    valid_points_gdf = gdf[gdf['temp_id'].isin(extracted_ids)]
+    
+    # Points not found in any TIF (Missing)
     missing_gdf = gdf[~gdf['temp_id'].isin(extracted_ids)]
     
-    # Merge footprints
+    # --- Out of Bounds Calculation ---
     if valid_footprints:
         footprints_gdf = pd.concat(valid_footprints, ignore_index=True)
-        # Create a single large polygon from all valid TIF bounds for out-of-bounds detection
+        # Create a single large polygon from all valid TIF bounds
         total_valid_area = footprints_gdf.unary_union 
         
-        # Check actual out of bounds: filter points that do not intersect with the merged area
+        # Check actual out of bounds for missing points
         out_of_bounds_mask = ~missing_gdf.geometry.intersects(total_valid_area)
         out_of_bounds_count = out_of_bounds_mask.sum()
     else:
+        footprints_gdf = gpd.GeoDataFrame()
         out_of_bounds_count = len(missing_gdf)
 
     print("\n" + "="*50)
     print("Scanning Complete")
     print("="*50)
     print(f"Total Points: {total_points}")
-    print(f"Found (Inside valid TIFs): {len(extracted_ids)}")
+    print(f"Valid Points (In-bound): {len(valid_points_gdf)}")
     print(f"Missing Points: {len(missing_gdf)}")
-    print(f"  -> Out of bounds count (completely outside valid TIFs): {out_of_bounds_count}")
+    print(f"  -> Out of bounds count: {out_of_bounds_count}")
     
     if error_files:
-        print(f"\nWarning: {len(error_files)} TIF files encountered errors (cannot verify bounds):")
+        print(f"\nWarning: {len(error_files)} TIF files encountered errors:")
         for err_file, err_msg in error_files:
             print(f"  - {err_file}")
             
-    # Save results
+    # --- Save Results ---
+    # Save valid points (In-bound)
+    if not valid_points_gdf.empty:
+        valid_points_gdf.to_file(OUTPUT_VALID_POINTS_SHP)
+        
+    # Save missing points
     if not missing_gdf.empty:
         missing_gdf.to_file(OUTPUT_MISSING_SHP)
-    if valid_footprints:
+        
+    # Save TIF footprints
+    if not footprints_gdf.empty:
         footprints_gdf.to_file(OUTPUT_FOOTPRINTS_SHP)
         
     print(f"\nFiles saved successfully!")
+    print(f"  - Valid points: {OUTPUT_VALID_POINTS_SHP}")
     print(f"  - Missing points: {OUTPUT_MISSING_SHP}")
     print(f"  - Valid TIF footprints: {OUTPUT_FOOTPRINTS_SHP}")
     print("="*50)
