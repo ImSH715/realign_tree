@@ -9,7 +9,7 @@ from scipy.spatial import cKDTree
 # Configuration & Paths
 # --------------------------
 DISTANCE = 13
-CELL_SIZE = 15
+CELL_SIZE = 13
 NUM_ITERATIONS = 10
 
 INPUT_SHP = f"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_{DISTANCE}.shp"
