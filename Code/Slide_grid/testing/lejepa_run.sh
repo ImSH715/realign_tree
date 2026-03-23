@@ -28,6 +28,6 @@ python --version
 
 # --- 4. Execution ---
 python -u test_lejepa.py
-python -u test_grid.py
+python -u saving_steps_grid.py
 
 echo "Job finished at $(date)"
