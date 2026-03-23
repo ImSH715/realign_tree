@@ -6,16 +6,17 @@ import geopandas as gpd
 from shapely.geometry import box
 from tqdm import tqdm
 
-# --------------------------
 # Configuration & Paths
-# --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
 
 OUTPUT_DIR = "data/label"
+# points that are missing
 OUTPUT_MISSING_SHP = os.path.join(OUTPUT_DIR, "missing_points.shp")
-OUTPUT_VALID_POINTS_SHP = os.path.join(OUTPUT_DIR, "valid_points.shp") # New output for in-bound points
-OUTPUT_FOOTPRINTS_SHP = os.path.join(OUTPUT_DIR, "valid_tif_footprints.shp")
+# points without missing points
+OUTPUT_VALID_POINTS_SHP = os.path.join(OUTPUT_DIR, "valid_points.shp")
+# boundary of valid tif
+OUTPUT_FOOTPRINTS_SHP = os.path.join(OUTPUT_DIR, "valid_tif_boundary.shp")
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)

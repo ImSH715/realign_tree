@@ -19,7 +19,7 @@ import time
 # Hyperparameters & Paths
 # --------------------------
 BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
+ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/label_tree_shp/valid_points.shp"
 
 IMG_SIZE = 448
 PATCH_SIZE = 16

@@ -12,8 +12,8 @@ def evaluate_sliding_grid(tolerance_distance=5.0):
                                     (e.g., within 5 meters/units of the actual tree).
     """
     # Paths for Ground Truth (GT) and Predicted results
-    gt_path = "data/tree_label_rdn/trees_32718.shp"
-    pred_path = "data/distance/slide_grid_multi_scale_d13.shp"
+    gt_path = "data/tree_label_rdn/valid_points.shp"
+    pred_path = "data/distance/saving_result_d13.shp"
 
     # Check if the shapefiles exist
     if not (os.path.exists(gt_path) and os.path.exists(pred_path)):

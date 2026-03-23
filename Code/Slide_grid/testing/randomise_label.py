@@ -6,8 +6,8 @@ import os
 # 1. Paths & Parameters
 # --------------------------
 SHIFT_DISTANCE_METERS = 13 
-INPUT_SHP = r"data/tree_label_rdn/trees_32718.shp"
-OUTPUT_SHP = f"data/tree_label_rdn/random_trees_32718_d_{SHIFT_DISTANCE_METERS}.shp"
+INPUT_SHP = r"data/tree_label_rdn/valid_points.shp"
+OUTPUT_SHP = f"data/tree_label_rdn/random_valid_d_{SHIFT_DISTANCE_METERS}.shp"
 
 # Distance to shift in meters
 # If a typical Amazon tree crown radius is 3-5m, setting it to 7-10m ensures it moves outside the crown.

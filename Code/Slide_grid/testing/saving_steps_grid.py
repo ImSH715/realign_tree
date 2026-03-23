@@ -14,7 +14,7 @@ DISTANCE = 13
 GRID_SIZES = [10, 20, 30]  # Multi-scale grid search restored to 10, 20, 30
 MAX_ITERATIONS = 10        # Increased max iterations to allow convergence
 
-INPUT_SHP = f"data/tree_label_rdn/random_trees_32718_d_{DISTANCE}.shp"
+INPUT_SHP = f"data/tree_label_rdn/random_valid_d_{DISTANCE}.shp"
 EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
 LABEL_PATH = r"data/label/labels.npy"
 COORD_PATH = r"data/embeddings/coords.npy"
