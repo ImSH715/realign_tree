@@ -10,11 +10,13 @@ Using labels and find the trees smiilar based on the trained labels. Not the fea
 # --------------------------
 # Configuration & Paths
 # --------------------------
-DISTANCE = 13
+MIN_SHIFT = 5   # Minimum shift distance in meters
+MAX_SHIFT = 15  # Maximum shift distance in meters
+
 GRID_SIZES = [10, 20, 30]  # Multi-scale grid search restored to 10, 20, 30
 MAX_ITERATIONS = 10        # Increased max iterations to allow convergence
 
-INPUT_SHP = f"data/tree_label_rdn/random_valid_d_{DISTANCE}.shp"
+INPUT_SHP = f"data/tree_label_rdn/random_valid_range_{MIN_SHIFT}_{MAX_SHIFT}.shp"
 EMBEDDING_PATH = r"data/embeddings/embeddings.npy"
 LABEL_PATH = r"data/label/labels.npy"
 COORD_PATH = r"data/embeddings/coords.npy"
