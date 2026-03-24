@@ -217,7 +217,7 @@ def main():
         final_points_gdf = pd.concat(all_final_points, ignore_index=True)
         final_points_gdf = gpd.GeoDataFrame(final_points_gdf, crs=random_trees.crs)
         
-        save_path = os.path.join(OUTPUT_DIR, f"saving_result_d{DISTANCE}.shp")
+        save_path = os.path.join(OUTPUT_DIR, f"saving_result_d{MIN_SHIFT}_{MAX_SHIFT}.shp")
         final_points_gdf.to_file(save_path)
         print(f"\nProcess complete. Saved final {len(final_points_gdf)} points to: {save_path}")
         print(f"Intermediate SHP files (Grids, Centers, Slides) saved in: {ITER_OUT_DIR}")
