@@ -5,12 +5,13 @@ import os
 # --------------------------
 # 1. Paths & Parameters
 # --------------------------
-INPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/trees_32718.shp"
-OUTPUT_SHP = r"/mnt/parscratch/users/acb20si/label_tree_shp/random_trees_32718_13.shp"
+SHIFT_DISTANCE_METERS = 13 
+INPUT_SHP = r"data/tree_label_rdn/valid_points.shp"
+OUTPUT_SHP = f"data/tree_label_rdn/random_valid_d_{SHIFT_DISTANCE_METERS}.shp"
 
 # Distance to shift in meters
 # If a typical Amazon tree crown radius is 3-5m, setting it to 7-10m ensures it moves outside the crown.
-SHIFT_DISTANCE_METERS = 13.0  
+
 
 def main():
     print(f"Loading original shapefile: {INPUT_SHP}")
@@ -48,6 +49,3 @@ def main():
     
     print(f"\nSuccessfully shifted {len(gdf)} points by exactly {SHIFT_DISTANCE_METERS}m in random directions.")
     print(f"Saved test dataset to: {OUTPUT_SHP}")
-
-if __name__ == "__main__":
-    main()
