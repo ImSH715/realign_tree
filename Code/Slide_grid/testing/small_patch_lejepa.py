@@ -34,10 +34,10 @@ SEED = 42
 EMA_MOMENTUM = 0.996
 
 NUM_RANDOM_CROPS_PER_TIF = 1000 
-GRID_STRIDE_PIXELS = 128 # Smaller stride = more overlap = better dense map
+GRID_STRIDE_PIXELS = 128 
 
 # --------------------------
-# Model Definitions (Same as provided)
+# Model Definitions
 # --------------------------
 class LeJepaEncoder(nn.Module):
     def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
@@ -98,14 +98,18 @@ class UnsupervisedPatchDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        with rasterio.open(row['tif_path']) as src:
-            window = rasterio.windows.Window(
-                row['px'] - HALF_CROP, row['py'] - HALF_CROP, CROP_SIZE, CROP_SIZE
-            )
-            tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-            tile = np.moveaxis(tile, 0, -1)
-
-        img = Image.fromarray(tile.astype('uint8'))
+        try:
+            with rasterio.open(row['tif_path']) as src:
+                window = rasterio.windows.Window(
+                    row['px'] - HALF_CROP, row['py'] - HALF_CROP, CROP_SIZE, CROP_SIZE
+                )
+                tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+                tile = np.moveaxis(tile, 0, -1)
+            img = Image.fromarray(tile.astype('uint8'))
+        except Exception as e:
+            # Fallback for broken files during DataLoader iteration
+            img = Image.fromarray(np.zeros((CROP_SIZE, CROP_SIZE, 3), dtype='uint8'))
+        
         if self.transform:
             img = self.transform(img)
         return img, row['x'], row['y']
@@ -141,101 +145,115 @@ def main():
     tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
 
     # =========================================================================
-    # Phase 1: Self-Supervised Training (Same as before)
+    # Phase 1: Self-Supervised Training (With Error Handling)
     # =========================================================================
-    # ... [Skipping Phase 1 code for brevity as it remains unchanged] ...
-    # Assume student_encoder is trained and loaded.
-    student_encoder = LeJepaEncoder().to(device)
-    # [Insert Phase 1 Logic here if running from scratch]
-
-    # =========================================================================
-    # Phase 2: Extract SPATIAL Dense Grid (MODIFIED)
-    # =========================================================================
-    print("\n[Phase 2] Generating Dense Spatial Grid for Feature Mapping...")
-    student_encoder.eval()
-    
-    grid_metadata = []
-    for tif_path in tqdm(tif_files, desc="Gridding TIFs"):
-        with rasterio.open(tif_path) as src:
-            for py in range(HALF_CROP, src.height - HALF_CROP, GRID_STRIDE_PIXELS):
-                for px in range(HALF_CROP, src.width - HALF_CROP, GRID_STRIDE_PIXELS):
+    print("\n[Phase 1] Sampling TIFs for Training...")
+    train_metadata = []
+    for tif_path in tqdm(tif_files, desc="Processing TIFs"):
+        try:
+            with rasterio.open(tif_path) as src:
+                w, h = src.width, src.height
+                if w < CROP_SIZE or h < CROP_SIZE: continue
+                for _ in range(NUM_RANDOM_CROPS_PER_TIF):
+                    px, py = random.randint(HALF_CROP, w-HALF_CROP), random.randint(HALF_CROP, h-HALF_CROP)
                     x, y = src.xy(py, px)
-                    grid_metadata.append({'tif_path': tif_path, 'px': px, 'py': py, 'x': x, 'y': y})
+                    train_metadata.append({'tif_path': tif_path, 'px': px, 'py': py, 'x': x, 'y': y})
+        except Exception as e:
+            print(f"Skipping broken file: {os.path.basename(tif_path)}")
+            continue
 
-    df_grid = pd.DataFrame(grid_metadata)
-    grid_loader = DataLoader(UnsupervisedPatchDataset(df_grid, transform=transform), batch_size=BATCH_SIZE, shuffle=False)
+    student_encoder = LeJepaEncoder().to(device)
+    predictor = LeJepaPredictor().to(device)
+    target_encoder = copy.deepcopy(student_encoder)
+    for p in target_encoder.parameters(): p.requires_grad = False
+    
+    optimizer = torch.optim.AdamW(list(student_encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
+    criterion = nn.MSELoss()
+    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
+    keep_num = int(num_patches * 0.25)
 
-    all_spatial_embeddings = []
-    all_coords = []
+    train_loader = DataLoader(UnsupervisedPatchDataset(pd.DataFrame(train_metadata), transform=transform), 
+                              batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 
-    print("Extracting Spatial Grid Embeddings...")
+    print("Starting Training...")
+    for epoch in range(EPOCHS):
+        student_encoder.train()
+        total_loss = 0
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}"):
+            imgs = batch[0].to(device)
+            optimizer.zero_grad()
+            with torch.no_grad(): target = target_encoder(imgs)
+            
+            ids_shuffle = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
+            ids_keep, ids_mask = ids_shuffle[:, :keep_num], ids_shuffle[:, keep_num:]
+            
+            context = student_encoder(imgs, ids_keep)
+            pos_embed = student_encoder.pos_embed.expand(imgs.shape[0], -1, -1)
+            mask_pos = torch.gather(pos_embed, 1, ids_mask.unsqueeze(-1).expand(-1, -1, 128))
+            pred = predictor(context, mask_pos)
+            target_mask = torch.gather(target, 1, ids_mask.unsqueeze(-1).expand(-1, -1, 128))
+            
+            loss = criterion(pred, target_mask)
+            loss.backward()
+            optimizer.step()
+            update_target_encoder(student_encoder, target_encoder, EMA_MOMENTUM)
+            total_loss += loss.item()
+        print(f"Loss: {total_loss/len(train_loader):.4f}")
+
+    # =========================================================================
+    # Phase 2: Extract Spatial Grid (With Error Handling)
+    # =========================================================================
+    print("\n[Phase 2] Generating Dense Spatial Grid...")
+    grid_metadata = []
+    for tif_path in tqdm(tif_files):
+        try:
+            with rasterio.open(tif_path) as src:
+                for py in range(HALF_CROP, src.height - HALF_CROP, GRID_STRIDE_PIXELS):
+                    for px in range(HALF_CROP, src.width - HALF_CROP, GRID_STRIDE_PIXELS):
+                        x, y = src.xy(py, px)
+                        grid_metadata.append({'tif_path': tif_path, 'px': px, 'py': py, 'x': x, 'y': y})
+        except Exception: continue
+
+    grid_loader = DataLoader(UnsupervisedPatchDataset(pd.DataFrame(grid_metadata), transform=transform), batch_size=BATCH_SIZE)
+    student_encoder.eval()
+    all_spatial_embeddings, all_coords = [], []
+
     with torch.no_grad():
-        for batch in tqdm(grid_loader):
+        for batch in tqdm(grid_loader, desc="Inference"):
             imgs, xs, ys = batch
-            imgs = imgs.to(device)
-            
-            # Extract full token set [B, 784, 128]
-            tokens = student_encoder(imgs) 
-            
-            # Reshape to spatial grid [B, 28, 28, 128]
-            grid_dim = IMG_SIZE // PATCH_SIZE
-            spatial_emb = tokens.view(-1, grid_dim, grid_dim, student_encoder.embed_dim)
-            
-            # Use Global Average for Phase 3 training BUT save spatial for the map
-            # This allows us to find the EXACT token closest to the tree center
+            tokens = student_encoder(imgs.to(device))
+            spatial_emb = tokens.view(-1, 28, 28, 128)
             all_spatial_embeddings.append(spatial_emb.cpu().numpy())
             all_coords.append(np.stack((xs.numpy(), ys.numpy()), axis=1))
 
-    dense_spatial = np.concatenate(all_spatial_embeddings, axis=0) # [N, 28, 28, 128]
-    dense_coords = np.concatenate(all_coords, axis=0) # [N, 2]
+    dense_spatial = np.concatenate(all_spatial_embeddings, axis=0)
+    dense_coords = np.concatenate(all_coords, axis=0)
 
     # =========================================================================
-    # Phase 3: Weakly Labeled Downstream Task (MODIFIED)
+    # Phase 3: Classifier (Centroid Sampling)
     # =========================================================================
-    print("\n[Phase 3] Spatial Point-to-Cell Label Mapping...")
+    print("\n[Phase 3] Training Classifier...")
     gdf = gpd.read_file(ANNOTATED_COR)
-    spatial_tree = cKDTree(dense_coords)
-    
+    tree = cKDTree(dense_coords)
     X_train, y_train = [], []
     label_col = 'Tree' if 'Tree' in gdf.columns else gdf.columns[0]
 
-    for _, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Matching Labels"):
-        point = [row.geometry.x, row.geometry.y]
-        dist, idx = spatial_tree.query(point)
-        
+    for _, row in tqdm(gdf.iterrows(), total=len(gdf)):
+        dist, idx = tree.query([row.geometry.x, row.geometry.y])
         if dist < 50.0:
-            # DENSE FOREST LOGIC:
-            # Instead of the average of the patch, find the exact token inside the 28x28 grid
-            # that is closest to the GPS coordinate.
-            patch_center_x, patch_center_y = dense_coords[idx]
-            
-            # Calculate offset from patch center in meters
-            dx, dy = row.geometry.x - patch_center_x, row.geometry.y - patch_center_y
-            
-            # Convert meters to grid cell indices (Assuming 1 pixel approx = Res)
-            # This is a heuristic; for perfect precision, use src.index()
-            # Here we take the center token (14,14) as a fallback or calculate offset
-            # For simplicity in this script, we use the center 4x4 tokens average 
-            # as it represents the "Core" of the tree point.
-            core_features = dense_spatial[idx, 12:16, 12:16, :].mean(axis=(0, 1))
-            
-            X_train.append(core_features)
+            # Core sampling: center of the 28x28 grid
+            X_train.append(dense_spatial[idx, 12:16, 12:16, :].mean(axis=(0,1)))
             y_train.append(str(row[label_col]))
-            
-    clf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_train, y_train)
-    
-    # Predict using Global Average for the whole map to keep the labels.npy 1D
-    # (Matches your sliding_grid requirement)
-    global_avg_embeddings = dense_spatial.mean(axis=(1, 2))
-    dense_labels = clf.predict(global_avg_embeddings)
 
-    # 4. Save
-    np.save(f"{embedding_dir}/embeddings.npy", global_avg_embeddings)
+    clf = RandomForestClassifier(n_estimators=100, random_state=SEED).fit(X_train, y_train)
+    global_avg = dense_spatial.mean(axis=(1,2))
+    dense_labels = clf.predict(global_avg)
+
+    np.save(f"{embedding_dir}/embeddings.npy", global_avg)
     np.save(f"{label_dir}/labels.npy", dense_labels)
     np.save(f"{embedding_dir}/coords.npy", dense_coords)
 
-    print(f"\nSaved! Classifier trained on {len(X_train)} spatial points.")
-    print(f"Total time: {(time.time() - start_time) / 60:.2f} minutes")
+    print(f"\nDone! Total time: {(time.time() - start_time) / 60:.2f} min")
 
 if __name__ == "__main__":
     main()
