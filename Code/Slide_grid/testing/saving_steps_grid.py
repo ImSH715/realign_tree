@@ -10,8 +10,8 @@ Using labels and find the trees smiilar based on the trained labels. Not the fea
 # --------------------------
 # Configuration & Paths
 # --------------------------
-MIN_SHIFT = 5   # Minimum shift distance in meters
-MAX_SHIFT = 15  # Maximum shift distance in meters
+MIN_SHIFT = 20   # Minimum shift distance in meters
+MAX_SHIFT = 35  # Maximum shift distance in meters
 
 GRID_SIZES = [10, 20, 30]  # Multi-scale grid search restored to 10, 20, 30
 MAX_ITERATIONS = 10        # Increased max iterations to allow convergence

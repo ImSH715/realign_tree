@@ -5,8 +5,8 @@ import os
 # --------------------------
 # 1. Paths & Parameters
 # --------------------------
-MIN_SHIFT = 5   # Minimum shift distance in meters
-MAX_SHIFT = 15  # Maximum shift distance in meters
+MIN_SHIFT = 20   # Minimum shift distance in meters
+MAX_SHIFT = 35  # Maximum shift distance in meters
 
 INPUT_SHP = r"data/tree_label_rdn/valid_points.shp"
 OUTPUT_SHP = f"data/tree_label_rdn/random_valid_range_{MIN_SHIFT}_{MAX_SHIFT}.shp"
