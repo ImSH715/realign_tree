@@ -28,13 +28,15 @@ CROP_MULTIPLIER = 4
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER
 HALF_CROP = CROP_SIZE // 2
 
-BATCH_SIZE = 16
-EPOCHS = 30
+# OPTIMIZATION: Increased batch sizes to maximize GPU utilization
+BATCH_SIZE = 64 
+INFERENCE_BATCH_SIZE = 128 
+EPOCHS = 15 # Reduced from 30 for faster iterations (adjust back up later if needed)
 SEED = 42
 EMA_MOMENTUM = 0.996
 
-NUM_RANDOM_CROPS_PER_TIF = 1000  # Phase 1: Number of random crops per TIF (includes background)
-GRID_STRIDE_PIXELS = 128         # Phase 2: Stride for dense map extraction (smaller = denser map)
+NUM_RANDOM_CROPS_PER_TIF = 200   # Reduced from 1000 to speed up Phase 1
+GRID_STRIDE_PIXELS = 256         # OPTIMIZATION: Increased from 128. Cuts dense patches by ~75%
 
 # --------------------------
 # Model Definitions
@@ -102,6 +104,7 @@ class UnsupervisedPatchDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
+        # Note: Opening rasterio repeatedly is an I/O bottleneck, but keeping it as-is for simplicity
         with rasterio.open(row['tif_path']) as src:
             window = rasterio.windows.Window(
                 row['px'] - HALF_CROP, row['py'] - HALF_CROP, CROP_SIZE, CROP_SIZE
@@ -113,7 +116,6 @@ class UnsupervisedPatchDataset(Dataset):
         if self.transform:
             img = self.transform(img)
         
-        # No labels returned. Only image and coordinates.
         return img, row['x'], row['y']
 
 # --------------------------
@@ -156,7 +158,7 @@ def main():
     tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
 
     # =========================================================================
-    # Phase 1: Build a Pure Self-Supervised Dataset without Labels (Random Crops)
+    # Phase 1: Build a Pure Self-Supervised Dataset without Labels
     # =========================================================================
     print("\n[Phase 1] Generating Random Coordinates for Unsupervised Learning...")
     train_metadata = []
@@ -166,7 +168,6 @@ def main():
             with rasterio.open(tif_path) as src:
                 width, height = src.width, src.height
                 
-                # Restrict range to prevent cropping outside the image boundaries
                 valid_x_range = range(HALF_CROP, width - HALF_CROP)
                 valid_y_range = range(HALF_CROP, height - HALF_CROP)
                 
@@ -176,31 +177,30 @@ def main():
                 for _ in range(NUM_RANDOM_CROPS_PER_TIF):
                     px = random.choice(valid_x_range)
                     py = random.choice(valid_y_range)
-                    
-                    # Convert pixel coordinates to actual geographic coordinates
                     x, y = src.xy(py, px) 
-                    
                     train_metadata.append({'tif_path': tif_path, 'px': px, 'py': py, 'x': x, 'y': y})
-        except Exception as e:
+        except Exception:
             continue
 
     df_train = pd.DataFrame(train_metadata)
-    print(f"Generated {len(df_train)} random patches for pure self-supervised training.")
+    print(f"Generated {len(df_train)} random patches for training.")
 
+    # Increased num_workers for faster I/O
     train_dataset = UnsupervisedPatchDataset(df_train, transform=transform)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True)
 
-    # Initialize Models
     student_encoder = LeJepaEncoder().to(device)
     predictor = LeJepaPredictor().to(device)
     target_encoder = copy.deepcopy(student_encoder)
     
-    # Freeze target encoder gradients
     for param in target_encoder.parameters():
         param.requires_grad = False
 
     optimizer = torch.optim.AdamW(list(student_encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
     criterion = nn.MSELoss()
+    
+    # OPTIMIZATION: Use Automatic Mixed Precision for faster training
+    scaler = torch.amp.GradScaler('cuda')
 
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
     keep_num = int(num_patches * 0.25)
@@ -215,22 +215,27 @@ def main():
             imgs = batch[0].to(device)
             optimizer.zero_grad()
 
-            with torch.no_grad():
-                target = target_encoder(imgs)
+            # Using mixed precision autocast
+            with torch.amp.autocast('cuda'):
+                with torch.no_grad():
+                    target = target_encoder(imgs)
 
-            ids_shuffle = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
-            ids_keep = ids_shuffle[:, :keep_num]
-            ids_mask = ids_shuffle[:, keep_num:]
+                ids_shuffle = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
+                ids_keep = ids_shuffle[:, :keep_num]
+                ids_mask = ids_shuffle[:, keep_num:]
 
-            context = student_encoder(imgs, ids_keep)
-            pos_embed = student_encoder.pos_embed.expand(imgs.shape[0], -1, -1)
-            mask_pos = torch.gather(pos_embed, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
-            pred = predictor(context, mask_pos)
-            target_mask = torch.gather(target, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
+                context = student_encoder(imgs, ids_keep)
+                pos_embed = student_encoder.pos_embed.expand(imgs.shape[0], -1, -1)
+                mask_pos = torch.gather(pos_embed, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
+                pred = predictor(context, mask_pos)
+                target_mask = torch.gather(target, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
 
-            loss = criterion(pred, target_mask)
-            loss.backward()
-            optimizer.step()
+                loss = criterion(pred, target_mask)
+            
+            # Scaler backwards pass
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             
             update_target_encoder(student_encoder, target_encoder, EMA_MOMENTUM)
             train_loss += loss.item()
@@ -241,7 +246,7 @@ def main():
     print("Model training complete and saved.")
 
     # =========================================================================
-    # Phase 2: Extract Dense Grid across all TIFs for Feature Mapping
+    # Phase 2: Extract Dense Grid across all TIFs
     # =========================================================================
     print("\n[Phase 2] Generating Dense Grid across all TIFs for Feature Extraction...")
     student_encoder.eval()
@@ -251,8 +256,6 @@ def main():
         try:
             with rasterio.open(tif_path) as src:
                 width, height = src.width, src.height
-                
-                # Generate grid coordinates at a fixed pixel interval (GRID_STRIDE_PIXELS)
                 for py in range(HALF_CROP, height - HALF_CROP, GRID_STRIDE_PIXELS):
                     for px in range(HALF_CROP, width - HALF_CROP, GRID_STRIDE_PIXELS):
                         x, y = src.xy(py, px)
@@ -264,20 +267,21 @@ def main():
     print(f"Generated {len(df_grid)} dense grid points.")
 
     grid_dataset = UnsupervisedPatchDataset(df_grid, transform=transform)
-    grid_loader = DataLoader(grid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    # OPTIMIZATION: Use a much larger inference batch size and more workers
+    grid_loader = DataLoader(grid_dataset, batch_size=INFERENCE_BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True)
 
     all_embeddings = []
     all_coords = []
 
     print("Extracting Dense Embeddings...")
-    with torch.no_grad():
+    # OPTIMIZATION: Apply no_grad and autocast here as well
+    with torch.no_grad(), torch.amp.autocast('cuda'):
         for batch in tqdm(grid_loader, desc="Extracting"):
             imgs, xs, ys = batch
             imgs = imgs.to(device)
             emb = student_encoder(imgs).mean(dim=1).cpu().numpy()
             
             all_embeddings.append(emb)
-            # Save x, y coordinates as shape (N, 2)
             coords = np.stack((xs.numpy(), ys.numpy()), axis=1)
             all_coords.append(coords)
 
@@ -290,40 +294,36 @@ def main():
     print("\n[Phase 3] Mapping Labels to Dense Map using shapefile...")
     gdf = gpd.read_file(ANNOTATED_COR)
     
-    # 1. Extract embeddings only where ground truth labels exist (for training the classifier)
     print("Extracting features at labeled locations to train classifier...")
-    
     spatial_tree = cKDTree(dense_coords)
     
     X_train = []
     y_train = []
-    
     label_col = 'Tree' if 'Tree' in gdf.columns else gdf.columns[0]
     
-    # Simple trick: Find the points in the extracted dense map (dense_coords) 
-    # that are closest to the shapefile (gdf) coordinates to create X_train.
     for _, row in gdf.iterrows():
         point = [row.geometry.x, row.geometry.y]
         dist, idx = spatial_tree.query(point)
         
-        # Use as training data only if the distance is within a certain range
-        if dist < 50.0:  # Within 50 meters (adjust according to your CRS units)
+        # Max distance mapping threshold
+        if dist < 50.0:
             X_train.append(dense_embeddings[idx])
             y_train.append(str(row[label_col]))
             
-    # 2. Train a Random Forest Classifier
-    clf = RandomForestClassifier(n_estimators=100, random_state=SEED)
+    if not X_train:
+        print("ERROR: No coordinates matched within 50.0 distance. Check CRS projection!")
+        return
+
+    clf = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=SEED) # OPTIMIZATION: n_jobs=-1 uses all CPU cores
     clf.fit(X_train, y_train)
     print(f"Classifier trained on {len(X_train)} labeled points.")
 
-    # 3. Predict labels for the entire dense map
     print("Predicting labels for the entire dense map...")
     dense_labels = clf.predict(dense_embeddings)
 
-    # 4. Save (using the filenames required by your sliding_grid code)
     np.save(f"{embedding_dir}/embeddings.npy", dense_embeddings)
-    np.save(f"{label_dir}/labels.npy", dense_labels)     # Predicted labels for the entire map
-    np.save(f"{embedding_dir}/coords.npy", dense_coords) # Dense grid coordinates
+    np.save(f"{label_dir}/labels.npy", dense_labels)
+    np.save(f"{embedding_dir}/coords.npy", dense_coords)
 
     print("\nSaved final embeddings, predictions, and coordinates!")
     total_time = (time.time() - start_time) / 60
