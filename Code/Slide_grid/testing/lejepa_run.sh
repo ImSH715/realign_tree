@@ -27,7 +27,6 @@ echo "Using Python from: $(which python)"
 python --version
 
 # --- 4. Execution ---
-python -u test_lejepa.py
-python -u saving_steps_grid.py
+python -u lejepa_fixed.py
 
 echo "Job finished at $(date)"
