@@ -28,5 +28,6 @@ python --version
 
 # --- 4. Execution ---
 python -u evaluation_lejepa_currated.py
+python -u large_tif.py
 
 echo "Job finished at $(date)"
