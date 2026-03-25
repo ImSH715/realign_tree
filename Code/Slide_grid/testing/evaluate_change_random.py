@@ -10,7 +10,7 @@ import os
 def evaluate_with_distance_error(tolerance_distance=15.0):
     # Paths (Update if needed)
     gt_path = "data/tree_label_rdn/valid_points.shp"
-    pred_path = "data/tree_label_rdn/random_valid_range_5_15.shp" # Evaluation target
+    pred_path = "data/tree_label_rdn/random_valid_range_20_35.shp" # Evaluation target
 
     if not (os.path.exists(gt_path) and os.path.exists(pred_path)):
         print("Error: Shapefiles not found.")
