@@ -10,6 +10,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
+from lejepa_fixed import LeJepaEncoder
+
 # --- [PATH CONFIGURATION] ---
 CURATED_TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 CURATED_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp"
