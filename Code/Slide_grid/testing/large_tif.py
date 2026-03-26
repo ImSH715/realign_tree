@@ -19,7 +19,7 @@ CURATED_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testi
 LARGE_TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
 LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
 LABEL_COL_SHP = "Tree"
-LABEL_COL_CSV = "NOMBRE_CIENTIFICO"
+LABEL_COL_CSV = "NOMBRE_COMUN"
 FINAL_OUTPUT = "OSINFOR_2023_Realigned_Final.csv"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +76,7 @@ def run_realignment():
                     with torch.no_grad():
                         feat = encoder(img_t).mean(dim=1).cpu().numpy().squeeze()
                         X_ref.append(feat)
-                        y_ref.append(row[LABEL_COL_SHP])
+                        y_ref.append(str(row[LABEL_COL_SHP]).strip().upper())
             except Exception:
                 continue # Skip individual point if read fails
     
@@ -86,7 +86,7 @@ def run_realignment():
     # C. Realign Large Census
     print(f"\n[Step 2] Processing {LARGE_CENSUS_CSV}...")
     df = pd.read_csv(LARGE_CENSUS_CSV)
-    df[LABEL_COL_CSV] = df[LABEL_COL_CSV].str.strip()
+    df[LABEL_COL_CSV] = df[LABEL_COL_CSV].astype(str).str.strip().str.upper()
     
     realigned_results = []
 
