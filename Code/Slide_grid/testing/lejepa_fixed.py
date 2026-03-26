@@ -34,7 +34,9 @@ EPOCHS = 15
 SEED = 42
 EMA_MOMENTUM = 0.996
 
-NUM_RANDOM_CROPS_PER_TIF = 200   
+# --- OOM FIXES ---
+MAX_TRAIN_SAMPLES = 8000         # Hard cap Phase 1 at ~4.5 GB of RAM
+CHUNK_SIZE = 512                 # Phase 2 will process 512 patches at a time to prevent RAM overflow
 GRID_STRIDE_PIXELS = 256         
 
 # --------------------------
@@ -93,10 +95,6 @@ class LeJepaPredictor(nn.Module):
 # Custom Datasets
 # --------------------------
 class InMemoryDataset(Dataset):
-    """
-    OPTIMIZATION: Instead of opening TIF files during training, this dataset 
-    reads directly from pre-loaded arrays in RAM. Zero disk I/O bottleneck!
-    """
     def __init__(self, images_list, coords_list, transform=None):
         self.images = images_list
         self.coords = coords_list
@@ -154,11 +152,15 @@ def main():
         return
 
     # =========================================================================
-    # Phase 1: Build a Pure Self-Supervised Dataset IN MEMORY
+    # Phase 1: Build a Pure Self-Supervised Dataset IN MEMORY (Safely)
     # =========================================================================
-    print("\n[Phase 1] Pre-extracting Random Crops into RAM to eliminate Disk I/O...")
+    print("\n[Phase 1] Pre-extracting Training Patches safely into RAM...")
     train_images = []
     train_coords = []
+    
+    # Calculate safe amount of crops per TIF to prevent OOM
+    safe_crops_per_tif = max(1, MAX_TRAIN_SAMPLES // len(tif_files))
+    print(f"Sampling {safe_crops_per_tif} patches per TIF to stay under memory limits.")
     
     for tif_path in tqdm(tif_files, desc="Extracting Training Patches"):
         try:
@@ -170,11 +172,10 @@ def main():
                 if not valid_x_range or not valid_y_range:
                     continue
 
-                for _ in range(NUM_RANDOM_CROPS_PER_TIF):
+                for _ in range(safe_crops_per_tif):
                     px = random.choice(valid_x_range)
                     py = random.choice(valid_y_range)
                     
-                    # Read only the small window needed
                     window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
                     tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
                     tile = np.moveaxis(tile, 0, -1).astype('uint8')
@@ -183,12 +184,10 @@ def main():
                     train_images.append(tile)
                     train_coords.append((x, y))
         except Exception as e:
-            print(f"Skipping {tif_path} due to error: {e}")
             continue
 
-    print(f"Loaded {len(train_images)} random patches directly into Memory.")
+    print(f"Successfully loaded {len(train_images)} patches into Memory.")
 
-    # Create the purely in-memory dataset
     train_dataset = InMemoryDataset(train_images, train_coords, transform=transform)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
 
@@ -212,7 +211,6 @@ def main():
     
     for epoch in range(EPOCHS):
         train_loss = 0.0
-        # This loop will now fly because it doesn't touch the hard drive
         for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}", leave=False):
             imgs = batch[0].to(device)
             optimizer.zero_grad()
@@ -245,55 +243,67 @@ def main():
     torch.save(student_encoder.state_dict(), f"{model_dir}/lejepa_encoder_final.pth")
     print("Model training complete and saved.")
 
-    # Free up RAM used by training images
+    # Free up RAM aggressively before moving to Phase 2
     del train_images 
     del train_dataset
     del train_loader
+    import gc
+    gc.collect()
 
     # =========================================================================
-    # Phase 2: Extract Dense Grid TIF-by-TIF (Massive Speedup)
+    # Phase 2: Extract Dense Grid TIF-by-TIF (With Memory Chunking)
     # =========================================================================
-    print("\n[Phase 2] Extracting Dense Grid (Processing TIF-by-TIF to avoid I/O bottlenecks)...")
+    print("\n[Phase 2] Extracting Dense Grid (Processing in RAM-safe chunks)...")
     student_encoder.eval()
     
     all_embeddings = []
     all_coords = []
 
-    with torch.no_grad(), torch.amp.autocast('cuda'):
-        for tif_path in tqdm(tif_files, desc="Processing TIFs"):
-            tif_images = []
-            tif_coords = []
-            try:
-                # Open TIF once, extract all grid points, close TIF. 
-                with rasterio.open(tif_path) as src:
-                    width, height = src.width, src.height
-                    for py in range(HALF_CROP, height - HALF_CROP, GRID_STRIDE_PIXELS):
-                        for px in range(HALF_CROP, width - HALF_CROP, GRID_STRIDE_PIXELS):
-                            window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
-                            tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-                            tile = np.moveaxis(tile, 0, -1).astype('uint8')
-                            x, y = src.xy(py, px)
+    # Helper function to process a chunk of images and clear RAM
+    def process_chunk(images_list, coords_list):
+        if len(images_list) == 0: return
+        temp_dataset = InMemoryDataset(images_list, coords_list, transform=transform)
+        temp_loader = DataLoader(temp_dataset, batch_size=INFERENCE_BATCH_SIZE, shuffle=False, num_workers=4)
+        
+        with torch.no_grad(), torch.amp.autocast('cuda'):
+            for batch in temp_loader:
+                imgs, xs, ys = batch
+                imgs = imgs.to(device)
+                emb = student_encoder(imgs).mean(dim=1).cpu().numpy()
+                
+                all_embeddings.append(emb)
+                coords = np.stack((xs.numpy(), ys.numpy()), axis=1)
+                all_coords.append(coords)
+                
+        # Clear lists to free memory
+        images_list.clear()
+        coords_list.clear()
+
+    for tif_path in tqdm(tif_files, desc="Processing TIFs"):
+        tif_images = []
+        tif_coords = []
+        try:
+            with rasterio.open(tif_path) as src:
+                width, height = src.width, src.height
+                for py in range(HALF_CROP, height - HALF_CROP, GRID_STRIDE_PIXELS):
+                    for px in range(HALF_CROP, width - HALF_CROP, GRID_STRIDE_PIXELS):
+                        window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
+                        tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+                        tile = np.moveaxis(tile, 0, -1).astype('uint8')
+                        x, y = src.xy(py, px)
+                        
+                        tif_images.append(tile)
+                        tif_coords.append((x, y))
+                        
+                        # Once we hit CHUNK_SIZE, process the chunk to avoid OOM
+                        if len(tif_images) >= CHUNK_SIZE:
+                            process_chunk(tif_images, tif_coords)
                             
-                            tif_images.append(tile)
-                            tif_coords.append((x, y))
-                            
-                # Batch process this specific TIF's patches through the model
-                if len(tif_images) > 0:
-                    temp_dataset = InMemoryDataset(tif_images, tif_coords, transform=transform)
-                    temp_loader = DataLoader(temp_dataset, batch_size=INFERENCE_BATCH_SIZE, shuffle=False, num_workers=4)
+            # Process any remaining images in the TIF that didn't fill a full chunk
+            process_chunk(tif_images, tif_coords)
                     
-                    for batch in temp_loader:
-                        imgs, xs, ys = batch
-                        imgs = imgs.to(device)
-                        emb = student_encoder(imgs).mean(dim=1).cpu().numpy()
-                        
-                        all_embeddings.append(emb)
-                        coords = np.stack((xs.numpy(), ys.numpy()), axis=1)
-                        all_coords.append(coords)
-                        
-            except Exception as e:
-                print(f"Failed to process {tif_path}: {e}")
-                continue
+        except Exception as e:
+            continue
 
     dense_embeddings = np.concatenate(all_embeddings)
     dense_coords = np.concatenate(all_coords)
@@ -320,7 +330,7 @@ def main():
             y_train.append(str(row[label_col]))
             
     if not X_train:
-        print("ERROR: No coordinates matched within 50.0 distance. Check CRS projection!")
+        print("ERROR: No coordinates matched within 50.0 distance.")
         return
 
     clf = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=SEED) 
@@ -337,7 +347,6 @@ def main():
     print("\nSaved final embeddings, predictions, and coordinates!")
     total_time = (time.time() - start_time) / 60
     print(f"Total execution time: {total_time:.2f} minutes")
-    print("=> You can now run your `sliding_grid.py` script!")
 
 if __name__ == "__main__":
     main()
