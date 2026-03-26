@@ -17,7 +17,7 @@ CURATED_TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Or
 CURATED_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp"
 
 LARGE_TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
-LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo Forestal.xlsx - Datos.csv"
+LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
 LABEL_COL_SHP = "Tree"
 LABEL_COL_CSV = "NOMBRE_CIENTIFICO"
 FINAL_OUTPUT = "OSINFOR_2023_Realigned_Final.csv"
