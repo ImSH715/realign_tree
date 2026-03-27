@@ -15,6 +15,7 @@ from tqdm import tqdm
 import time
 from sklearn.ensemble import RandomForestClassifier
 from scipy.spatial import cKDTree
+import gc
 
 # --------------------------
 # Hyperparameters & Paths
@@ -24,20 +25,24 @@ ANNOTATED_COR = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/tes
 
 IMG_SIZE = 448
 PATCH_SIZE = 16
-CROP_MULTIPLIER = 4
+
+# 🔥 FIXED: Reduce crop size (was 4 → now 2)
+CROP_MULTIPLIER = 2
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER
 HALF_CROP = CROP_SIZE // 2
 
-BATCH_SIZE = 64 
-INFERENCE_BATCH_SIZE = 128 
-EPOCHS = 15 
+BATCH_SIZE = 64
+INFERENCE_BATCH_SIZE = 128
+EPOCHS = 15
 SEED = 42
 EMA_MOMENTUM = 0.996
 
-# --- OOM FIXES ---
-MAX_TRAIN_SAMPLES = 8000         # Hard cap Phase 1 at ~4.5 GB of RAM
-CHUNK_SIZE = 512                 # Phase 2 will process 512 patches at a time to prevent RAM overflow
-GRID_STRIDE_PIXELS = 256         
+MAX_TRAIN_SAMPLES = 8000
+
+# 🔥 FIXED: Larger stride (reduces overlap massively)
+GRID_STRIDE_PIXELS = CROP_SIZE // 2  # ~50% overlap
+
+CHUNK_SIZE = 256  # smaller chunks for stability
 
 # --------------------------
 # Model Definitions
@@ -45,59 +50,73 @@ GRID_STRIDE_PIXELS = 256
 class LeJepaEncoder(nn.Module):
     def __init__(self, img_size=IMG_SIZE, patch_size=PATCH_SIZE, in_chans=3, embed_dim=128, depth=4, num_heads=4):
         super().__init__()
-        self.patch_size = patch_size
-        self.embed_dim = embed_dim
         self.patch_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         num_patches = (img_size // patch_size) ** 2
         self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
+
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
-                activation='gelu', batch_first=True
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
             ) for _ in range(depth)
         ])
+
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x, ids_keep=None):
         x = self.patch_embed(x)
         x = x.flatten(2).transpose(1, 2)
         x = x + self.pos_embed
+
         if ids_keep is not None:
             D = x.shape[-1]
-            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).expand(-1, -1, D))
-        for block in self.blocks:
-            x = block(x)
+            x = torch.gather(x, 1, ids_keep.unsqueeze(-1).expand(-1, -1, D))
+
+        for blk in self.blocks:
+            x = blk(x)
+
         return self.norm(x)
 
 class LeJepaPredictor(nn.Module):
-    def __init__(self, embed_dim=128, predictor_depth=2, num_heads=4):
+    def __init__(self, embed_dim=128, depth=2, num_heads=4):
         super().__init__()
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(
-                d_model=embed_dim, nhead=num_heads, dim_feedforward=embed_dim * 4,
-                activation='gelu', batch_first=True
-            ) for _ in range(predictor_depth)
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation='gelu',
+                batch_first=True
+            ) for _ in range(depth)
         ])
+
         self.norm = nn.LayerNorm(embed_dim)
 
-    def forward(self, context_embeds, mask_pos_embeds):
-        B = context_embeds.shape[0]
-        N_mask = mask_pos_embeds.shape[1]
-        mask_tokens = self.mask_token.repeat(B, N_mask, 1) + mask_pos_embeds
-        x = torch.cat([context_embeds, mask_tokens], dim=1)
-        for block in self.blocks:
-            x = block(x)
+    def forward(self, context, mask_pos):
+        B = context.shape[0]
+        N = mask_pos.shape[1]
+
+        mask_tokens = self.mask_token.repeat(B, N, 1) + mask_pos
+        x = torch.cat([context, mask_tokens], dim=1)
+
+        for blk in self.blocks:
+            x = blk(x)
+
         x = self.norm(x)
-        return x[:, -N_mask:, :]
+        return x[:, -N:, :]
 
 # --------------------------
-# Custom Datasets
+# Dataset
 # --------------------------
 class InMemoryDataset(Dataset):
-    def __init__(self, images_list, coords_list, transform=None):
-        self.images = images_list
-        self.coords = coords_list
+    def __init__(self, images, coords, transform=None):
+        self.images = images
+        self.coords = coords
         self.transform = transform
 
     def __len__(self):
@@ -107,246 +126,233 @@ class InMemoryDataset(Dataset):
         img = Image.fromarray(self.images[idx])
         if self.transform:
             img = self.transform(img)
+
         x, y = self.coords[idx]
         return img, x, y
 
 # --------------------------
-# Utility Functions
+# Utils
 # --------------------------
-def set_seed(seed=SEED):
+def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def update_target_encoder(student, target, momentum):
+def update_target(student, target, momentum):
     with torch.no_grad():
-        for param_q, param_k in zip(student.parameters(), target.parameters()):
-            param_k.data.mul_(momentum).add_((1 - momentum) * param_q.detach().data)
+        for s, t in zip(student.parameters(), target.parameters()):
+            t.data = momentum * t.data + (1 - momentum) * s.data
 
 # --------------------------
-# Main Execution
+# MAIN
 # --------------------------
 def main():
     start_time = time.time()
     set_seed(SEED)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
 
-    model_dir = "data/models"
-    embedding_dir = "data/embeddings"
-    label_dir = "data/label"
-    os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(embedding_dir, exist_ok=True)
-    os.makedirs(label_dir, exist_ok=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    os.makedirs("data/models", exist_ok=True)
 
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225])
     ])
 
     tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
-    if not tif_files:
-        print("Error: No TIF files found. Check your BASE_DIR.")
-        return
 
-    # =========================================================================
-    # Phase 1: Build a Pure Self-Supervised Dataset IN MEMORY (Safely)
-    # =========================================================================
-    print("\n[Phase 1] Pre-extracting Training Patches safely into RAM...")
-    train_images = []
-    train_coords = []
-    
-    # Calculate safe amount of crops per TIF to prevent OOM
-    safe_crops_per_tif = max(1, MAX_TRAIN_SAMPLES // len(tif_files))
-    print(f"Sampling {safe_crops_per_tif} patches per TIF to stay under memory limits.")
-    
-    for tif_path in tqdm(tif_files, desc="Extracting Training Patches"):
+    # =========================================================
+    # Phase 1: Training (unchanged)
+    # =========================================================
+    print("\n[Phase 1] Sampling patches...")
+
+    train_imgs, train_coords = [], []
+
+    per_tif = max(1, MAX_TRAIN_SAMPLES // len(tif_files))
+
+    for tif in tqdm(tif_files):
         try:
-            with rasterio.open(tif_path) as src:
-                width, height = src.width, src.height
-                valid_x_range = range(HALF_CROP, width - HALF_CROP)
-                valid_y_range = range(HALF_CROP, height - HALF_CROP)
-                
-                if not valid_x_range or not valid_y_range:
-                    continue
+            with rasterio.open(tif) as src:
+                img = src.read([1,2,3])
+                img = np.moveaxis(img, 0, -1)
 
-                for _ in range(safe_crops_per_tif):
-                    px = random.choice(valid_x_range)
-                    py = random.choice(valid_y_range)
-                    
-                    window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
-                    tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-                    tile = np.moveaxis(tile, 0, -1).astype('uint8')
-                    
-                    x, y = src.xy(py, px) 
-                    train_images.append(tile)
-                    train_coords.append((x, y))
-        except Exception as e:
+                h, w = img.shape[:2]
+
+                for _ in range(per_tif):
+                    px = random.randint(HALF_CROP, w - HALF_CROP - 1)
+                    py = random.randint(HALF_CROP, h - HALF_CROP - 1)
+
+                    tile = img[py-HALF_CROP:py+HALF_CROP,
+                               px-HALF_CROP:px+HALF_CROP]
+
+                    x, y = src.xy(py, px)
+
+                    train_imgs.append(tile)
+                    train_coords.append((x,y))
+        except:
             continue
 
-    print(f"Successfully loaded {len(train_images)} patches into Memory.")
+    train_loader = DataLoader(
+        InMemoryDataset(train_imgs, train_coords, transform),
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=2
+    )
 
-    train_dataset = InMemoryDataset(train_images, train_coords, transform=transform)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
-
-    student_encoder = LeJepaEncoder().to(device)
+    student = LeJepaEncoder().to(device)
     predictor = LeJepaPredictor().to(device)
-    target_encoder = copy.deepcopy(student_encoder)
-    
-    for param in target_encoder.parameters():
-        param.requires_grad = False
+    target = copy.deepcopy(student)
 
-    optimizer = torch.optim.AdamW(list(student_encoder.parameters()) + list(predictor.parameters()), lr=1e-4)
-    criterion = nn.MSELoss()
+    for p in target.parameters():
+        p.requires_grad = False
+
+    optimizer = torch.optim.AdamW(
+        list(student.parameters()) + list(predictor.parameters()), lr=1e-4
+    )
+
     scaler = torch.amp.GradScaler('cuda')
+    criterion = nn.MSELoss()
 
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
-    keep_num = int(num_patches * 0.25)
+    keep = int(num_patches * 0.25)
 
-    print("\nStarting Pure Self-Supervised Training...")
-    student_encoder.train()
-    predictor.train()
-    
+    print("\nTraining...")
+
     for epoch in range(EPOCHS):
-        train_loss = 0.0
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}", leave=False):
+        total_loss = 0
+
+        for batch in tqdm(train_loader, leave=False):
             imgs = batch[0].to(device)
+
             optimizer.zero_grad()
 
             with torch.amp.autocast('cuda'):
                 with torch.no_grad():
-                    target = target_encoder(imgs)
+                    tgt = target(imgs)
 
-                ids_shuffle = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
-                ids_keep = ids_shuffle[:, :keep_num]
-                ids_mask = ids_shuffle[:, keep_num:]
+                ids = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
+                keep_ids = ids[:, :keep]
+                mask_ids = ids[:, keep:]
 
-                context = student_encoder(imgs, ids_keep)
-                pos_embed = student_encoder.pos_embed.expand(imgs.shape[0], -1, -1)
-                mask_pos = torch.gather(pos_embed, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
-                pred = predictor(context, mask_pos)
-                target_mask = torch.gather(target, 1, ids_mask.unsqueeze(-1).expand(-1, -1, student_encoder.embed_dim))
+                ctx = student(imgs, keep_ids)
 
-                loss = criterion(pred, target_mask)
-            
+                pos = student.pos_embed.expand(imgs.shape[0], -1, -1)
+                mask_pos = torch.gather(pos, 1, mask_ids.unsqueeze(-1).expand(-1, -1, student.pos_embed.shape[-1]))
+
+                pred = predictor(ctx, mask_pos)
+                tgt_mask = torch.gather(tgt, 1, mask_ids.unsqueeze(-1).expand(-1, -1, student.pos_embed.shape[-1]))
+
+                loss = criterion(pred, tgt_mask)
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            
-            update_target_encoder(student_encoder, target_encoder, EMA_MOMENTUM)
-            train_loss += loss.item()
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] Loss: {train_loss / len(train_loader):.4f}")
+            update_target(student, target, EMA_MOMENTUM)
+            total_loss += loss.item()
 
-    torch.save(student_encoder.state_dict(), f"{model_dir}/lejepa_encoder_final.pth")
-    print("Model training complete and saved.")
+        print(f"Epoch {epoch+1}: {total_loss/len(train_loader):.4f}")
 
-    # Free up RAM aggressively before moving to Phase 2
-    del train_images 
-    del train_dataset
-    del train_loader
-    import gc
+    torch.save(student.state_dict(), "data/models/encoder.pth")
+
+    # Free memory
+    del train_imgs, train_loader
     gc.collect()
 
-    # =========================================================================
-    # Phase 2: Extract Dense Grid TIF-by-TIF (With Memory Chunking)
-    # =========================================================================
-    print("\n[Phase 2] Extracting Dense Grid (Processing in RAM-safe chunks)...")
-    student_encoder.eval()
-    
-    all_embeddings = []
-    all_coords = []
+    # =========================================================
+    # Phase 2: FAST Dense Extraction (MAJOR FIX)
+    # =========================================================
+    print("\n[Phase 2] Fast dense extraction...")
 
-    # Helper function to process a chunk of images and clear RAM
-    def process_chunk(images_list, coords_list):
-        if len(images_list) == 0: return
-        temp_dataset = InMemoryDataset(images_list, coords_list, transform=transform)
-        temp_loader = DataLoader(temp_dataset, batch_size=INFERENCE_BATCH_SIZE, shuffle=False, num_workers=4)
-        
-        with torch.no_grad(), torch.amp.autocast('cuda'):
-            for batch in temp_loader:
-                imgs, xs, ys = batch
-                imgs = imgs.to(device)
-                emb = student_encoder(imgs).mean(dim=1).cpu().numpy()
-                
-                all_embeddings.append(emb)
-                coords = np.stack((xs.numpy(), ys.numpy()), axis=1)
-                all_coords.append(coords)
-                
-        # Clear lists to free memory
-        images_list.clear()
-        coords_list.clear()
+    student.eval()
 
-    for tif_path in tqdm(tif_files, desc="Processing TIFs"):
-        tif_images = []
-        tif_coords = []
+    all_embeds, all_coords = [], []
+
+    for tif in tqdm(tif_files):
         try:
-            with rasterio.open(tif_path) as src:
-                width, height = src.width, src.height
-                for py in range(HALF_CROP, height - HALF_CROP, GRID_STRIDE_PIXELS):
-                    for px in range(HALF_CROP, width - HALF_CROP, GRID_STRIDE_PIXELS):
-                        window = rasterio.windows.Window(px - HALF_CROP, py - HALF_CROP, CROP_SIZE, CROP_SIZE)
-                        tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-                        tile = np.moveaxis(tile, 0, -1).astype('uint8')
+            with rasterio.open(tif) as src:
+                # 🔥 KEY FIX: Read full image ONCE
+                img = src.read([1,2,3])
+                img = np.moveaxis(img, 0, -1)
+
+                h, w = img.shape[:2]
+
+                batch_imgs, batch_coords = [], []
+
+                for py in range(HALF_CROP, h - HALF_CROP, GRID_STRIDE_PIXELS):
+                    for px in range(HALF_CROP, w - HALF_CROP, GRID_STRIDE_PIXELS):
+
+                        tile = img[py-HALF_CROP:py+HALF_CROP,
+                                   px-HALF_CROP:px+HALF_CROP]
+
                         x, y = src.xy(py, px)
-                        
-                        tif_images.append(tile)
-                        tif_coords.append((x, y))
-                        
-                        # Once we hit CHUNK_SIZE, process the chunk to avoid OOM
-                        if len(tif_images) >= CHUNK_SIZE:
-                            process_chunk(tif_images, tif_coords)
-                            
-            # Process any remaining images in the TIF that didn't fill a full chunk
-            process_chunk(tif_images, tif_coords)
-                    
-        except Exception as e:
+
+                        batch_imgs.append(tile)
+                        batch_coords.append((x,y))
+
+                        if len(batch_imgs) >= CHUNK_SIZE:
+                            dataset = InMemoryDataset(batch_imgs, batch_coords, transform)
+                            loader = DataLoader(dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=2)
+
+                            with torch.no_grad(), torch.amp.autocast('cuda'):
+                                for b in loader:
+                                    emb = student(b[0].to(device)).mean(dim=1).cpu().numpy()
+                                    all_embeds.append(emb)
+                                    all_coords.append(np.stack((b[1], b[2]), axis=1))
+
+                            batch_imgs.clear()
+                            batch_coords.clear()
+
+                # Process remainder
+                if batch_imgs:
+                    dataset = InMemoryDataset(batch_imgs, batch_coords, transform)
+                    loader = DataLoader(dataset, batch_size=INFERENCE_BATCH_SIZE)
+
+                    with torch.no_grad():
+                        for b in loader:
+                            emb = student(b[0].to(device)).mean(dim=1).cpu().numpy()
+                            all_embeds.append(emb)
+                            all_coords.append(np.stack((b[1], b[2]), axis=1))
+
+        except:
             continue
 
-    dense_embeddings = np.concatenate(all_embeddings)
+    dense_embeddings = np.concatenate(all_embeds)
     dense_coords = np.concatenate(all_coords)
 
-    # =========================================================================
-    # Phase 3: Downstream Task (Label Mapping)
-    # =========================================================================
-    print("\n[Phase 3] Mapping Labels to Dense Map using shapefile...")
+    # =========================================================
+    # Phase 3: Label mapping
+    # =========================================================
+    print("\n[Phase 3] Training classifier...")
+
     gdf = gpd.read_file(ANNOTATED_COR)
-    
-    print("Extracting features at labeled locations to train classifier...")
-    spatial_tree = cKDTree(dense_coords)
-    
-    X_train = []
-    y_train = []
-    label_col = 'Tree' if 'Tree' in gdf.columns else gdf.columns[0]
-    
+    tree = cKDTree(dense_coords)
+
+    X, y = [], []
+
     for _, row in gdf.iterrows():
-        point = [row.geometry.x, row.geometry.y]
-        dist, idx = spatial_tree.query(point)
-        
-        if dist < 50.0:
-            X_train.append(dense_embeddings[idx])
-            y_train.append(str(row[label_col]))
-            
-    if not X_train:
-        print("ERROR: No coordinates matched within 50.0 distance.")
-        return
+        pt = [row.geometry.x, row.geometry.y]
+        dist, idx = tree.query(pt)
 
-    clf = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=SEED) 
-    clf.fit(X_train, y_train)
-    print(f"Classifier trained on {len(X_train)} labeled points.")
+        if dist < 50:
+            X.append(dense_embeddings[idx])
+            y.append(str(row[0]))
 
-    print("Predicting labels for the entire dense map...")
-    dense_labels = clf.predict(dense_embeddings)
+    clf = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    clf.fit(X, y)
 
-    np.save(f"{embedding_dir}/embeddings.npy", dense_embeddings)
-    np.save(f"{label_dir}/labels.npy", dense_labels)
-    np.save(f"{embedding_dir}/coords.npy", dense_coords)
+    preds = clf.predict(dense_embeddings)
 
-    print("\nSaved final embeddings, predictions, and coordinates!")
-    total_time = (time.time() - start_time) / 60
-    print(f"Total execution time: {total_time:.2f} minutes")
+    np.save("data/embeddings.npy", dense_embeddings)
+    np.save("data/coords.npy", dense_coords)
+    np.save("data/labels.npy", preds)
+
+    print("\nDONE")
+    print(f"Total time: {(time.time()-start_time)/60:.2f} min")
+
 
 if __name__ == "__main__":
     main()
