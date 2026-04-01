@@ -6,6 +6,7 @@ from PIL import Image
 import torchvision.transforms as transforms
 import os
 import rasterio
+from rasterio.windows import Window
 import geopandas as gpd
 import glob
 import random
@@ -191,14 +192,18 @@ def main():
     for tif in tqdm(tif_files):
         try:
             with rasterio.open(tif) as src:
-                img = src.read([1,2,3])
-                img = np.moveaxis(img, 0, -1)
-                h, w = img.shape[:2]
+                # FIX: Get dimensions without loading the image
+                h, w = src.height, src.width
 
                 for _ in range(per_tif):
                     px = random.randint(HALF_CROP, w - HALF_CROP - 1)
                     py = random.randint(HALF_CROP, h - HALF_CROP - 1)
-                    tile = img[py-HALF_CROP:py+HALF_CROP, px-HALF_CROP:px+HALF_CROP]
+                    
+                    # FIX: Read only the specific crop window from disk
+                    window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
+                    tile = src.read([1, 2, 3], window=window)
+                    tile = np.moveaxis(tile, 0, -1)
+                    
                     x, y = src.xy(py, px)
 
                     train_imgs.append(tile)
@@ -260,7 +265,6 @@ def main():
 
     torch.save(student.state_dict(), "data/models/encoder.pth")
 
-    # [IMPORTANT] Free Phase 1 memory
     del train_imgs, train_coords, train_loader, predictor, target, optimizer
     gc.collect()
     torch.cuda.empty_cache()
@@ -272,7 +276,6 @@ def main():
     
     student.eval()
     
-    # Tensorization for normalization (Phase 2 only)
     mean_t = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1).to(device)
     std_t = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1).to(device)
 
@@ -281,15 +284,19 @@ def main():
     for tif in tqdm(tif_files, desc="Processing TIFs for Extraction"):
         try:
             with rasterio.open(tif) as src:
-                img = src.read([1,2,3])
-                img = np.moveaxis(img, 0, -1)
-                h, w = img.shape[:2]
+                # FIX: Get dimensions without loading the image
+                h, w = src.height, src.width
 
                 batch_imgs, batch_coords = [], []
 
                 for py in range(HALF_CROP, h - HALF_CROP, GRID_STRIDE_PIXELS):
                     for px in range(HALF_CROP, w - HALF_CROP, GRID_STRIDE_PIXELS):
-                        tile = img[py-HALF_CROP:py+HALF_CROP, px-HALF_CROP:px+HALF_CROP]
+                        
+                        # FIX: Read only the specific crop window from disk
+                        window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
+                        tile = src.read([1, 2, 3], window=window)
+                        tile = np.moveaxis(tile, 0, -1)
+
                         x, y = src.xy(py, px)
 
                         batch_imgs.append(tile)
@@ -311,7 +318,6 @@ def main():
             print(f"[ERROR SKIPPED] {tif}: {e}")
             continue
 
-    # [IMPORTANT] Merge embedding memory
     print("\n[Phase 2] Merging chunks...")
     emb_files = sorted(glob.glob(f"{SAVE_DIR}/emb_*.npy"))
     coord_files = sorted(glob.glob(f"{SAVE_DIR}/coord_*.npy"))
@@ -319,11 +325,9 @@ def main():
     dense_embeddings = np.concatenate([np.load(f) for f in emb_files])
     dense_coords = np.concatenate([np.load(f) for f in coord_files])
 
-    # Delete temporary chunk files (frees disk space, can be commented out if not desired)
     for f in emb_files + coord_files:
         os.remove(f)
 
-    # [IMPORTANT] Free Phase 2 memory
     del student
     gc.collect()
     torch.cuda.empty_cache()
@@ -338,22 +342,19 @@ def main():
 
     X, y = [], []
 
-    # Match ground truth labels
     for _, row in gdf.iterrows():
         pt = [row.geometry.x, row.geometry.y]
         dist, idx = tree.query(pt)
 
         if dist < 50:
             X.append(dense_embeddings[idx])
-            y.append(str(row[0])) # Ground truth label (modify according to the file, e.g., species, 1/0)
+            y.append(str(row[0])) 
 
-    # Train classifier and predict on all data
     clf = RandomForestClassifier(n_estimators=100, n_jobs=-1)
     clf.fit(X, y)
     
     preds = clf.predict(dense_embeddings)
 
-    # Save final outputs
     np.save("data/embeddings.npy", dense_embeddings)
     np.save("data/coords.npy", dense_coords)
     np.save("data/labels.npy", preds)
