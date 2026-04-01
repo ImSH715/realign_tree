@@ -192,14 +192,16 @@ def main():
     for tif in tqdm(tif_files):
         try:
             with rasterio.open(tif) as src:
-                # FIX: Get dimensions without loading the image
                 h, w = src.height, src.width
+                
+                # Check to prevent small images from causing infinite/failed loops
+                if h < CROP_SIZE or w < CROP_SIZE:
+                    continue
 
                 for _ in range(per_tif):
                     px = random.randint(HALF_CROP, w - HALF_CROP - 1)
                     py = random.randint(HALF_CROP, h - HALF_CROP - 1)
                     
-                    # FIX: Read only the specific crop window from disk
                     window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
                     tile = src.read([1, 2, 3], window=window)
                     tile = np.moveaxis(tile, 0, -1)
@@ -227,9 +229,6 @@ def main():
     scaler = torch.amp.GradScaler('cuda')
     criterion = nn.MSELoss()
 
-    num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
-    keep = int(num_patches * 0.25)
-
     print("\n[Phase 1] Training Model...")
     for epoch in range(EPOCHS):
         total_loss = 0
@@ -241,6 +240,9 @@ def main():
                 with torch.no_grad():
                     tgt = target(imgs)
 
+                num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
+                keep = int(num_patches * 0.25)
+                
                 ids = torch.argsort(torch.rand(imgs.shape[0], num_patches, device=device), dim=1)
                 keep_ids = ids[:, :keep]
                 mask_ids = ids[:, keep:]
@@ -284,15 +286,16 @@ def main():
     for tif in tqdm(tif_files, desc="Processing TIFs for Extraction"):
         try:
             with rasterio.open(tif) as src:
-                # FIX: Get dimensions without loading the image
                 h, w = src.height, src.width
+                
+                if h < CROP_SIZE or w < CROP_SIZE:
+                    continue
 
                 batch_imgs, batch_coords = [], []
 
                 for py in range(HALF_CROP, h - HALF_CROP, GRID_STRIDE_PIXELS):
                     for px in range(HALF_CROP, w - HALF_CROP, GRID_STRIDE_PIXELS):
                         
-                        # FIX: Read only the specific crop window from disk
                         window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
                         tile = src.read([1, 2, 3], window=window)
                         tile = np.moveaxis(tile, 0, -1)
@@ -308,7 +311,6 @@ def main():
                             batch_coords.clear()
                             gc.collect()
 
-                # Process remaining data
                 if batch_imgs:
                     chunk_id = process_chunk(batch_imgs, batch_coords, chunk_id, student, device, mean_t, std_t)
                     batch_imgs.clear()
@@ -322,11 +324,33 @@ def main():
     emb_files = sorted(glob.glob(f"{SAVE_DIR}/emb_*.npy"))
     coord_files = sorted(glob.glob(f"{SAVE_DIR}/coord_*.npy"))
 
-    dense_embeddings = np.concatenate([np.load(f) for f in emb_files])
-    dense_coords = np.concatenate([np.load(f) for f in coord_files])
+    if not emb_files or not coord_files:
+        raise ValueError(
+            "ERROR: No embeddings were extracted! "
+            f"Please ensure your TIF files are larger than the crop size ({CROP_SIZE}x{CROP_SIZE} pixels)."
+        )
 
+    # ---------------------------------------------------------
+    # NEW SAFE MERGE LOGIC (Iterative loading to prevent RAM spike)
+    # ---------------------------------------------------------
+    emb_list = []
+    for f in tqdm(emb_files, desc="Merging Embeddings (RAM Safe)"):
+        emb_list.append(np.load(f))
+    dense_embeddings = np.concatenate(emb_list, axis=0)
+    del emb_list  # Free memory immediately
+    gc.collect()
+
+    coord_list = []
+    for f in tqdm(coord_files, desc="Merging Coordinates (RAM Safe)"):
+        coord_list.append(np.load(f))
+    dense_coords = np.concatenate(coord_list, axis=0)
+    del coord_list  # Free memory immediately
+    gc.collect()
+
+    # Clean up disk chunks safely
     for f in emb_files + coord_files:
-        os.remove(f)
+        try: os.remove(f)
+        except: pass
 
     del student
     gc.collect()
