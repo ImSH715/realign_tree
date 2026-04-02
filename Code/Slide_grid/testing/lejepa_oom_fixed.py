@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -37,7 +38,7 @@ HALF_CROP = CROP_SIZE // 2
 
 BATCH_SIZE = 64
 INFERENCE_BATCH_SIZE = 128
-EPOCHS = 300
+EPOCHS = 15
 SEED = 42
 EMA_MOMENTUM = 0.996
 
@@ -144,7 +145,11 @@ def process_chunk(images, coords, chunk_id, encoder, device, mean, std):
         return chunk_id
 
     imgs = torch.from_numpy(np.stack(images)).permute(0,3,1,2).float().to(device) / 255.0
-    imgs = (imgs - mean) / std  # Fast normalization on GPU
+    
+    # FIX: Downsample 896x896 to 448x448 on the GPU so the patch sizes match the trained positional embeddings
+    imgs = F.interpolate(imgs, size=(IMG_SIZE, IMG_SIZE), mode='bilinear', align_corners=False)
+    
+    imgs = (imgs - mean) / std
 
     all_embeds = []
     with torch.no_grad(), torch.amp.autocast('cuda'):
@@ -156,7 +161,6 @@ def process_chunk(images, coords, chunk_id, encoder, device, mean, std):
     embeds = np.concatenate(all_embeds)
     coords_np = np.array(coords).astype(np.float32)
 
-    # Save to disk in chunks (frees up RAM)
     np.save(f"{SAVE_DIR}/emb_{chunk_id}.npy", embeds)
     np.save(f"{SAVE_DIR}/coord_{chunk_id}.npy", coords_np)
 
@@ -194,7 +198,6 @@ def main():
             with rasterio.open(tif) as src:
                 h, w = src.height, src.width
                 
-                # Check to prevent small images from causing infinite/failed loops
                 if h < CROP_SIZE or w < CROP_SIZE:
                     continue
 
@@ -265,7 +268,7 @@ def main():
 
         print(f"Epoch {epoch+1}: {total_loss/len(train_loader):.4f}")
 
-    torch.save(student.state_dict(), f"data/models/encoder_{epoch}.pth")
+    torch.save(student.state_dict(), "data/models/encoder.pth")
 
     del train_imgs, train_coords, train_loader, predictor, target, optimizer
     gc.collect()
@@ -330,24 +333,20 @@ def main():
             f"Please ensure your TIF files are larger than the crop size ({CROP_SIZE}x{CROP_SIZE} pixels)."
         )
 
-    # ---------------------------------------------------------
-    # NEW SAFE MERGE LOGIC (Iterative loading to prevent RAM spike)
-    # ---------------------------------------------------------
     emb_list = []
     for f in tqdm(emb_files, desc="Merging Embeddings (RAM Safe)"):
         emb_list.append(np.load(f))
     dense_embeddings = np.concatenate(emb_list, axis=0)
-    del emb_list  # Free memory immediately
+    del emb_list 
     gc.collect()
 
     coord_list = []
     for f in tqdm(coord_files, desc="Merging Coordinates (RAM Safe)"):
         coord_list.append(np.load(f))
     dense_coords = np.concatenate(coord_list, axis=0)
-    del coord_list  # Free memory immediately
+    del coord_list 
     gc.collect()
 
-    # Clean up disk chunks safely
     for f in emb_files + coord_files:
         try: os.remove(f)
         except: pass
@@ -379,9 +378,9 @@ def main():
     
     preds = clf.predict(dense_embeddings)
 
-    np.save(f"data/embeddings_{epoch}.npy", dense_embeddings)
-    np.save(f"data/coords.npy_{epoch}", dense_coords)
-    np.save(f"data/labels_{epoch}.npy", preds)
+    np.save("data/embeddings.npy", dense_embeddings)
+    np.save("data/coords.npy", dense_coords)
+    np.save("data/labels.npy", preds)
 
     print("\n[All Phases DONE]")
     print(f"Total time: {(time.time()-start_time)/60:.2f} min")

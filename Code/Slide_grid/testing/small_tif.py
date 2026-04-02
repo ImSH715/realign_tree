@@ -7,6 +7,8 @@ import rasterio
 from rasterio.windows import Window
 import glob
 import os
+import random
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
@@ -16,19 +18,16 @@ warnings.filterwarnings('ignore')
 # ---------------------------------------------------------
 # 1. PATHS & HYPERPARAMETERS
 # ---------------------------------------------------------
-TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
+BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 ANNOTATED_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp"
-LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
-OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
 
 # IMPORTANT: Path to the trained brain from Phase 1
 SAVED_MODEL_PATH = "data/models/encoder.pth" 
 
-LABEL_COL_SHP = "Tree"
-LABEL_COL_CSV = "NOMBRE_COMUN" # Change to "NOMBRE_CIENTIFICO" if needed
-
-SEARCH_RADIUS = 30.0 
-GRID_STRIDE = 4 
+LABEL_COL = "Tree"
+JITTER_MAX = 25.0       # Maximum synthetic error to inject (meters)
+SEARCH_RADIUS = 30.0    # Radius to search around the jittered point
+GRID_STRIDE = 4         # Grid density for searching
 IMG_SIZE = 448
 PATCH_SIZE = 16
 
@@ -55,15 +54,22 @@ class LeJepaEncoder(nn.Module):
             x = block(x)
         return self.norm(x)
 
+# ---------------------------------------------------------
+# 3. HELPER FUNCTIONS
+# ---------------------------------------------------------
 def extract_embedding(encoder, tif_path, x, y):
+    """Extracts a 128D embedding from a specific coordinate."""
     try:
         with rasterio.open(tif_path) as src:
             py, px = src.index(x, y)
             half = IMG_SIZE // 2
             window = Window(col_off=px - half, row_off=py - half, width=IMG_SIZE, height=IMG_SIZE)
             tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+            
             if tile.shape != (3, IMG_SIZE, IMG_SIZE): return None
+            
             img_tensor = torch.from_numpy(tile).float().unsqueeze(0).to(device) / 255.0
+            
             with torch.no_grad(), torch.amp.autocast('cuda'):
                 emb = encoder(img_tensor).mean(dim=1).cpu().numpy()[0]
             return emb
@@ -71,12 +77,12 @@ def extract_embedding(encoder, tif_path, x, y):
         return None
 
 # ---------------------------------------------------------
-# 3. MAIN EXECUTION
+# 4. MAIN EXECUTION
 # ---------------------------------------------------------
 def main():
-    print("\n--- Starting Massive Realignment (Large TIF) ---")
+    print("\n--- Starting Verification (Small TIF) ---")
     
-    # [Step A] Load Trained Encoder
+    # [Step A] Load the Trained Encoder
     encoder = LeJepaEncoder().to(device)
     if os.path.exists(SAVED_MODEL_PATH):
         encoder.load_state_dict(torch.load(SAVED_MODEL_PATH, map_location=device))
@@ -85,94 +91,97 @@ def main():
         print(f"[WARNING] Model {SAVED_MODEL_PATH} not found. Using untrained weights!")
     encoder.eval()
 
-    tif_files = glob.glob(os.path.join(TIF_DIR, "2023-*", "*.tif"))
+    # [Step B] Load Ground Truth and Split Data
+    gdf = gpd.read_file(ANNOTATED_SHP)
+    # Clean string labels (strip spaces, make uppercase)
+    gdf[LABEL_COL] = gdf[LABEL_COL].astype(str).str.strip().str.upper()
+    
+    train_df, test_df = train_test_split(gdf, test_size=0.2, random_state=42)
+    print(f"Train Points: {len(train_df)} | Test Points: {len(test_df)}")
+
+    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
     default_tif = tif_files[0] if tif_files else None
 
-    # [Step B] Train Classifier on ALL Ground Truth
-    print("\nTraining Classifier on Ground Truth Data...")
-    gdf = gpd.read_file(ANNOTATED_SHP)
-    # Text normalization to match CSV exactly
-    gdf[LABEL_COL_SHP] = gdf[LABEL_COL_SHP].astype(str).str.strip().str.upper()
-    
+    # [Step C] Train Random Forest on Clean Coordinates
+    print("\nExtracting features for Random Forest...")
     X_train, y_train = [], []
-    for _, row in tqdm(gdf.iterrows(), total=len(gdf)):
+    for _, row in tqdm(train_df.iterrows(), total=len(train_df)):
         emb = extract_embedding(encoder, default_tif, row.geometry.x, row.geometry.y)
         if emb is not None:
             X_train.append(emb)
-            y_train.append(row[LABEL_COL_SHP])
+            y_train.append(row[LABEL_COL])
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
-    known_species = set(y_train)
-    print(f"Classifier trained. Known Species: {known_species}")
+    print(f"Random Forest trained on {len(X_train)} points.")
 
-    # [Step C] Process Large Census CSV
-    print("\nProcessing Massive Census CSV...")
-    df = pd.read_csv(LARGE_CENSUS_CSV)
+    # [Step D] Test on Jittered (Noisy) Coordinates
+    print("\nRunning realignment test on Jittered points...")
+    results = []
     
-    # Text normalization for the huge CSV to prevent UNKNOWN_SPECIES errors
-    df[LABEL_COL_CSV] = df[LABEL_COL_CSV].astype(str).str.strip().str.upper()
-    
-    df["ORIGINAL_X"] = df["COORDENADA_ESTE"]
-    df["ORIGINAL_Y"] = df["COORDENADA_NORTE"]
-    df["REALIGNED_X"] = df["ORIGINAL_X"]
-    df["REALIGNED_Y"] = df["ORIGINAL_Y"]
-    df["SHIFT_DISTANCE"] = 0.0
-    df["STATUS"] = "PENDING"
-
-    # Limit to first 100 for testing, remove '[:100]' to run full 17k
-    for idx, row in tqdm(df.iterrows(), total=len(df)): 
-        orig_x, orig_y = row["ORIGINAL_X"], row["ORIGINAL_Y"]
-        target_species = row[LABEL_COL_CSV]
+    for _, row in tqdm(test_df.iterrows(), total=len(test_df)):
+        true_x, true_y = row.geometry.x, row.geometry.y
+        target_species = row[LABEL_COL]
         
-        if target_species not in known_species:
-            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES"
-            continue
-
+        # 1. Inject Noise
+        jitter_x = true_x + random.uniform(-JITTER_MAX, JITTER_MAX)
+        jitter_y = true_y + random.uniform(-JITTER_MAX, JITTER_MAX)
+        initial_error = np.sqrt((true_x - jitter_x)**2 + (true_y - jitter_y)**2)
+        
+        # 2. Search around jittered coordinate
         search_coords = []
         search_embeds = []
         
         for oy in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
             for ox in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
-                cx, cy = orig_x + ox, orig_y + oy
+                cx, cy = jitter_x + ox, jitter_y + oy
                 emb = extract_embedding(encoder, default_tif, cx, cy)
                 if emb is not None:
                     search_coords.append([cx, cy])
                     search_embeds.append(emb)
-
-        if not search_embeds:
-            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
-            continue
-
+                    
+        if not search_embeds: continue
+        
+        # 3. Predict & Cluster
         preds = clf.predict(search_embeds)
         search_coords = np.array(search_coords)
         mask = (preds == target_species)
         target_points = search_coords[mask]
-
+        
         if len(target_points) > 0:
-            # DBSCAN Tweaks for better clustering
+            # DBSCAN Tweaks: eps increased to 4.0, min_samples lowered to 2 to capture sparse canopy pixels
             db = DBSCAN(eps=4.0, min_samples=2).fit(target_points)
             labels = db.labels_
             
             if len(set(labels)) - (1 if -1 in labels else 0) > 0:
+                # Find largest cluster
                 unique_labels, counts = np.unique(labels[labels >= 0], return_counts=True)
                 best_cluster = unique_labels[np.argmax(counts)]
                 cluster_pts = target_points[labels == best_cluster]
                 
-                new_x, new_y = cluster_pts.mean(axis=0)
-                shift = np.sqrt((orig_x - new_x)**2 + (orig_y - new_y)**2)
-                
-                df.at[idx, "REALIGNED_X"] = new_x
-                df.at[idx, "REALIGNED_Y"] = new_y
-                df.at[idx, "SHIFT_DISTANCE"] = shift
-                df.at[idx, "STATUS"] = "SUCCESSFULLY_MOVED"
+                # Calculate new centroid
+                realigned_x, realigned_y = cluster_pts.mean(axis=0)
+                final_error = np.sqrt((true_x - realigned_x)**2 + (true_y - realigned_y)**2)
+                improvement = initial_error - final_error
             else:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_NO_CLUSTER"
+                final_error = initial_error
+                improvement = 0.0
         else:
-            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_SPECIES_NOT_FOUND_IN_RADIUS"
+            final_error = initial_error
+            improvement = 0.0
+            
+        results.append({
+            "Species": target_species,
+            "Initial_Error": initial_error,
+            "Final_Error": final_error,
+            "Improvement": improvement
+        })
 
-    df.to_csv(OUTPUT_CSV, index=False)
-    print(f"\nRealignment saved to {OUTPUT_CSV}")
+    # [Step E] Save Results
+    res_df = pd.DataFrame(results)
+    res_df.to_csv("verification_metrics.csv", index=False)
+    print(f"\nVerification Complete. Mean Improvement: {res_df['Improvement'].mean():.2f}m")
+    print(res_df.groupby("Species")["Improvement"].mean())
 
 if __name__ == "__main__":
     main()
