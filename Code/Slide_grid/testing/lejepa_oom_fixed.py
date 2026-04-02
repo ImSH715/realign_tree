@@ -37,7 +37,7 @@ HALF_CROP = CROP_SIZE // 2
 
 BATCH_SIZE = 64
 INFERENCE_BATCH_SIZE = 128
-EPOCHS = 15
+EPOCHS = 300
 SEED = 42
 EMA_MOMENTUM = 0.996
 
@@ -265,7 +265,7 @@ def main():
 
         print(f"Epoch {epoch+1}: {total_loss/len(train_loader):.4f}")
 
-    torch.save(student.state_dict(), "data/models/encoder.pth")
+    torch.save(student.state_dict(), f"data/models/encoder_{epoch}.pth")
 
     del train_imgs, train_coords, train_loader, predictor, target, optimizer
     gc.collect()
@@ -379,9 +379,9 @@ def main():
     
     preds = clf.predict(dense_embeddings)
 
-    np.save("data/embeddings.npy", dense_embeddings)
-    np.save("data/coords.npy", dense_coords)
-    np.save("data/labels.npy", preds)
+    np.save(f"data/embeddings_{epoch}.npy", dense_embeddings)
+    np.save(f"data/coords.npy_{epoch}", dense_coords)
+    np.save(f"data/labels_{epoch}.npy", preds)
 
     print("\n[All Phases DONE]")
     print(f"Total time: {(time.time()-start_time)/60:.2f} min")
