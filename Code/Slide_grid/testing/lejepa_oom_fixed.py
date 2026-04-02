@@ -371,7 +371,7 @@ def main():
 
         if dist < 50:
             X.append(dense_embeddings[idx])
-            y.append(str(row[0])) 
+            y.append(str(row.iloc[0]))
 
     clf = RandomForestClassifier(n_estimators=100, n_jobs=-1)
     clf.fit(X, y)
