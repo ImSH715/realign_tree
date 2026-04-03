@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -28,8 +29,13 @@ LABEL_COL = "Tree"
 JITTER_MAX = 25.0       # Maximum synthetic error to inject (meters)
 SEARCH_RADIUS = 30.0    # Radius to search around the jittered point
 GRID_STRIDE = 4         # Grid density for searching
+
+# Image dimensions MUST match the LeJepa training script exactly
 IMG_SIZE = 448
 PATCH_SIZE = 16
+CROP_MULTIPLIER = 2
+CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER  # 896
+HALF_CROP = CROP_SIZE // 2              # 448
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,22 +63,47 @@ class LeJepaEncoder(nn.Module):
 # ---------------------------------------------------------
 # 3. HELPER FUNCTIONS
 # ---------------------------------------------------------
-def extract_embedding(encoder, tif_path, x, y):
-    """Extracts a 128D embedding from a specific coordinate."""
+def build_tif_index(tif_dir):
+    """Creates a spatial bounding box index for all TIF files to quickly find the right map."""
+    tif_files = glob.glob(os.path.join(tif_dir, "2023-*", "*.tif"))
+    index = []
+    print("Indexing TIF boundaries...")
+    for f in tqdm(tif_files, leave=False):
+        try:
+            with rasterio.open(f) as src:
+                index.append({'path': f, 'bounds': src.bounds})
+        except:
+            continue
+    return index
+
+def find_tif_for_point(x, y, index):
+    """Finds the correct TIF file path that contains the given (x, y) coordinate."""
+    for item in index:
+        b = item['bounds']
+        if b.left <= x <= b.right and b.bottom <= y <= b.top:
+            return item['path']
+    return None
+
+def extract_embedding(encoder, src, x, y):
+    """Extracts a 128D embedding matching the exact preprocessing of the training phase."""
     try:
-        with rasterio.open(tif_path) as src:
-            py, px = src.index(x, y)
-            half = IMG_SIZE // 2
-            window = Window(col_off=px - half, row_off=py - half, width=IMG_SIZE, height=IMG_SIZE)
-            tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-            
-            if tile.shape != (3, IMG_SIZE, IMG_SIZE): return None
-            
-            img_tensor = torch.from_numpy(tile).float().unsqueeze(0).to(device) / 255.0
-            
-            with torch.no_grad(), torch.amp.autocast('cuda'):
-                emb = encoder(img_tensor).mean(dim=1).cpu().numpy()[0]
-            return emb
+        py, px = src.index(x, y)
+        window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
+        tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+        
+        if tile.shape != (3, CROP_SIZE, CROP_SIZE): return None
+        
+        img_t = torch.from_numpy(tile).float().unsqueeze(0).to(device) / 255.0
+        
+        # FIX: Interpolate and Normalize to match Phase 1 logic exactly
+        img_t = F.interpolate(img_t, size=(IMG_SIZE, IMG_SIZE), mode='bilinear', align_corners=False)
+        mean_t = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1).to(device)
+        std_t = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1).to(device)
+        img_t = (img_t - mean_t) / std_t
+        
+        with torch.no_grad(), torch.amp.autocast('cuda'):
+            emb = encoder(img_t).mean(dim=1).cpu().numpy()[0]
+        return emb
     except:
         return None
 
@@ -91,25 +122,25 @@ def main():
         print(f"[WARNING] Model {SAVED_MODEL_PATH} not found. Using untrained weights!")
     encoder.eval()
 
+    tif_index = build_tif_index(BASE_DIR)
+
     # [Step B] Load Ground Truth and Split Data
     gdf = gpd.read_file(ANNOTATED_SHP)
-    # Clean string labels (strip spaces, make uppercase)
-    gdf[LABEL_COL] = gdf[LABEL_COL].astype(str).str.strip().str.upper()
-    
+    gdf[LABEL_COL] = gdf[LABEL_COL].astype(str).str.strip().str.upper() # Clean labels
     train_df, test_df = train_test_split(gdf, test_size=0.2, random_state=42)
     print(f"Train Points: {len(train_df)} | Test Points: {len(test_df)}")
-
-    tif_files = glob.glob(os.path.join(BASE_DIR, "2023-*", "*.tif"))
-    default_tif = tif_files[0] if tif_files else None
 
     # [Step C] Train Random Forest on Clean Coordinates
     print("\nExtracting features for Random Forest...")
     X_train, y_train = [], []
     for _, row in tqdm(train_df.iterrows(), total=len(train_df)):
-        emb = extract_embedding(encoder, default_tif, row.geometry.x, row.geometry.y)
-        if emb is not None:
-            X_train.append(emb)
-            y_train.append(row[LABEL_COL])
+        tif_path = find_tif_for_point(row.geometry.x, row.geometry.y, tif_index)
+        if tif_path:
+            with rasterio.open(tif_path) as src:
+                emb = extract_embedding(encoder, src, row.geometry.x, row.geometry.y)
+                if emb is not None:
+                    X_train.append(emb)
+                    y_train.append(row[LABEL_COL])
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
@@ -123,43 +154,43 @@ def main():
         true_x, true_y = row.geometry.x, row.geometry.y
         target_species = row[LABEL_COL]
         
-        # 1. Inject Noise
         jitter_x = true_x + random.uniform(-JITTER_MAX, JITTER_MAX)
         jitter_y = true_y + random.uniform(-JITTER_MAX, JITTER_MAX)
         initial_error = np.sqrt((true_x - jitter_x)**2 + (true_y - jitter_y)**2)
         
-        # 2. Search around jittered coordinate
+        tif_path = find_tif_for_point(jitter_x, jitter_y, tif_index)
+        if not tif_path: continue
+        
         search_coords = []
         search_embeds = []
         
-        for oy in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
-            for ox in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
-                cx, cy = jitter_x + ox, jitter_y + oy
-                emb = extract_embedding(encoder, default_tif, cx, cy)
-                if emb is not None:
-                    search_coords.append([cx, cy])
-                    search_embeds.append(emb)
+        with rasterio.open(tif_path) as src:
+            for oy in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
+                for ox in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
+                    cx, cy = jitter_x + ox, jitter_y + oy
+                    emb = extract_embedding(encoder, src, cx, cy)
+                    if emb is not None:
+                        search_coords.append([cx, cy])
+                        search_embeds.append(emb)
                     
         if not search_embeds: continue
         
-        # 3. Predict & Cluster
+        # Predict & Cluster
         preds = clf.predict(search_embeds)
         search_coords = np.array(search_coords)
         mask = (preds == target_species)
         target_points = search_coords[mask]
         
         if len(target_points) > 0:
-            # DBSCAN Tweaks: eps increased to 4.0, min_samples lowered to 2 to capture sparse canopy pixels
+            # DBSCAN Tweaks: Increased eps to 4.0, lowered min_samples to 2
             db = DBSCAN(eps=4.0, min_samples=2).fit(target_points)
             labels = db.labels_
             
             if len(set(labels)) - (1 if -1 in labels else 0) > 0:
-                # Find largest cluster
                 unique_labels, counts = np.unique(labels[labels >= 0], return_counts=True)
                 best_cluster = unique_labels[np.argmax(counts)]
                 cluster_pts = target_points[labels == best_cluster]
                 
-                # Calculate new centroid
                 realigned_x, realigned_y = cluster_pts.mean(axis=0)
                 final_error = np.sqrt((true_x - realigned_x)**2 + (true_y - realigned_y)**2)
                 improvement = initial_error - final_error

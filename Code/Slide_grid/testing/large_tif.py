@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -29,8 +30,13 @@ LABEL_COL_CSV = "NOMBRE_COMUN" # Change to "NOMBRE_CIENTIFICO" if needed
 
 SEARCH_RADIUS = 30.0 
 GRID_STRIDE = 4 
+
+# Image dimensions MUST match the LeJepa training script exactly
 IMG_SIZE = 448
 PATCH_SIZE = 16
+CROP_MULTIPLIER = 2
+CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER  # 896
+HALF_CROP = CROP_SIZE // 2              # 448
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -55,23 +61,55 @@ class LeJepaEncoder(nn.Module):
             x = block(x)
         return self.norm(x)
 
-def extract_embedding(encoder, tif_path, x, y):
+# ---------------------------------------------------------
+# 3. HELPER FUNCTIONS
+# ---------------------------------------------------------
+def build_tif_index(tif_dir):
+    """Creates a spatial bounding box index for all TIF files."""
+    tif_files = glob.glob(os.path.join(tif_dir, "2023-*", "*.tif"))
+    index = []
+    print("Indexing TIF boundaries...")
+    for f in tqdm(tif_files, leave=False):
+        try:
+            with rasterio.open(f) as src:
+                index.append({'path': f, 'bounds': src.bounds})
+        except:
+            continue
+    return index
+
+def find_tif_for_point(x, y, index):
+    """Returns the correct TIF path for a given coordinate."""
+    for item in index:
+        b = item['bounds']
+        if b.left <= x <= b.right and b.bottom <= y <= b.top:
+            return item['path']
+    return None
+
+def extract_embedding(encoder, src, x, y):
+    """Extracts a 128D embedding matching the exact preprocessing of the training phase."""
     try:
-        with rasterio.open(tif_path) as src:
-            py, px = src.index(x, y)
-            half = IMG_SIZE // 2
-            window = Window(col_off=px - half, row_off=py - half, width=IMG_SIZE, height=IMG_SIZE)
-            tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
-            if tile.shape != (3, IMG_SIZE, IMG_SIZE): return None
-            img_tensor = torch.from_numpy(tile).float().unsqueeze(0).to(device) / 255.0
-            with torch.no_grad(), torch.amp.autocast('cuda'):
-                emb = encoder(img_tensor).mean(dim=1).cpu().numpy()[0]
-            return emb
+        py, px = src.index(x, y)
+        window = Window(col_off=px - HALF_CROP, row_off=py - HALF_CROP, width=CROP_SIZE, height=CROP_SIZE)
+        tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+        
+        if tile.shape != (3, CROP_SIZE, CROP_SIZE): return None
+        
+        img_t = torch.from_numpy(tile).float().unsqueeze(0).to(device) / 255.0
+        
+        # Apply interpolation and normalization to match the trained encoder
+        img_t = F.interpolate(img_t, size=(IMG_SIZE, IMG_SIZE), mode='bilinear', align_corners=False)
+        mean_t = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1).to(device)
+        std_t = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1).to(device)
+        img_t = (img_t - mean_t) / std_t
+        
+        with torch.no_grad(), torch.amp.autocast('cuda'):
+            emb = encoder(img_t).mean(dim=1).cpu().numpy()[0]
+        return emb
     except:
         return None
 
 # ---------------------------------------------------------
-# 3. MAIN EXECUTION
+# 4. MAIN EXECUTION
 # ---------------------------------------------------------
 def main():
     print("\n--- Starting Massive Realignment (Large TIF) ---")
@@ -85,32 +123,33 @@ def main():
         print(f"[WARNING] Model {SAVED_MODEL_PATH} not found. Using untrained weights!")
     encoder.eval()
 
-    tif_files = glob.glob(os.path.join(TIF_DIR, "2023-*", "*.tif"))
-    default_tif = tif_files[0] if tif_files else None
+    tif_index = build_tif_index(TIF_DIR)
 
-    # [Step B] Train Classifier on ALL Ground Truth
+    # [Step B] Train Classifier on Ground Truth Data
     print("\nTraining Classifier on Ground Truth Data...")
     gdf = gpd.read_file(ANNOTATED_SHP)
-    # Text normalization to match CSV exactly
-    gdf[LABEL_COL_SHP] = gdf[LABEL_COL_SHP].astype(str).str.strip().str.upper()
+    gdf[LABEL_COL_SHP] = gdf[LABEL_COL_SHP].astype(str).str.strip().str.upper() # Clean labels
     
     X_train, y_train = [], []
     for _, row in tqdm(gdf.iterrows(), total=len(gdf)):
-        emb = extract_embedding(encoder, default_tif, row.geometry.x, row.geometry.y)
-        if emb is not None:
-            X_train.append(emb)
-            y_train.append(row[LABEL_COL_SHP])
+        tif_path = find_tif_for_point(row.geometry.x, row.geometry.y, tif_index)
+        if tif_path:
+            with rasterio.open(tif_path) as src:
+                emb = extract_embedding(encoder, src, row.geometry.x, row.geometry.y)
+                if emb is not None:
+                    X_train.append(emb)
+                    y_train.append(row[LABEL_COL_SHP])
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
     known_species = set(y_train)
-    print(f"Classifier trained. Known Species: {known_species}")
+    print(f"Classifier trained. Known Species count: {len(known_species)}")
 
     # [Step C] Process Large Census CSV
     print("\nProcessing Massive Census CSV...")
     df = pd.read_csv(LARGE_CENSUS_CSV)
     
-    # Text normalization for the huge CSV to prevent UNKNOWN_SPECIES errors
+    # Clean CSV labels to perfectly match Shapefile labels
     df[LABEL_COL_CSV] = df[LABEL_COL_CSV].astype(str).str.strip().str.upper()
     
     df["ORIGINAL_X"] = df["COORDENADA_ESTE"]
@@ -120,37 +159,45 @@ def main():
     df["SHIFT_DISTANCE"] = 0.0
     df["STATUS"] = "PENDING"
 
-    # Limit to first 100 for testing, remove '[:100]' to run full 17k
+    # NOTE: Remove '[:100]' here if you want to process all 17,000 rows
     for idx, row in tqdm(df.iterrows(), total=len(df)): 
         orig_x, orig_y = row["ORIGINAL_X"], row["ORIGINAL_Y"]
         target_species = row[LABEL_COL_CSV]
         
+        # Early skip if species is unknown to the classifier
         if target_species not in known_species:
             df.at[idx, "STATUS"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES"
+            continue
+
+        tif_path = find_tif_for_point(orig_x, orig_y, tif_index)
+        if not tif_path:
+            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
             continue
 
         search_coords = []
         search_embeds = []
         
-        for oy in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
-            for ox in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
-                cx, cy = orig_x + ox, orig_y + oy
-                emb = extract_embedding(encoder, default_tif, cx, cy)
-                if emb is not None:
-                    search_coords.append([cx, cy])
-                    search_embeds.append(emb)
+        with rasterio.open(tif_path) as src:
+            for oy in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
+                for ox in np.arange(-SEARCH_RADIUS, SEARCH_RADIUS, GRID_STRIDE):
+                    cx, cy = orig_x + ox, orig_y + oy
+                    emb = extract_embedding(encoder, src, cx, cy)
+                    if emb is not None:
+                        search_coords.append([cx, cy])
+                        search_embeds.append(emb)
 
         if not search_embeds:
-            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
+            df.at[idx, "STATUS"] = "KEEP_ORIGINAL_NO_VALID_PATCHES"
             continue
 
+        # Predict & Cluster
         preds = clf.predict(search_embeds)
         search_coords = np.array(search_coords)
         mask = (preds == target_species)
         target_points = search_coords[mask]
 
         if len(target_points) > 0:
-            # DBSCAN Tweaks for better clustering
+            # DBSCAN: eps=4.0, min_samples=2 optimized for tree crowns
             db = DBSCAN(eps=4.0, min_samples=2).fit(target_points)
             labels = db.labels_
             
@@ -171,8 +218,12 @@ def main():
         else:
             df.at[idx, "STATUS"] = "KEEP_ORIGINAL_SPECIES_NOT_FOUND_IN_RADIUS"
 
+        # Checkpoint every 500 rows to prevent data loss
+        if idx % 500 == 0:
+            df.to_csv(OUTPUT_CSV, index=False)
+
     df.to_csv(OUTPUT_CSV, index=False)
-    print(f"\nRealignment saved to {OUTPUT_CSV}")
+    print(f"\nRealignment saved successfully to {OUTPUT_CSV}")
 
 if __name__ == "__main__":
     main()
