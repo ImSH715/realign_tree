@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
 #SBATCH --nodes=1                      # Single node
 #SBATCH --ntasks=1                     # Single task
-#SBATCH --time=12:00:00                # Time limit (HH:MM:SS)
+#SBATCH --time=40:00:00                # Time limit (HH:MM:SS)
 #SBATCH --output=result_%j.out         # Standard output log
 #SBATCH --error=result_%j.err          # Error log
 
@@ -28,6 +28,6 @@ python --version
 
 # --- 4. Execution ---
 python -u small_tif.py
-python -u large_tif.py
+
 
 echo "Job finished at $(date)"
