@@ -32,7 +32,7 @@ LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
 OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
 
 MODEL_DIR = "data/models"
-ENCODER_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_random.pth")
+ENCODER_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_epoch1.pth")
 RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
 
 # CSV column names
