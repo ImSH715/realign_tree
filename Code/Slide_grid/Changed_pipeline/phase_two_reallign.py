@@ -1,9 +1,12 @@
 """
-Phase two is to use encoder from phase one and labelling results from phase three to realign the points.
-- Phase two but run phase three first.
-Pipeline order
-- Phase one -> Phase three -> Phase two
+Phase 2
+Use the encoder from Phase 1 and the classifier from Phase 3
+to realign noisy census coordinates by local grid search.
+
+Pipeline order:
+    Phase 1 -> Phase 3 -> Phase 2
 """
+
 import os
 import glob
 import random
@@ -36,7 +39,7 @@ ENCODER_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_random.pth")
 RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
 
 # CSV column names
-LABEL_COL_CSV = "NOMBRE_COMUN"   # 필요 시 "NOMBRE_CIENTIFICO" 로 교체
+LABEL_COL_CSV = "NOMBRE_COMUN"   # change to NOMBRE_CIENTIFICO if needed
 X_COL_CSV = "COORDENADA_ESTE"
 Y_COL_CSV = "COORDENADA_NORTE"
 
@@ -47,19 +50,27 @@ CROP_MULTIPLIER = 2
 CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER   # 896
 HALF_CROP = CROP_SIZE // 2               # 448
 
-# inference speed / checkpointing
-BATCH_SIZE_INFER = 64
-CHECKPOINT_EVERY = 500
+# inference / checkpoint
+BATCH_SIZE_INFER = 128
+CHECKPOINT_EVERY = 300
 SEED = 42
 
-# defaults, overwritten by bundle if available
-SEARCH_RADIUS = 20.0
-GRID_STRIDE = 3.0
+# defaults (overwritten by bundle if present)
 MIN_SPECIES_PROB = 0.45
 DIST_PENALTY_ALPHA = 0.35
 MIN_CLUSTER_SIZE = 3
 MAX_ALLOWED_SHIFT = 25.0
 DBSCAN_EPS = 4.0
+
+# fast-search settings
+COARSE_RADIUS = 15.0
+COARSE_STRIDE = 6.0
+
+FINE_RADIUS = 6.0
+FINE_STRIDE = 2.0
+
+# patch quality
+MIN_VALID_PIXEL_RATIO = 0.15
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 USE_AMP = (device.type == "cuda")
@@ -164,26 +175,32 @@ def build_search_grid(center_x, center_y, radius, stride, circular=True):
     coords = []
     for oy in np.arange(-radius, radius + 1e-6, stride):
         for ox in np.arange(-radius, radius + 1e-6, stride):
-            if circular:
-                if (ox ** 2 + oy ** 2) > (radius ** 2):
-                    continue
+            if circular and (ox ** 2 + oy ** 2) > (radius ** 2):
+                continue
             coords.append((center_x + ox, center_y + oy))
     return coords
 
 
-def extract_embedding_batch(encoder, src, coords, batch_size=BATCH_SIZE_INFER):
+def extract_embedding_batch(
+    encoder,
+    src,
+    coords,
+    batch_size=BATCH_SIZE_INFER,
+    min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
+):
     """
     Extract embeddings for many (x, y) points in one batched forward pass.
+
     Returns:
-        valid_coords_np: (N,2)
-        embeds_np:       (N,D)
+        valid_coords_np: (N, 2)
+        embeds_np:       (N, 128)
         ratios_np:       (N,)
     """
     if len(coords) == 0:
         return (
             np.empty((0, 2), dtype=np.float32),
             np.empty((0, 128), dtype=np.float32),
-            np.empty((0,), dtype=np.float32)
+            np.empty((0,), dtype=np.float32),
         )
 
     tiles = []
@@ -205,6 +222,8 @@ def extract_embedding_batch(encoder, src, coords, batch_size=BATCH_SIZE_INFER):
                 continue
 
             ratio = valid_pixel_ratio(tile)
+            if ratio < min_valid_pixel_ratio:
+                continue
 
             tiles.append(tile)
             valid_coords.append((x, y))
@@ -217,11 +236,16 @@ def extract_embedding_batch(encoder, src, coords, batch_size=BATCH_SIZE_INFER):
         return (
             np.empty((0, 2), dtype=np.float32),
             np.empty((0, 128), dtype=np.float32),
-            np.empty((0,), dtype=np.float32)
+            np.empty((0,), dtype=np.float32),
         )
 
     imgs = torch.from_numpy(np.stack(tiles)).float().to(device) / 255.0
-    imgs = F.interpolate(imgs, size=(IMG_SIZE, IMG_SIZE), mode="bilinear", align_corners=False)
+    imgs = F.interpolate(
+        imgs,
+        size=(IMG_SIZE, IMG_SIZE),
+        mode="bilinear",
+        align_corners=False
+    )
 
     mean_t = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
     std_t  = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
@@ -291,7 +315,16 @@ def initialize_or_resume_csv():
     return df
 
 
-def choose_best_cluster(filtered_coords, filtered_scores, filtered_probs, origin_x, origin_y, search_radius, eps, min_cluster_size):
+def choose_best_cluster(
+    filtered_coords,
+    filtered_scores,
+    filtered_probs,
+    origin_x,
+    origin_y,
+    search_radius,
+    eps,
+    min_cluster_size
+):
     if len(filtered_coords) < min_cluster_size:
         return None
 
@@ -336,15 +369,73 @@ def choose_best_cluster(filtered_coords, filtered_scores, filtered_probs, origin
     }
 
 
+def score_candidates(
+    clf,
+    class_to_idx,
+    target_species,
+    coords_np,
+    embeds_np,
+    origin_x,
+    origin_y,
+    radius,
+    min_species_prob,
+    dist_penalty_alpha,
+    dbscan_eps,
+    min_cluster_size
+):
+    """
+    Score a set of candidate coordinates and return the best cluster center.
+    """
+    if len(embeds_np) == 0:
+        return None, "NO_VALID_PATCHES"
+
+    if target_species not in class_to_idx:
+        return None, "UNKNOWN_SPECIES_INDEX"
+
+    proba = clf.predict_proba(embeds_np)
+    species_idx = class_to_idx[target_species]
+    species_probs = proba[:, species_idx]
+
+    dists = np.sqrt(
+        (coords_np[:, 0] - origin_x) ** 2 +
+        (coords_np[:, 1] - origin_y) ** 2
+    )
+    norm_dists = dists / max(radius, 1e-6)
+    scores = species_probs - dist_penalty_alpha * norm_dists
+
+    keep_mask = species_probs >= min_species_prob
+    filtered_coords = coords_np[keep_mask]
+    filtered_scores = scores[keep_mask]
+    filtered_probs = species_probs[keep_mask]
+
+    if len(filtered_coords) < min_cluster_size:
+        return None, "LOW_CONFIDENCE"
+
+    best_cluster = choose_best_cluster(
+        filtered_coords=filtered_coords,
+        filtered_scores=filtered_scores,
+        filtered_probs=filtered_probs,
+        origin_x=origin_x,
+        origin_y=origin_y,
+        search_radius=radius,
+        eps=dbscan_eps,
+        min_cluster_size=min_cluster_size
+    )
+
+    if best_cluster is None:
+        return None, "NO_CLUSTER"
+
+    return best_cluster, "OK"
+
+
 # ---------------------------------------------------------
 # 4. MAIN EXECUTION
 # ---------------------------------------------------------
 def main():
-    global SEARCH_RADIUS, GRID_STRIDE, MIN_SPECIES_PROB
-    global DIST_PENALTY_ALPHA, MIN_CLUSTER_SIZE, MAX_ALLOWED_SHIFT, DBSCAN_EPS
+    global MIN_SPECIES_PROB, DIST_PENALTY_ALPHA, MIN_CLUSTER_SIZE, MAX_ALLOWED_SHIFT, DBSCAN_EPS
 
     set_seed(SEED)
-    print("\n--- Phase 2: Local Grid Search Realignment ---")
+    print("\n--- Phase 2: Fast Local Grid Search Realignment ---")
     print(f"Device: {device}")
 
     # -----------------------------------------------------
@@ -360,7 +451,7 @@ def main():
     print(f"[SUCCESS] Loaded encoder from {ENCODER_PATH}")
 
     # -----------------------------------------------------
-    # Load species classifier bundle
+    # Load classifier bundle
     # -----------------------------------------------------
     if not os.path.exists(RF_BUNDLE_PATH):
         raise FileNotFoundError(f"RF bundle not found: {RF_BUNDLE_PATH}")
@@ -371,8 +462,6 @@ def main():
 
     if "phase3_params" in bundle:
         params = bundle["phase3_params"]
-        SEARCH_RADIUS = float(params.get("SEARCH_RADIUS", SEARCH_RADIUS))
-        GRID_STRIDE = float(params.get("GRID_STRIDE", GRID_STRIDE))
         MIN_SPECIES_PROB = float(params.get("MIN_SPECIES_PROB", MIN_SPECIES_PROB))
         DIST_PENALTY_ALPHA = float(params.get("DIST_PENALTY_ALPHA", DIST_PENALTY_ALPHA))
         MIN_CLUSTER_SIZE = int(params.get("MIN_CLUSTER_SIZE", MIN_CLUSTER_SIZE))
@@ -383,14 +472,17 @@ def main():
 
     print(f"[SUCCESS] Loaded RF bundle from {RF_BUNDLE_PATH}")
     print(f"Known species count: {len(known_species)}")
-    print("Using parameters:")
-    print(f" - SEARCH_RADIUS      : {SEARCH_RADIUS}")
-    print(f" - GRID_STRIDE        : {GRID_STRIDE}")
-    print(f" - MIN_SPECIES_PROB   : {MIN_SPECIES_PROB}")
-    print(f" - DIST_PENALTY_ALPHA : {DIST_PENALTY_ALPHA}")
-    print(f" - MIN_CLUSTER_SIZE   : {MIN_CLUSTER_SIZE}")
-    print(f" - MAX_ALLOWED_SHIFT  : {MAX_ALLOWED_SHIFT}")
-    print(f" - DBSCAN_EPS         : {DBSCAN_EPS}")
+    print("Fast search parameters:")
+    print(f" - COARSE_RADIUS       : {COARSE_RADIUS}")
+    print(f" - COARSE_STRIDE       : {COARSE_STRIDE}")
+    print(f" - FINE_RADIUS         : {FINE_RADIUS}")
+    print(f" - FINE_STRIDE         : {FINE_STRIDE}")
+    print(f" - MIN_SPECIES_PROB    : {MIN_SPECIES_PROB}")
+    print(f" - DIST_PENALTY_ALPHA  : {DIST_PENALTY_ALPHA}")
+    print(f" - MIN_CLUSTER_SIZE    : {MIN_CLUSTER_SIZE}")
+    print(f" - MAX_ALLOWED_SHIFT   : {MAX_ALLOWED_SHIFT}")
+    print(f" - DBSCAN_EPS          : {DBSCAN_EPS}")
+    print(f" - BATCH_SIZE_INFER    : {BATCH_SIZE_INFER}")
 
     # -----------------------------------------------------
     # Build tif index
@@ -403,22 +495,51 @@ def main():
     # Load census CSV
     # -----------------------------------------------------
     df = initialize_or_resume_csv()
-    pending_idx = df.index[df["STATUS"] == "PENDING"].tolist()
 
+    # assign tif path once for pending rows to improve locality
+    pending_mask = df["STATUS"] == "PENDING"
+    pending_idx = df.index[pending_mask].tolist()
     print(f"\nPending rows to process: {len(pending_idx)} / {len(df)}")
 
+    if len(pending_idx) == 0:
+        print("No pending rows found.")
+        print("\n[PHASE 2 DONE]")
+        return
+
+    df_pending = df.loc[pending_idx].copy()
+    df_pending["_ROW_IDX"] = df_pending.index
+
+    tif_paths = []
+    for _, row in tqdm(df_pending.iterrows(), total=len(df_pending), desc="Assigning TIFs", leave=False):
+        try:
+            x = float(row["ORIGINAL_X"])
+            y = float(row["ORIGINAL_Y"])
+            tif_path = find_tif_for_point(x, y, tif_index)
+        except Exception:
+            tif_path = None
+        tif_paths.append(tif_path)
+
+    df_pending["_TIF_PATH"] = tif_paths
+
+    # sort by tif path to maximize file handle reuse
+    df_pending["_TIF_SORT"] = df_pending["_TIF_PATH"].fillna("ZZZ_NO_TIF")
+    df_pending = df_pending.sort_values(["_TIF_SORT", "ORIGINAL_X", "ORIGINAL_Y"]).reset_index(drop=True)
+
     processed_since_save = 0
+    current_tif_path = None
+    current_src = None
 
     # -----------------------------------------------------
     # Main loop
     # -----------------------------------------------------
-    for idx in tqdm(pending_idx, total=len(pending_idx), desc="Realigning rows"):
-        row = df.loc[idx]
+    for _, row in tqdm(df_pending.iterrows(), total=len(df_pending), desc="Realigning rows"):
+        idx = int(row["_ROW_IDX"])
 
         try:
             orig_x = float(row["ORIGINAL_X"])
             orig_y = float(row["ORIGINAL_Y"])
             target_species = normalize_species_name(row[LABEL_COL_CSV])
+            tif_path = row["_TIF_PATH"]
 
             # -----------------------------
             # Basic validation
@@ -439,7 +560,6 @@ def main():
                     processed_since_save = 0
                 continue
 
-            tif_path = find_tif_for_point(orig_x, orig_y, tif_index)
             if tif_path is None:
                 df.at[idx, "STATUS"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
                 processed_since_save += 1
@@ -449,101 +569,107 @@ def main():
                 continue
 
             # -----------------------------
-            # Build local search grid
+            # Reuse TIF handle
             # -----------------------------
-            candidate_coords = build_search_grid(
+            if tif_path != current_tif_path:
+                if current_src is not None:
+                    current_src.close()
+                current_src = rasterio.open(tif_path)
+                current_tif_path = tif_path
+
+            # -----------------------------
+            # Stage 1: coarse search
+            # -----------------------------
+            coarse_coords = build_search_grid(
                 center_x=orig_x,
                 center_y=orig_y,
-                radius=SEARCH_RADIUS,
-                stride=GRID_STRIDE,
+                radius=COARSE_RADIUS,
+                stride=COARSE_STRIDE,
                 circular=True
             )
 
-            with rasterio.open(tif_path) as src:
-                search_coords, search_embeds, search_ratios = extract_embedding_batch(
-                    encoder, src, candidate_coords, batch_size=BATCH_SIZE_INFER
-                )
-
-            if len(search_embeds) == 0:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_NO_VALID_PATCHES"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
-                continue
-
-            # -----------------------------
-            # Predict probabilities
-            # -----------------------------
-            proba = clf.predict_proba(search_embeds)
-
-            if target_species not in class_to_idx:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES_INDEX"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
-                continue
-
-            species_idx = class_to_idx[target_species]
-            species_probs = proba[:, species_idx]
-
-            # -----------------------------
-            # Distance-aware scoring
-            # -----------------------------
-            dists = np.sqrt(
-                (search_coords[:, 0] - orig_x) ** 2 +
-                (search_coords[:, 1] - orig_y) ** 2
+            coarse_search_coords, coarse_search_embeds, _ = extract_embedding_batch(
+                encoder=encoder,
+                src=current_src,
+                coords=coarse_coords,
+                batch_size=BATCH_SIZE_INFER,
+                min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
             )
-            norm_dists = dists / max(SEARCH_RADIUS, 1e-6)
 
-            scores = species_probs - DIST_PENALTY_ALPHA * norm_dists
-
-            # -----------------------------
-            # Keep confident candidates only
-            # -----------------------------
-            keep_mask = species_probs >= MIN_SPECIES_PROB
-
-            filtered_coords = search_coords[keep_mask]
-            filtered_scores = scores[keep_mask]
-            filtered_probs = species_probs[keep_mask]
-
-            if len(filtered_coords) < MIN_CLUSTER_SIZE:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_LOW_CONFIDENCE"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
-                continue
-
-            # -----------------------------
-            # Cluster and choose best centroid
-            # -----------------------------
-            best_cluster = choose_best_cluster(
-                filtered_coords=filtered_coords,
-                filtered_scores=filtered_scores,
-                filtered_probs=filtered_probs,
+            coarse_result, coarse_status = score_candidates(
+                clf=clf,
+                class_to_idx=class_to_idx,
+                target_species=target_species,
+                coords_np=coarse_search_coords,
+                embeds_np=coarse_search_embeds,
                 origin_x=orig_x,
                 origin_y=orig_y,
-                search_radius=SEARCH_RADIUS,
-                eps=DBSCAN_EPS,
+                radius=COARSE_RADIUS,
+                min_species_prob=MIN_SPECIES_PROB,
+                dist_penalty_alpha=DIST_PENALTY_ALPHA,
+                dbscan_eps=DBSCAN_EPS,
                 min_cluster_size=MIN_CLUSTER_SIZE
             )
 
-            if best_cluster is None:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_NO_CLUSTER"
+            if coarse_result is None:
+                df.at[idx, "STATUS"] = f"KEEP_ORIGINAL_COARSE_{coarse_status}"
                 processed_since_save += 1
                 if processed_since_save >= CHECKPOINT_EVERY:
                     df.to_csv(OUTPUT_CSV, index=False)
                     processed_since_save = 0
                 continue
 
-            new_x = float(best_cluster["center_x"])
-            new_y = float(best_cluster["center_y"])
+            coarse_x = float(coarse_result["center_x"])
+            coarse_y = float(coarse_result["center_y"])
+
+            # -----------------------------
+            # Stage 2: fine search
+            # -----------------------------
+            fine_coords = build_search_grid(
+                center_x=coarse_x,
+                center_y=coarse_y,
+                radius=FINE_RADIUS,
+                stride=FINE_STRIDE,
+                circular=True
+            )
+
+            fine_search_coords, fine_search_embeds, _ = extract_embedding_batch(
+                encoder=encoder,
+                src=current_src,
+                coords=fine_coords,
+                batch_size=BATCH_SIZE_INFER,
+                min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
+            )
+
+            fine_result, fine_status = score_candidates(
+                clf=clf,
+                class_to_idx=class_to_idx,
+                target_species=target_species,
+                coords_np=fine_search_coords,
+                embeds_np=fine_search_embeds,
+                origin_x=orig_x,
+                origin_y=orig_y,
+                radius=max(COARSE_RADIUS, FINE_RADIUS),
+                min_species_prob=MIN_SPECIES_PROB,
+                dist_penalty_alpha=DIST_PENALTY_ALPHA,
+                dbscan_eps=DBSCAN_EPS,
+                min_cluster_size=MIN_CLUSTER_SIZE
+            )
+
+            if fine_result is None:
+                # fine failed -> keep coarse center only if shift is safe
+                new_x = coarse_x
+                new_y = coarse_y
+                final_status = f"SUCCESSFULLY_MOVED_COARSE_ONLY_{fine_status}"
+            else:
+                new_x = float(fine_result["center_x"])
+                new_y = float(fine_result["center_y"])
+                final_status = "SUCCESSFULLY_MOVED"
+
             shift = float(np.sqrt((orig_x - new_x) ** 2 + (orig_y - new_y) ** 2))
 
             # -----------------------------
-            # Safety guard: do not move too far
+            # Safety guard
             # -----------------------------
             if shift > MAX_ALLOWED_SHIFT:
                 df.at[idx, "REALIGNED_X"] = float(orig_x)
@@ -562,7 +688,7 @@ def main():
             df.at[idx, "REALIGNED_X"] = new_x
             df.at[idx, "REALIGNED_Y"] = new_y
             df.at[idx, "SHIFT_DISTANCE"] = shift
-            df.at[idx, "STATUS"] = "SUCCESSFULLY_MOVED"
+            df.at[idx, "STATUS"] = final_status
 
         except Exception as e:
             df.at[idx, "STATUS"] = f"ERROR_{type(e).__name__}"
@@ -573,6 +699,9 @@ def main():
             df.to_csv(OUTPUT_CSV, index=False)
             processed_since_save = 0
 
+    if current_src is not None:
+        current_src.close()
+
     # -----------------------------------------------------
     # Save final output
     # -----------------------------------------------------
@@ -582,7 +711,7 @@ def main():
     print("\nSTATUS summary:")
     print(df["STATUS"].value_counts(dropna=False))
 
-    moved_mask = df["STATUS"] == "SUCCESSFULLY_MOVED"
+    moved_mask = df["STATUS"].astype(str).str.startswith("SUCCESSFULLY_MOVED")
     if moved_mask.any():
         print(f"\nMean shift distance (moved only): {df.loc[moved_mask, 'SHIFT_DISTANCE'].mean():.3f}")
 
