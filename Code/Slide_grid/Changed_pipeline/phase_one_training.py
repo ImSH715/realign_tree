@@ -36,15 +36,15 @@ HALF_CROP = CROP_SIZE // 2               # 448
 
 # training
 BATCH_SIZE = 32
-EPOCHS = 1
-LR = 1e-4
+EPOCHS = 7
+LR = 5e-5
 WEIGHT_DECAY = 1e-4
 SEED = 42
-EMA_MOMENTUM = 0.996
+EMA_MOMENTUM = 0.998
 
 # dataset sampling
-SAMPLES_PER_EPOCH = 20000        # total random samples per epoch
-MAX_CENTER_JITTER_M = 8.0        # view-to-view center jitter
+SAMPLES_PER_EPOCH = 8000        # total random samples per epoch
+MAX_CENTER_JITTER_M = 3.0        # view-to-view center jitter
 MIN_VALID_PIXEL_RATIO = 0.20     # reject patches that are mostly empty/zero
 MAX_SAMPLE_RETRIES = 20          # retries to find valid crop
 
@@ -354,7 +354,9 @@ def train_lejepa(train_loader):
     criterion = nn.MSELoss()
 
     num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
-    keep = int(num_patches * 0.25)
+    keep = int(num_patches * 0.5)
+
+    best_loss = float("inf")
 
     print("\n[Phase 1] Training LeJEPA on full orthomosaic random samples...")
     for epoch in range(EPOCHS):
@@ -443,8 +445,13 @@ def train_lejepa(train_loader):
         mean_loss = total_loss / max(1, num_steps)
         print(f"Epoch {epoch + 1}/{EPOCHS} | Loss: {mean_loss:.6f}")
 
-    torch.save(student.state_dict(), ENCODER_SAVE_PATH)
-    print(f"\n[SAVED] Encoder -> {ENCODER_SAVE_PATH}")
+        if mean_loss < best_loss:
+            best_loss = mean_loss
+            torch.save(student.state_dict(), ENCODER_SAVE_PATH)
+            print(f"[BEST SAVED] epoch={epoch+1}, loss={best_loss:.6f}")
+
+    print(f"\nFinal best loss: {best_loss:.6f}")
+    print(f"[SAVED] Best encoder -> {ENCODER_SAVE_PATH}")
 
     del predictor, target, optimizer
     gc.collect()
