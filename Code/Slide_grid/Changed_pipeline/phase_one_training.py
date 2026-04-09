@@ -26,7 +26,6 @@ BASE_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosai
 MODEL_DIR = "data/models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-ENCODER_SAVE_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_random.pth")
 
 # image settings
 IMG_SIZE = 448
@@ -37,7 +36,7 @@ HALF_CROP = CROP_SIZE // 2               # 448
 
 # training
 BATCH_SIZE = 32
-EPOCHS = 20
+EPOCHS = 1
 LR = 1e-4
 WEIGHT_DECAY = 1e-4
 SEED = 42
@@ -49,6 +48,8 @@ MAX_CENTER_JITTER_M = 8.0        # view-to-view center jitter
 MIN_VALID_PIXEL_RATIO = 0.20     # reject patches that are mostly empty/zero
 MAX_SAMPLE_RETRIES = 20          # retries to find valid crop
 
+
+ENCODER_SAVE_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
 # dataloader
 NUM_WORKERS = 4
 
