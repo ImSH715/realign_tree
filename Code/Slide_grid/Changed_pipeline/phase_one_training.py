@@ -46,7 +46,7 @@ EMA_MOMENTUM = 0.998
 SAMPLES_PER_EPOCH = 8000        # total random samples per epoch
 MAX_CENTER_JITTER_M = 3.0        # view-to-view center jitter
 MIN_VALID_PIXEL_RATIO = 0.20     # reject patches that are mostly empty/zero
-MAX_SAMPLE_RETRIES = 20          # retries to find valid crop
+MAX_SAMPLE_RETRIES = 70          # retries to find valid crop
 
 
 ENCODER_SAVE_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
