@@ -36,7 +36,7 @@ HALF_CROP = CROP_SIZE // 2               # 448
 
 # training
 BATCH_SIZE = 32
-EPOCHS = 7
+EPOCHS = 20
 LR = 5e-5
 WEIGHT_DECAY = 1e-4
 SEED = 42
