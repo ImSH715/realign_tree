@@ -143,7 +143,7 @@ def normalize_species_name(x):
 
 
 def build_tif_index(tif_dir):
-    tif_files = glob.glob(os.path.join(tif_dir, "2023-*", "*.tif"))
+    tif_files = glob.glob(os.path.join(tif_dir, "*.tif"))
     index = []
 
     print("Indexing TIF boundaries...")
