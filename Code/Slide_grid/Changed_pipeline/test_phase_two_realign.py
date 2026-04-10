@@ -1,6 +1,19 @@
 """
 To test the phase two.
 - See if the phase two is realiging random coordinate of the curated OSINFOR data.
+- Used to check trained model performs well with the currated data that is used to train the model.
+Evaluate whether noisy data is realigned properly to the answer data (GT).
+"""
+"""
+Phase 2 Evaluation on Curated Data
+Use:
+- encoder from Phase 1
+- classifier from Phase 3
+- noisy jittered shapefile as input
+- original valid_points.shp as ground truth
+
+Goal:
+Realign noisy points on curated orthomosaic and measure improvement.
 """
 
 import os
@@ -10,6 +23,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import rasterio
 from rasterio.windows import Window
 from tqdm import tqdm
@@ -26,23 +40,22 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------
 # 1. PATHS & HYPERPARAMETERS
 # ---------------------------------------------------------
-"""
-EPOCH CONTROLL
-"""
 EPOCHS = 7
 
+# curated tif directory
 TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-LARGE_CENSUS_CSV = "data/tree_label_rdn/valid_points.shp"
-OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
+
+# GT and noisy evaluation shapefiles
+GT_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp"
+NOISY_SHP = r"data/tree_label_rdn/random_valid_range_20_35.shp"
+
+OUTPUT_CSV = "phase2_eval_random_valid_range_20_35.csv"
 
 MODEL_DIR = "data/models"
 ENCODER_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
 RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
 
-# CSV column names
-LABEL_COL_CSV = "NOMBRE_COMUN"   # change to NOMBRE_CIENTIFICO if needed
-X_COL_CSV = "COORDENADA_ESTE"
-Y_COL_CSV = "COORDENADA_NORTE"
+LABEL_COL = "Tree"
 
 # image settings: must match Phase 1 / Phase 3 exactly
 IMG_SIZE = 448
@@ -53,7 +66,7 @@ HALF_CROP = CROP_SIZE // 2               # 448
 
 # inference / checkpoint
 BATCH_SIZE_INFER = 128
-CHECKPOINT_EVERY = 300
+CHECKPOINT_EVERY = 200
 SEED = 42
 
 # defaults (overwritten by bundle if present)
@@ -63,7 +76,7 @@ MIN_CLUSTER_SIZE = 3
 MAX_ALLOWED_SHIFT = 25.0
 DBSCAN_EPS = 4.0
 
-# fast-search settings
+# two-stage search
 COARSE_RADIUS = 15.0
 COARSE_STRIDE = 6.0
 
@@ -138,6 +151,10 @@ def normalize_species_name(x):
     return str(x).strip().upper()
 
 
+def euclidean(x1, y1, x2, y2):
+    return float(np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2))
+
+
 def build_tif_index(tif_dir):
     tif_files = glob.glob(os.path.join(tif_dir, "2023-*", "*.tif"))
     index = []
@@ -189,14 +206,6 @@ def extract_embedding_batch(
     batch_size=BATCH_SIZE_INFER,
     min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
 ):
-    """
-    Extract embeddings for many (x, y) points in one batched forward pass.
-
-    Returns:
-        valid_coords_np: (N, 2)
-        embeds_np:       (N, 128)
-        ratios_np:       (N,)
-    """
     if len(coords) == 0:
         return (
             np.empty((0, 2), dtype=np.float32),
@@ -273,49 +282,6 @@ def extract_embedding_batch(
     return valid_coords_np, embeds_np, ratios_np
 
 
-def initialize_or_resume_csv():
-    """
-    If OUTPUT_CSV exists, resume from it.
-    Otherwise initialize from LARGE_CENSUS_CSV.
-    """
-    if os.path.exists(OUTPUT_CSV):
-        print(f"[RESUME] Loading existing output: {OUTPUT_CSV}")
-        df = pd.read_csv(OUTPUT_CSV)
-
-        required_cols = [
-            "ORIGINAL_X", "ORIGINAL_Y",
-            "REALIGNED_X", "REALIGNED_Y",
-            "SHIFT_DISTANCE", "STATUS"
-        ]
-        missing = [c for c in required_cols if c not in df.columns]
-        if missing:
-            raise ValueError(f"Existing OUTPUT_CSV missing columns: {missing}")
-
-        if LABEL_COL_CSV in df.columns:
-            df[LABEL_COL_CSV] = df[LABEL_COL_CSV].apply(normalize_species_name)
-
-        return df
-
-    print(f"[NEW RUN] Loading source CSV: {LARGE_CENSUS_CSV}")
-    df = pd.read_csv(LARGE_CENSUS_CSV)
-
-    if LABEL_COL_CSV not in df.columns:
-        raise ValueError(f"Missing label column in CSV: {LABEL_COL_CSV}")
-    if X_COL_CSV not in df.columns or Y_COL_CSV not in df.columns:
-        raise ValueError(f"Missing coordinate columns: {X_COL_CSV}, {Y_COL_CSV}")
-
-    df[LABEL_COL_CSV] = df[LABEL_COL_CSV].apply(normalize_species_name)
-
-    df["ORIGINAL_X"] = df[X_COL_CSV]
-    df["ORIGINAL_Y"] = df[Y_COL_CSV]
-    df["REALIGNED_X"] = df["ORIGINAL_X"]
-    df["REALIGNED_Y"] = df["ORIGINAL_Y"]
-    df["SHIFT_DISTANCE"] = 0.0
-    df["STATUS"] = "PENDING"
-
-    return df
-
-
 def choose_best_cluster(
     filtered_coords,
     filtered_scores,
@@ -346,7 +312,7 @@ def choose_best_cluster(
         pts_probs = filtered_probs[labels == cid]
 
         center_x, center_y = pts.mean(axis=0)
-        center_dist = float(np.sqrt((center_x - origin_x) ** 2 + (center_y - origin_y) ** 2))
+        center_dist = euclidean(center_x, center_y, origin_x, origin_y)
 
         cluster_score = (
             float(pts_scores.mean())
@@ -384,9 +350,6 @@ def score_candidates(
     dbscan_eps,
     min_cluster_size
 ):
-    """
-    Score a set of candidate coordinates and return the best cluster center.
-    """
     if len(embeds_np) == 0:
         return None, "NO_VALID_PATCHES"
 
@@ -429,6 +392,56 @@ def score_candidates(
     return best_cluster, "OK"
 
 
+def prepare_eval_dataframe(gt_shp, noisy_shp, label_col):
+    gt_gdf = gpd.read_file(gt_shp).copy()
+    noisy_gdf = gpd.read_file(noisy_shp).copy()
+
+    gt_gdf = gt_gdf[gt_gdf.geometry.notnull()].copy()
+    noisy_gdf = noisy_gdf[noisy_gdf.geometry.notnull()].copy()
+
+    gt_gdf[label_col] = gt_gdf[label_col].apply(normalize_species_name)
+    noisy_gdf[label_col] = noisy_gdf[label_col].apply(normalize_species_name)
+
+    if len(gt_gdf) != len(noisy_gdf):
+        raise ValueError(
+            f"GT and noisy shapefiles have different row counts: "
+            f"{len(gt_gdf)} vs {len(noisy_gdf)}"
+        )
+
+    # assumes row order is preserved between original valid_points and random_valid...
+    rows = []
+    for i in range(len(gt_gdf)):
+        gt_row = gt_gdf.iloc[i]
+        noisy_row = noisy_gdf.iloc[i]
+
+        rows.append({
+            "row_id": i,
+            "species_gt": normalize_species_name(gt_row[label_col]),
+            "species_noisy": normalize_species_name(noisy_row[label_col]),
+            "true_x": float(gt_row.geometry.x),
+            "true_y": float(gt_row.geometry.y),
+            "noisy_x": float(noisy_row.geometry.x),
+            "noisy_y": float(noisy_row.geometry.y),
+        })
+
+    df = pd.DataFrame(rows)
+    df["species"] = df["species_noisy"]
+
+    # start as original noisy point
+    df["realigned_x"] = df["noisy_x"]
+    df["realigned_y"] = df["noisy_y"]
+    df["initial_error"] = np.sqrt(
+        (df["true_x"] - df["noisy_x"]) ** 2 +
+        (df["true_y"] - df["noisy_y"]) ** 2
+    )
+    df["final_error"] = df["initial_error"]
+    df["improvement"] = 0.0
+    df["shift_distance"] = 0.0
+    df["status"] = "PENDING"
+
+    return df
+
+
 # ---------------------------------------------------------
 # 4. MAIN EXECUTION
 # ---------------------------------------------------------
@@ -436,7 +449,7 @@ def main():
     global MIN_SPECIES_PROB, DIST_PENALTY_ALPHA, MIN_CLUSTER_SIZE, MAX_ALLOWED_SHIFT, DBSCAN_EPS
 
     set_seed(SEED)
-    print("\n--- Phase 2: Fast Local Grid Search Realignment ---")
+    print("\n--- Phase 2 Evaluation on Curated Randomized Points ---")
     print(f"Device: {device}")
 
     # -----------------------------------------------------
@@ -473,17 +486,6 @@ def main():
 
     print(f"[SUCCESS] Loaded RF bundle from {RF_BUNDLE_PATH}")
     print(f"Known species count: {len(known_species)}")
-    print("Fast search parameters:")
-    print(f" - COARSE_RADIUS       : {COARSE_RADIUS}")
-    print(f" - COARSE_STRIDE       : {COARSE_STRIDE}")
-    print(f" - FINE_RADIUS         : {FINE_RADIUS}")
-    print(f" - FINE_STRIDE         : {FINE_STRIDE}")
-    print(f" - MIN_SPECIES_PROB    : {MIN_SPECIES_PROB}")
-    print(f" - DIST_PENALTY_ALPHA  : {DIST_PENALTY_ALPHA}")
-    print(f" - MIN_CLUSTER_SIZE    : {MIN_CLUSTER_SIZE}")
-    print(f" - MAX_ALLOWED_SHIFT   : {MAX_ALLOWED_SHIFT}")
-    print(f" - DBSCAN_EPS          : {DBSCAN_EPS}")
-    print(f" - BATCH_SIZE_INFER    : {BATCH_SIZE_INFER}")
 
     # -----------------------------------------------------
     # Build tif index
@@ -493,85 +495,51 @@ def main():
         raise RuntimeError("No valid TIFs found in TIF_DIR.")
 
     # -----------------------------------------------------
-    # Load census CSV
+    # Prepare evaluation dataframe
     # -----------------------------------------------------
-    df = initialize_or_resume_csv()
+    df = prepare_eval_dataframe(GT_SHP, NOISY_SHP, LABEL_COL)
+    print(f"Evaluation rows: {len(df)}")
 
-    # assign tif path once for pending rows to improve locality
-    pending_mask = df["STATUS"] == "PENDING"
-    pending_idx = df.index[pending_mask].tolist()
-    print(f"\nPending rows to process: {len(pending_idx)} / {len(df)}")
-
-    if len(pending_idx) == 0:
-        print("No pending rows found.")
-        print("\n[PHASE 2 DONE]")
-        return
-
-    df_pending = df.loc[pending_idx].copy()
-    df_pending["_ROW_IDX"] = df_pending.index
-
-    tif_paths = []
-    for _, row in tqdm(df_pending.iterrows(), total=len(df_pending), desc="Assigning TIFs", leave=False):
-        try:
-            x = float(row["ORIGINAL_X"])
-            y = float(row["ORIGINAL_Y"])
-            tif_path = find_tif_for_point(x, y, tif_index)
-        except Exception:
-            tif_path = None
-        tif_paths.append(tif_path)
-
-    df_pending["_TIF_PATH"] = tif_paths
-
-    # sort by tif path to maximize file handle reuse
-    df_pending["_TIF_SORT"] = df_pending["_TIF_PATH"].fillna("ZZZ_NO_TIF")
-    df_pending = df_pending.sort_values(["_TIF_SORT", "ORIGINAL_X", "ORIGINAL_Y"]).reset_index(drop=True)
+    pending_idx = df.index[df["status"] == "PENDING"].tolist()
+    print(f"Pending rows: {len(pending_idx)}")
 
     processed_since_save = 0
     current_tif_path = None
     current_src = None
 
+    # pre-assign tif path
+    tif_paths = []
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Assigning TIFs", leave=False):
+        tif_path = find_tif_for_point(float(row["noisy_x"]), float(row["noisy_y"]), tif_index)
+        tif_paths.append(tif_path)
+    df["tif_path"] = tif_paths
+
+    df = df.sort_values(["tif_path", "noisy_x", "noisy_y"], na_position="last").reset_index(drop=True)
+
     # -----------------------------------------------------
     # Main loop
     # -----------------------------------------------------
-    for _, row in tqdm(df_pending.iterrows(), total=len(df_pending), desc="Realigning rows"):
-        idx = int(row["_ROW_IDX"])
-
+    for ridx, row in tqdm(df.iterrows(), total=len(df), desc="Evaluating realignment"):
         try:
-            orig_x = float(row["ORIGINAL_X"])
-            orig_y = float(row["ORIGINAL_Y"])
-            target_species = normalize_species_name(row[LABEL_COL_CSV])
-            tif_path = row["_TIF_PATH"]
+            true_x = float(row["true_x"])
+            true_y = float(row["true_y"])
+            noisy_x = float(row["noisy_x"])
+            noisy_y = float(row["noisy_y"])
+            target_species = normalize_species_name(row["species"])
+            tif_path = row["tif_path"]
 
-            # -----------------------------
-            # Basic validation
-            # -----------------------------
             if target_species == "":
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_EMPTY_SPECIES"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_EMPTY_SPECIES"
                 continue
 
             if target_species not in known_species:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES"
                 continue
 
             if tif_path is None:
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
                 continue
 
-            # -----------------------------
-            # Reuse TIF handle
-            # -----------------------------
             if tif_path != current_tif_path:
                 if current_src is not None:
                     current_src.close()
@@ -582,8 +550,8 @@ def main():
             # Stage 1: coarse search
             # -----------------------------
             coarse_coords = build_search_grid(
-                center_x=orig_x,
-                center_y=orig_y,
+                center_x=noisy_x,
+                center_y=noisy_y,
                 radius=COARSE_RADIUS,
                 stride=COARSE_STRIDE,
                 circular=True
@@ -603,8 +571,8 @@ def main():
                 target_species=target_species,
                 coords_np=coarse_search_coords,
                 embeds_np=coarse_search_embeds,
-                origin_x=orig_x,
-                origin_y=orig_y,
+                origin_x=noisy_x,
+                origin_y=noisy_y,
                 radius=COARSE_RADIUS,
                 min_species_prob=MIN_SPECIES_PROB,
                 dist_penalty_alpha=DIST_PENALTY_ALPHA,
@@ -613,7 +581,7 @@ def main():
             )
 
             if coarse_result is None:
-                df.at[idx, "STATUS"] = f"KEEP_ORIGINAL_COARSE_{coarse_status}"
+                df.at[ridx, "status"] = f"KEEP_ORIGINAL_COARSE_{coarse_status}"
                 processed_since_save += 1
                 if processed_since_save >= CHECKPOINT_EVERY:
                     df.to_csv(OUTPUT_CSV, index=False)
@@ -648,8 +616,8 @@ def main():
                 target_species=target_species,
                 coords_np=fine_search_coords,
                 embeds_np=fine_search_embeds,
-                origin_x=orig_x,
-                origin_y=orig_y,
+                origin_x=noisy_x,
+                origin_y=noisy_y,
                 radius=max(COARSE_RADIUS, FINE_RADIUS),
                 min_species_prob=MIN_SPECIES_PROB,
                 dist_penalty_alpha=DIST_PENALTY_ALPHA,
@@ -658,44 +626,46 @@ def main():
             )
 
             if fine_result is None:
-                # fine failed -> keep coarse center only if shift is safe
                 new_x = coarse_x
                 new_y = coarse_y
-                final_status = f"SUCCESSFULLY_MOVED_COARSE_ONLY_{fine_status}"
+                final_status = f"MOVED_COARSE_ONLY_{fine_status}"
             else:
                 new_x = float(fine_result["center_x"])
                 new_y = float(fine_result["center_y"])
-                final_status = "SUCCESSFULLY_MOVED"
+                final_status = "MOVED"
 
-            shift = float(np.sqrt((orig_x - new_x) ** 2 + (orig_y - new_y) ** 2))
+            shift = euclidean(noisy_x, noisy_y, new_x, new_y)
 
-            # -----------------------------
-            # Safety guard
-            # -----------------------------
             if shift > MAX_ALLOWED_SHIFT:
-                df.at[idx, "REALIGNED_X"] = float(orig_x)
-                df.at[idx, "REALIGNED_Y"] = float(orig_y)
-                df.at[idx, "SHIFT_DISTANCE"] = 0.0
-                df.at[idx, "STATUS"] = "KEEP_ORIGINAL_MOVE_TOO_LARGE"
-                processed_since_save += 1
-                if processed_since_save >= CHECKPOINT_EVERY:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    processed_since_save = 0
-                continue
+                new_x = noisy_x
+                new_y = noisy_y
+                shift = 0.0
+                final_status = "KEEP_ORIGINAL_MOVE_TOO_LARGE"
 
-            # -----------------------------
-            # Accept move
-            # -----------------------------
-            df.at[idx, "REALIGNED_X"] = new_x
-            df.at[idx, "REALIGNED_Y"] = new_y
-            df.at[idx, "SHIFT_DISTANCE"] = shift
-            df.at[idx, "STATUS"] = final_status
+            final_error = euclidean(true_x, true_y, new_x, new_y)
+            initial_error = euclidean(true_x, true_y, noisy_x, noisy_y)
+            improvement = initial_error - final_error
+
+            # optional evaluation-time reject
+            if improvement < 0:
+                new_x = noisy_x
+                new_y = noisy_y
+                shift = 0.0
+                final_error = initial_error
+                improvement = 0.0
+                final_status = "NEGATIVE_MOVE_REJECTED"
+
+            df.at[ridx, "realigned_x"] = new_x
+            df.at[ridx, "realigned_y"] = new_y
+            df.at[ridx, "shift_distance"] = shift
+            df.at[ridx, "final_error"] = final_error
+            df.at[ridx, "improvement"] = improvement
+            df.at[ridx, "status"] = final_status
 
         except Exception as e:
-            df.at[idx, "STATUS"] = f"ERROR_{type(e).__name__}"
+            df.at[ridx, "status"] = f"ERROR_{type(e).__name__}"
 
         processed_since_save += 1
-
         if processed_since_save >= CHECKPOINT_EVERY:
             df.to_csv(OUTPUT_CSV, index=False)
             processed_since_save = 0
@@ -708,15 +678,18 @@ def main():
     # -----------------------------------------------------
     df.to_csv(OUTPUT_CSV, index=False)
 
-    print(f"\nRealignment saved successfully to {OUTPUT_CSV}")
+    print(f"\nEvaluation saved to {OUTPUT_CSV}")
     print("\nSTATUS summary:")
-    print(df["STATUS"].value_counts(dropna=False))
+    print(df["status"].value_counts(dropna=False))
 
-    moved_mask = df["STATUS"].astype(str).str.startswith("SUCCESSFULLY_MOVED")
-    if moved_mask.any():
-        print(f"\nMean shift distance (moved only): {df.loc[moved_mask, 'SHIFT_DISTANCE'].mean():.3f}")
+    print(f"\nMean initial error: {df['initial_error'].mean():.3f}")
+    print(f"Mean final error:   {df['final_error'].mean():.3f}")
+    print(f"Mean improvement:   {df['improvement'].mean():.3f}")
 
-    print("\n[PHASE 2 DONE]")
+    print("\nSpecies mean improvement:")
+    print(df.groupby("species")["improvement"].mean().sort_values())
+
+    print("\n[PHASE 2 EVAL DONE]")
 
 
 if __name__ == "__main__":
