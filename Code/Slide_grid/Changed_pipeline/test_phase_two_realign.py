@@ -1,10 +1,6 @@
 """
-Phase 2
-Use the encoder from Phase 1 and the classifier from Phase 3
-to realign noisy census coordinates by local grid search.
-
-Pipeline order:
-    Phase 1 -> Phase 3 -> Phase 2
+To test the phase two.
+- See if the phase two is realiging random coordinate of the curated OSINFOR data.
 """
 
 import os
@@ -35,8 +31,8 @@ EPOCH CONTROLL
 """
 EPOCHS = 7
 
-TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
-LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
+TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
+LARGE_CENSUS_CSV = "data/tree_label_rdn/valid_points.shp"
 OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
 
 MODEL_DIR = "data/models"
