@@ -30,12 +30,13 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------
 # 1. PATHS & HYPERPARAMETERS
 # ---------------------------------------------------------
+EPOCHS = 7
 TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
 OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
 
 MODEL_DIR = "data/models"
-ENCODER_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_random.pth")
+ENCODER_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
 RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
 
 # CSV column names

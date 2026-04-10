@@ -35,7 +35,8 @@ EXPORT_DIR = "data/exports"
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
-ENCODER_PATH = os.path.join(MODEL_DIR, "encoder_phase1_large_random.pth")
+EPOCHS = 7
+ENCODER_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
 RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
 RF_ONLY_PATH = os.path.join(MODEL_DIR, "rf_classifier.joblib")
 CLASS_NAMES_JSON = os.path.join(EXPORT_DIR, "class_names_phase3.json")
