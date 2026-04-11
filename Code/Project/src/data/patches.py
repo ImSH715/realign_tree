@@ -7,7 +7,12 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from src.data.tif_io import recursive_find_tif_files, TileCache
+from src.data.tif_io import (
+    recursive_find_tif_files,
+    TileCache,
+    is_readable_tif,
+    get_image_size,
+)
 
 
 def collate_multiview_with_meta(batch):
@@ -35,9 +40,20 @@ class RandomPatchTifDataset(Dataset):
         image_size_local: int = 96,
         tile_cache_size: int = 0,
     ) -> None:
-        self.tif_paths = recursive_find_tif_files(root_dir)
-        if len(self.tif_paths) == 0:
+        tif_paths = recursive_find_tif_files(root_dir)
+        if len(tif_paths) == 0:
             raise RuntimeError(f"No TIFF files found under: {root_dir}")
+
+        valid_tif_paths = []
+        for path in tif_paths:
+            if is_readable_tif(path):
+                valid_tif_paths.append(path)
+            else:
+                print(f"[WARN] Skipping unreadable TIFF in training set: {path}")
+
+        self.tif_paths = valid_tif_paths
+        if len(self.tif_paths) == 0:
+            raise RuntimeError("No readable TIFF files found for training.")
 
         self.patch_size_px = patch_size_px
         self.patches_per_image = patches_per_image
@@ -143,8 +159,8 @@ class GridPatchTifDataset(Dataset):
         tile_cache_size: int = 0,
         max_patches_per_image: Optional[int] = None,
     ) -> None:
-        self.tif_paths = recursive_find_tif_files(root_dir)
-        if len(self.tif_paths) == 0:
+        tif_paths = recursive_find_tif_files(root_dir)
+        if len(tif_paths) == 0:
             raise RuntimeError(f"No TIFF files found under: {root_dir}")
 
         self.patch_size_px = patch_size_px
@@ -152,10 +168,16 @@ class GridPatchTifDataset(Dataset):
         self.image_size = image_size
         self.tile_cache = TileCache(max_items=tile_cache_size)
         self.samples: List[Tuple[str, float, float]] = []
+        self.tif_paths: List[str] = []
 
-        for path in self.tif_paths:
-            with Image.open(path) as img:
-                w, h = img.size
+        for path in tif_paths:
+            try:
+                w, h = get_image_size(path)
+            except Exception as e:
+                print(f"[WARN] Skipping unreadable TIFF in extraction set: {path} | {e}")
+                continue
+
+            self.tif_paths.append(path)
 
             xs = list(range(
                 patch_size_px // 2,
@@ -183,6 +205,9 @@ class GridPatchTifDataset(Dataset):
                 image_samples = reduced
 
             self.samples.extend(image_samples)
+
+        if len(self.tif_paths) == 0:
+            raise RuntimeError("No readable TIFF files found for extraction.")
 
         normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -246,7 +271,8 @@ class GridPatchTifDataset(Dataset):
             "y": float(y),
         }
         return patch, meta
-    
+
+
 class PatchExtractor:
     def __init__(self, patch_size_px: int, tile_cache_size: int = 0):
         from src.data.tif_io import TileCache
@@ -278,7 +304,6 @@ class PatchExtractor:
 
         patch = image.crop((left, top, right, bottom))
 
-        from PIL import Image
         if pad_left > 0 or pad_top > 0 or pad_right > 0 or pad_bottom > 0:
             canvas = Image.new("RGB", (self.patch_size_px, self.patch_size_px))
             canvas.paste(patch, (pad_left, pad_top))
@@ -292,9 +317,6 @@ class PatchExtractor:
 
 class EncoderWrapper:
     def __init__(self, model, device, image_size: int, use_amp: bool):
-        import torch
-        from torchvision import transforms
-
         self.model = model
         self.device = device
         self.use_amp = use_amp
@@ -312,7 +334,6 @@ class EncoderWrapper:
     @torch.no_grad()
     def encode_batch(self, patches, batch_size: int):
         import numpy as np
-        import torch
 
         outputs = []
         for start in range(0, len(patches), batch_size):
