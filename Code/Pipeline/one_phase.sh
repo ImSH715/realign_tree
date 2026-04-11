@@ -28,12 +28,6 @@ python --version
 
 python one_phase_training.py \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./phase1_output" \
-  --ssl_epochs 20 \
-  --batch_size_ssl 8 \
-  --patches_per_image 100 \
-  --extract_stride_px 224 \
-  --extract_batch_size 32 \
-  --num_workers 0 \
+  --output_dir "./phase1_output"
 
 echo "Job finished at $(date)"
