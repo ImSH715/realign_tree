@@ -1,6 +1,6 @@
 import os
 import glob
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from PIL import Image, ImageFile, UnidentifiedImageError
 
@@ -23,6 +23,23 @@ def safe_open_image(path: str) -> Image.Image:
             return img.copy()
     except (UnidentifiedImageError, OSError, ValueError) as e:
         raise RuntimeError(f"Failed to open image: {path} | {e}") from e
+
+
+def get_image_size(path: str) -> Tuple[int, int]:
+    try:
+        with Image.open(path) as img:
+            return img.size
+    except (UnidentifiedImageError, OSError, ValueError) as e:
+        raise RuntimeError(f"Failed to read image size: {path} | {e}") from e
+
+
+def is_readable_tif(path: str) -> bool:
+    try:
+        with Image.open(path) as img:
+            _ = img.size
+        return True
+    except (UnidentifiedImageError, OSError, ValueError):
+        return False
 
 
 class TileCache:
