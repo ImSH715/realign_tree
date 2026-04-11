@@ -104,7 +104,7 @@ class SliceRegularization(nn.Module):
         directions = F.normalize(directions, dim=1)
         projections = z @ directions.t()
         mean_term = projections.mean(dim=0).pow(2).mean()
-        std_term = F.relu(1.0 - projections.std(dim=0)).pow(2).mean()
+        std_term = F.relu(1.0 - projections.std(dim=0, unbiased=False)).pow(2).mean()
         return mean_term + std_term
 
 
@@ -125,9 +125,10 @@ class LeJEPALikeLoss(nn.Module):
         self.slice_reg = SliceRegularization(num_slices=num_slices)
 
     def variance_loss(self, z: torch.Tensor) -> torch.Tensor:
-        std = torch.sqrt(z.var(dim=0) + 1e-4)
+        var = z.var(dim=0, unbiased=False)
+        std = torch.sqrt(var + 1e-4)
         return torch.mean(F.relu(1.0 - std))
-
+    
     def covariance_loss(self, z: torch.Tensor) -> torch.Tensor:
         z = z - z.mean(dim=0)
         cov = (z.T @ z) / max(1, (z.size(0) - 1))
