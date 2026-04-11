@@ -11,6 +11,7 @@ import os
 import glob
 import random
 import warnings
+import unicodedata
 
 import numpy as np
 import pandas as pd
@@ -30,14 +31,11 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------
 # 1. PATHS & HYPERPARAMETERS
 # ---------------------------------------------------------
-"""
-EPOCH CONTROLL
-"""
 EPOCHS = 7
 
 TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
 LARGE_CENSUS_CSV = "data/tree_label_rdn/Censo_Forestal.csv"
-OUTPUT_CSV = "OSINFOR_2023_Realigned_Final.csv"
+OUTPUT_CSV = "OSINFOR_2023_Realigned_Final_v2.csv"
 
 MODEL_DIR = "data/models"
 ENCODER_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
@@ -64,14 +62,14 @@ SEED = 42
 MIN_SPECIES_PROB = 0.45
 DIST_PENALTY_ALPHA = 0.35
 MIN_CLUSTER_SIZE = 3
-MAX_ALLOWED_SHIFT = 25.0
+MAX_ALLOWED_SHIFT = 40.0
 DBSCAN_EPS = 4.0
 
 # fast-search settings
-COARSE_RADIUS = 15.0
+COARSE_RADIUS = 35.0
 COARSE_STRIDE = 6.0
 
-FINE_RADIUS = 6.0
+FINE_RADIUS = 10.0
 FINE_STRIDE = 2.0
 
 # patch quality
@@ -139,11 +137,27 @@ def set_seed(seed=42):
 def normalize_species_name(x):
     if pd.isna(x):
         return ""
-    return str(x).strip().upper()
+
+    s = str(x).strip()
+    s = s.replace("Ã¡", "á").replace("Ã©", "é").replace("Ãí", "í").replace("Ã³", "ó").replace("Ãº", "ú")
+    s = s.replace("ÃÁ", "Á").replace("Ã‰", "É").replace("ÃÍ", "Í").replace("Ã“", "Ó").replace("Ãš", "Ú")
+    s = s.replace("Ã±", "ñ").replace("Ã‘", "Ñ")
+
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.upper()
+    s = " ".join(s.split())
+
+    synonym_map = {
+        "AZUCAR HUAYO": "AZUCAR HUAYO",
+        "AZUCAR HUAYO": "AZUCAR HUAYO",
+    }
+    s = synonym_map.get(s, s)
+    return s
 
 
 def build_tif_index(tif_dir):
-    tif_files = glob.glob(os.path.join(tif_dir, "*.tif"))
+    tif_files = glob.glob(os.path.join(tif_dir, "**", "*.tif"), recursive=True)
     index = []
 
     print("Indexing TIF boundaries...")
@@ -152,12 +166,15 @@ def build_tif_index(tif_dir):
             with rasterio.open(f) as src:
                 index.append({
                     "path": f,
-                    "bounds": src.bounds
+                    "bounds": src.bounds,
+                    "crs": src.crs
                 })
         except Exception:
             continue
 
     print(f"Indexed TIF count: {len(index)}")
+    if len(index) > 0:
+        print(f"Sample TIF CRS: {index[0]['crs']}")
     return index
 
 
@@ -388,9 +405,6 @@ def score_candidates(
     dbscan_eps,
     min_cluster_size
 ):
-    """
-    Score a set of candidate coordinates and return the best cluster center.
-    """
     if len(embeds_np) == 0:
         return None, "NO_VALID_PATCHES"
 
@@ -463,17 +477,15 @@ def main():
 
     bundle = joblib.load(RF_BUNDLE_PATH)
     clf = bundle["classifier"]
-    known_species = set(bundle["classes"])
+    known_species = {normalize_species_name(x) for x in bundle["classes"]}
+    class_to_idx = {normalize_species_name(c): i for i, c in enumerate(clf.classes_)}
 
     if "phase3_params" in bundle:
         params = bundle["phase3_params"]
         MIN_SPECIES_PROB = float(params.get("MIN_SPECIES_PROB", MIN_SPECIES_PROB))
         DIST_PENALTY_ALPHA = float(params.get("DIST_PENALTY_ALPHA", DIST_PENALTY_ALPHA))
         MIN_CLUSTER_SIZE = int(params.get("MIN_CLUSTER_SIZE", MIN_CLUSTER_SIZE))
-        MAX_ALLOWED_SHIFT = float(params.get("MAX_ALLOWED_SHIFT", MAX_ALLOWED_SHIFT))
         DBSCAN_EPS = float(params.get("DBSCAN_EPS", DBSCAN_EPS))
-
-    class_to_idx = {c: i for i, c in enumerate(clf.classes_)}
 
     print(f"[SUCCESS] Loaded RF bundle from {RF_BUNDLE_PATH}")
     print(f"Known species count: {len(known_species)}")
@@ -487,6 +499,7 @@ def main():
     print(f" - MIN_CLUSTER_SIZE    : {MIN_CLUSTER_SIZE}")
     print(f" - MAX_ALLOWED_SHIFT   : {MAX_ALLOWED_SHIFT}")
     print(f" - DBSCAN_EPS          : {DBSCAN_EPS}")
+    print(f" - MIN_VALID_PIXEL_RATIO: {MIN_VALID_PIXEL_RATIO}")
     print(f" - BATCH_SIZE_INFER    : {BATCH_SIZE_INFER}")
 
     # -----------------------------------------------------
@@ -501,7 +514,14 @@ def main():
     # -----------------------------------------------------
     df = initialize_or_resume_csv()
 
-    # assign tif path once for pending rows to improve locality
+    eval_species = set(df[LABEL_COL_CSV].dropna().apply(normalize_species_name))
+    unknown_species = sorted(eval_species - known_species)
+    print(f"\nUnique species in CSV: {len(eval_species)}")
+    print(f"Unknown species count: {len(unknown_species)}")
+    if len(unknown_species) > 0:
+        print("Unknown species examples:")
+        print(unknown_species[:20])
+
     pending_mask = df["STATUS"] == "PENDING"
     pending_idx = df.index[pending_mask].tolist()
     print(f"\nPending rows to process: {len(pending_idx)} / {len(df)}")
@@ -526,7 +546,6 @@ def main():
 
     df_pending["_TIF_PATH"] = tif_paths
 
-    # sort by tif path to maximize file handle reuse
     df_pending["_TIF_SORT"] = df_pending["_TIF_PATH"].fillna("ZZZ_NO_TIF")
     df_pending = df_pending.sort_values(["_TIF_SORT", "ORIGINAL_X", "ORIGINAL_Y"]).reset_index(drop=True)
 
@@ -546,9 +565,6 @@ def main():
             target_species = normalize_species_name(row[LABEL_COL_CSV])
             tif_path = row["_TIF_PATH"]
 
-            # -----------------------------
-            # Basic validation
-            # -----------------------------
             if target_species == "":
                 df.at[idx, "STATUS"] = "KEEP_ORIGINAL_EMPTY_SPECIES"
                 processed_since_save += 1
@@ -573,9 +589,6 @@ def main():
                     processed_since_save = 0
                 continue
 
-            # -----------------------------
-            # Reuse TIF handle
-            # -----------------------------
             if tif_path != current_tif_path:
                 if current_src is not None:
                     current_src.close()
@@ -662,7 +675,6 @@ def main():
             )
 
             if fine_result is None:
-                # fine failed -> keep coarse center only if shift is safe
                 new_x = coarse_x
                 new_y = coarse_y
                 final_status = f"SUCCESSFULLY_MOVED_COARSE_ONLY_{fine_status}"
@@ -673,9 +685,6 @@ def main():
 
             shift = float(np.sqrt((orig_x - new_x) ** 2 + (orig_y - new_y) ** 2))
 
-            # -----------------------------
-            # Safety guard
-            # -----------------------------
             if shift > MAX_ALLOWED_SHIFT:
                 df.at[idx, "REALIGNED_X"] = float(orig_x)
                 df.at[idx, "REALIGNED_Y"] = float(orig_y)
@@ -687,9 +696,6 @@ def main():
                     processed_since_save = 0
                 continue
 
-            # -----------------------------
-            # Accept move
-            # -----------------------------
             df.at[idx, "REALIGNED_X"] = new_x
             df.at[idx, "REALIGNED_Y"] = new_y
             df.at[idx, "SHIFT_DISTANCE"] = shift
