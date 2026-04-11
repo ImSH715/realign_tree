@@ -12,6 +12,7 @@ from src.data.tif_io import (
     TileCache,
     is_readable_tif,
     get_image_size,
+    read_patch_as_pil,
 )
 
 
@@ -74,15 +75,9 @@ class RandomPatchTifDataset(Dataset):
         common_aug = [
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomApply(
-                [transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)],
-                p=0.8,
-            ),
+            transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.8),
             transforms.RandomGrayscale(p=0.2),
-            transforms.RandomApply(
-                [transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))],
-                p=0.5,
-            ),
+            transforms.RandomApply([transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))], p=0.5),
             transforms.ToTensor(),
             normalize,
         ]
@@ -112,28 +107,29 @@ class RandomPatchTifDataset(Dataset):
     def __len__(self) -> int:
         return len(self.index_map)
 
-    def random_crop_patch(self, image: Image.Image) -> Tuple[Image.Image, float, float]:
-        w, h = image.size
-
-        if w < self.patch_size_px or h < self.patch_size_px:
-            new_w = max(w, self.patch_size_px)
-            new_h = max(h, self.patch_size_px)
-            image = image.resize((new_w, new_h), resample=Image.BICUBIC)
-            w, h = image.size
-
-        x = random.randint(0, w - self.patch_size_px)
-        y = random.randint(0, h - self.patch_size_px)
-
-        patch = image.crop((x, y, x + self.patch_size_px, y + self.patch_size_px))
-        center_x = x + self.patch_size_px / 2.0
-        center_y = y + self.patch_size_px / 2.0
-
-        return patch, center_x, center_y
-
     def __getitem__(self, idx: int):
         path = self.index_map[idx]
-        image = self.tile_cache.get(path)
-        patch, center_x, center_y = self.random_crop_patch(image)
+        w, h = self.tile_cache.get_size(path)
+
+        if w < self.patch_size_px or h < self.patch_size_px:
+            cx = w / 2.0
+            cy = h / 2.0
+            left = max(0, int(cx - self.patch_size_px / 2))
+            top = max(0, int(cy - self.patch_size_px / 2))
+        else:
+            left = random.randint(0, w - self.patch_size_px)
+            top = random.randint(0, h - self.patch_size_px)
+
+        patch = read_patch_as_pil(
+            path=path,
+            left=left,
+            top=top,
+            width=self.patch_size_px,
+            height=self.patch_size_px,
+        )
+
+        center_x = left + self.patch_size_px / 2.0
+        center_y = top + self.patch_size_px / 2.0
 
         views = []
         for _ in range(self.num_global_views):
@@ -225,44 +221,18 @@ class GridPatchTifDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def crop_patch_center(self, image: Image.Image, center_x: float, center_y: float) -> Image.Image:
-        w, h = image.size
-        half = self.patch_size_px // 2
-
-        cx = int(round(center_x))
-        cy = int(round(center_y))
-
-        left = cx - half
-        top = cy - half
-        right = left + self.patch_size_px
-        bottom = top + self.patch_size_px
-
-        pad_left = max(0, -left)
-        pad_top = max(0, -top)
-        pad_right = max(0, right - w)
-        pad_bottom = max(0, bottom - h)
-
-        left = max(0, left)
-        top = max(0, top)
-        right = min(w, right)
-        bottom = min(h, bottom)
-
-        patch = image.crop((left, top, right, bottom))
-
-        if pad_left > 0 or pad_top > 0 or pad_right > 0 or pad_bottom > 0:
-            canvas = Image.new("RGB", (self.patch_size_px, self.patch_size_px))
-            canvas.paste(patch, (pad_left, pad_top))
-            patch = canvas
-
-        if patch.size != (self.patch_size_px, self.patch_size_px):
-            patch = patch.resize((self.patch_size_px, self.patch_size_px), resample=Image.BICUBIC)
-
-        return patch
-
     def __getitem__(self, idx: int):
         path, x, y = self.samples[idx]
-        image = self.tile_cache.get(path)
-        patch = self.crop_patch_center(image, x, y)
+        left = int(round(x - self.patch_size_px / 2))
+        top = int(round(y - self.patch_size_px / 2))
+
+        patch = read_patch_as_pil(
+            path=path,
+            left=left,
+            top=top,
+            width=self.patch_size_px,
+            height=self.patch_size_px,
+        )
         patch = self.transform(patch)
 
         meta = {
@@ -275,44 +245,20 @@ class GridPatchTifDataset(Dataset):
 
 class PatchExtractor:
     def __init__(self, patch_size_px: int, tile_cache_size: int = 0):
-        from src.data.tif_io import TileCache
         self.patch_size_px = patch_size_px
         self.tile_cache = TileCache(max_items=tile_cache_size)
 
     def extract(self, image_path: str, center_x: float, center_y: float):
-        image = self.tile_cache.get(image_path)
-        w, h = image.size
-        half = self.patch_size_px // 2
+        left = int(round(center_x - self.patch_size_px / 2))
+        top = int(round(center_y - self.patch_size_px / 2))
 
-        cx = int(round(center_x))
-        cy = int(round(center_y))
-
-        left = cx - half
-        top = cy - half
-        right = left + self.patch_size_px
-        bottom = top + self.patch_size_px
-
-        pad_left = max(0, -left)
-        pad_top = max(0, -top)
-        pad_right = max(0, right - w)
-        pad_bottom = max(0, bottom - h)
-
-        left = max(0, left)
-        top = max(0, top)
-        right = min(w, right)
-        bottom = min(h, bottom)
-
-        patch = image.crop((left, top, right, bottom))
-
-        if pad_left > 0 or pad_top > 0 or pad_right > 0 or pad_bottom > 0:
-            canvas = Image.new("RGB", (self.patch_size_px, self.patch_size_px))
-            canvas.paste(patch, (pad_left, pad_top))
-            patch = canvas
-
-        if patch.size != (self.patch_size_px, self.patch_size_px):
-            patch = patch.resize((self.patch_size_px, self.patch_size_px), resample=Image.BICUBIC)
-
-        return patch
+        return read_patch_as_pil(
+            path=image_path,
+            left=left,
+            top=top,
+            width=self.patch_size_px,
+            height=self.patch_size_px,
+        )
 
 
 class EncoderWrapper:
