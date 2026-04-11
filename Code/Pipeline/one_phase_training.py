@@ -227,7 +227,7 @@ class RecursiveTifMultiCropDataset(Dataset):
         return len(self.base_dataset)
 
     def __getitem__(self, idx: int):
-        _, target, path = self.base_dataset.samples[idx]
+        path, target = self.base_dataset.samples[idx]
         image = safe_open_image(path)
 
         views = []
