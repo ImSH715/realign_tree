@@ -50,7 +50,10 @@ class Phase2Config:
     gt_path: str
     gt_type: str
     gt_label_field: str
-    gt_tile_field: str
+    gt_folder_field: str
+    gt_file_field: str
+    gt_fx_field: str
+    gt_fy_field: str
     imagery_root: str
     output_dir: str
 
@@ -93,7 +96,10 @@ def parse_args():
     parser.add_argument("--gt_path", type=str, required=True)
     parser.add_argument("--gt_type", type=str, default="shp", choices=["shp"])
     parser.add_argument("--gt_label_field", type=str, required=True)
-    parser.add_argument("--gt_tile_field", type=str, required=True)
+    parser.add_argument("--gt_folder_field", type=str, required=True)
+    parser.add_argument("--gt_file_field", type=str, required=True)
+    parser.add_argument("--gt_fx_field", type=str, required=True)
+    parser.add_argument("--gt_fy_field", type=str, required=True)
     parser.add_argument("--imagery_root", type=str, required=True)
 
     parser.add_argument("--image_size", type=int, default=224)
@@ -108,11 +114,6 @@ def parse_args():
     parser.add_argument("--correction_margin", type=float, default=0.0)
     parser.add_argument("--no_amp", action="store_true")
 
-    parser.add_argument("--gt_folder_field", type=str, required=True)
-    parser.add_argument("--gt_file_field", type=str, required=True)
-    parser.add_argument("--gt_fx_field", type=str, required=True)
-    parser.add_argument("--gt_fy_field", type=str, required=True)
-
     return parser.parse_args()
 
 
@@ -125,7 +126,10 @@ def main():
         gt_path=args.gt_path,
         gt_type=args.gt_type,
         gt_label_field=args.gt_label_field,
-        gt_tile_field=args.gt_tile_field,
+        gt_folder_field=args.gt_folder_field,
+        gt_file_field=args.gt_file_field,
+        gt_fx_field=args.gt_fx_field,
+        gt_fy_field=args.gt_fy_field,
         imagery_root=args.imagery_root,
         output_dir=args.output_dir,
         image_size=args.image_size,
@@ -159,7 +163,10 @@ def main():
     print(f"Ground truth path      : {config.gt_path}")
     print(f"Ground truth type      : {config.gt_type}")
     print(f"GT label field         : {config.gt_label_field}")
-    print(f"GT tile field          : {config.gt_tile_field}")
+    print(f"GT folder field        : {config.gt_folder_field}")
+    print(f"GT file field          : {config.gt_file_field}")
+    print(f"GT fx field            : {config.gt_fx_field}")
+    print(f"GT fy field            : {config.gt_fy_field}")
     print(f"Imagery root           : {config.imagery_root}")
     print(f"Output dir             : {config.output_dir}")
     print(f"Similarity             : {config.similarity}")
@@ -168,20 +175,20 @@ def main():
     start_time = time.time()
 
     model, _ = load_encoder_from_checkpoint(config.phase1_ckpt, device)
-
     gt_transform = build_eval_transform(config.image_size)
 
     gt_dataset = ShapefilePointDataset(
         shp_path=config.gt_path,
         imagery_root=config.imagery_root,
         label_field=config.gt_label_field,
-        folder_field=args.gt_folder_field,
-        file_field=args.gt_file_field,
-        fx_field=args.gt_fx_field,
-        fy_field=args.gt_fy_field,
+        folder_field=config.gt_folder_field,
+        file_field=config.gt_file_field,
+        fx_field=config.gt_fx_field,
+        fy_field=config.gt_fy_field,
         patch_size_px=config.patch_size_px,
         transform=gt_transform,
     )
+
     gt_loader = DataLoader(
         gt_dataset,
         batch_size=config.batch_size,
