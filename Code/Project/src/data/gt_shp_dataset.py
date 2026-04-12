@@ -5,35 +5,81 @@ from typing import List, Dict
 import geopandas as gpd
 from torch.utils.data import Dataset
 
-from src.data.tif_io import read_patch_as_pil, get_image_size
+from src.data.tif_io import read_patch_as_pil, get_image_size, recursive_find_tif_files
 
 
-def resolve_image_path(imagery_root: str, folder: str, file_name: str) -> str:
+def normalize_name(name: str) -> str:
+    name = str(name).strip()
+    return os.path.splitext(name)[0].lower()
+
+
+def build_tif_index(imagery_root: str) -> List[str]:
+    tif_paths = recursive_find_tif_files(imagery_root)
+    return tif_paths
+
+
+def resolve_image_path(imagery_root: str, folder: str, file_name: str, tif_paths: List[str]) -> str:
     folder = str(folder).strip()
     file_name = str(file_name).strip()
 
-    candidates = []
+    target_norm = normalize_name(file_name)
 
-    candidate = os.path.join(imagery_root, folder, file_name)
-    candidates.append(candidate)
-
-    if not file_name.lower().endswith(".tif"):
-        candidates.append(os.path.join(imagery_root, folder, file_name + ".tif"))
-
-    for c in candidates:
+    # 1. Direct folder/file path
+    direct_candidates = [
+        os.path.join(imagery_root, folder, file_name),
+        os.path.join(imagery_root, folder, file_name + ".tif"),
+        os.path.join(imagery_root, folder, file_name + ".TIF"),
+        os.path.join(imagery_root, folder, file_name + ".tiff"),
+        os.path.join(imagery_root, folder, file_name + ".TIFF"),
+    ]
+    for c in direct_candidates:
         if os.path.exists(c):
             return c
 
-    recursive_matches = glob.glob(os.path.join(imagery_root, "**", file_name), recursive=True)
-    if len(recursive_matches) > 0:
-        return recursive_matches[0]
+    # 2. Exact basename match
+    exact_matches = []
+    for p in tif_paths:
+        base_norm = normalize_name(os.path.basename(p))
+        if base_norm == target_norm:
+            exact_matches.append(p)
+    if len(exact_matches) > 0:
+        return exact_matches[0]
 
-    if not file_name.lower().endswith(".tif"):
-        recursive_matches = glob.glob(os.path.join(imagery_root, "**", file_name + ".tif"), recursive=True)
-        if len(recursive_matches) > 0:
-            return recursive_matches[0]
+    # 3. Prefix basename match
+    prefix_matches = []
+    for p in tif_paths:
+        base_norm = normalize_name(os.path.basename(p))
+        if base_norm.startswith(target_norm):
+            prefix_matches.append(p)
+    if len(prefix_matches) > 0:
+        return prefix_matches[0]
 
-    return candidates[0]
+    # 4. Substring basename match
+    substring_matches = []
+    for p in tif_paths:
+        base_norm = normalize_name(os.path.basename(p))
+        if target_norm in base_norm:
+            substring_matches.append(p)
+    if len(substring_matches) > 0:
+        return substring_matches[0]
+
+    # 5. Restrict to folder then retry
+    folder_filtered = [p for p in tif_paths if f"/{folder}/" in p]
+    if len(folder_filtered) > 0:
+        for p in folder_filtered:
+            base_norm = normalize_name(os.path.basename(p))
+            if base_norm == target_norm:
+                return p
+        for p in folder_filtered:
+            base_norm = normalize_name(os.path.basename(p))
+            if base_norm.startswith(target_norm):
+                return p
+        for p in folder_filtered:
+            base_norm = normalize_name(os.path.basename(p))
+            if target_norm in base_norm:
+                return p
+
+    return direct_candidates[0]
 
 
 class ShapefilePointDataset(Dataset):
@@ -60,13 +106,15 @@ class ShapefilePointDataset(Dataset):
         self.transform = transform
 
         available_cols = self.gdf.columns.tolist()
-
         for required_col in [label_field, folder_field, file_field, fx_field, fy_field]:
             if required_col not in available_cols:
                 raise ValueError(
                     f"Required field '{required_col}' not found in shapefile. "
                     f"Available columns: {available_cols}"
                 )
+
+        self.tif_paths = build_tif_index(imagery_root)
+        print(f"[INFO] Indexed TIFF files for SHP matching: {len(self.tif_paths)}")
 
         self.samples: List[Dict] = []
         label_names: List[str] = []
@@ -88,7 +136,12 @@ class ShapefilePointDataset(Dataset):
                 fx = float(fx_val)
                 fy = float(fy_val)
 
-                image_path = resolve_image_path(self.imagery_root, folder, file_name)
+                image_path = resolve_image_path(
+                    imagery_root=self.imagery_root,
+                    folder=folder,
+                    file_name=file_name,
+                    tif_paths=self.tif_paths,
+                )
 
                 if i < 20:
                     print(f"[DEBUG] row={i}")
@@ -130,7 +183,7 @@ class ShapefilePointDataset(Dataset):
                 label_names.append(label)
 
             except Exception as e:
-                print(f"[WARN] Skipping SHP row {i} بسبب error: {e}")
+                print(f"[WARN] Skipping SHP row {i} due to error: {e}")
                 continue
 
         print(f"[INFO] Loaded valid SHP samples: {len(self.samples)}")
