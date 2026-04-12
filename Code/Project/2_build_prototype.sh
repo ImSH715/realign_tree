@@ -33,8 +33,8 @@ python build_prototypes.py \
   --phase1_embedding_csv "./outputs/phase1/phase1_embeddings.csv" \
   --gt_path "/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp" \
   --gt_type shp \
-  --gt_label_field "species" \
-  --gt_tile_field "image_path" \
+  --gt_label_field "sp" \
+  --gt_tile_field "tile" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase2" \
   --image_size 224 \
