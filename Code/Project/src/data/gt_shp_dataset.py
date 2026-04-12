@@ -2,10 +2,9 @@ import os
 from typing import List, Dict
 
 import geopandas as gpd
-import rasterio
 from torch.utils.data import Dataset
 
-from src.data.tif_io import read_patch_as_pil
+from src.data.tif_io import read_patch_as_pil, get_image_size
 
 
 class ShapefilePointDataset(Dataset):
@@ -14,52 +13,62 @@ class ShapefilePointDataset(Dataset):
         shp_path: str,
         imagery_root: str,
         label_field: str,
-        tile_field: str,
+        folder_field: str,
+        file_field: str,
+        fx_field: str,
+        fy_field: str,
         patch_size_px: int = 224,
         transform=None,
     ):
         self.gdf = gpd.read_file(shp_path)
         self.imagery_root = imagery_root
         self.label_field = label_field
-        self.tile_field = tile_field
+        self.folder_field = folder_field
+        self.file_field = file_field
+        self.fx_field = fx_field
+        self.fy_field = fy_field
         self.patch_size_px = patch_size_px
         self.transform = transform
+
+        available_cols = self.gdf.columns.tolist()
+
+        for required_col in [label_field, folder_field, file_field, fx_field, fy_field]:
+            if required_col not in available_cols:
+                raise ValueError(
+                    f"Required field '{required_col}' not found in shapefile. "
+                    f"Available columns: {available_cols}"
+                )
 
         self.samples: List[Dict] = []
         label_names: List[str] = []
 
         for _, row in self.gdf.iterrows():
-            geom = row.geometry
-            if geom is None or geom.is_empty:
-                continue
-
-            if geom.geom_type != "Point":
-                continue
-
-            x_world, y_world = geom.x, geom.y
             label = str(row[label_field])
-            tile_name = str(row[tile_field])
+            folder = str(row[folder_field])
+            file_name = str(row[file_field])
+            fx = float(row[fx_field])
+            fy = float(row[fy_field])
 
-            image_path = tile_name
-            if not os.path.isabs(image_path):
-                image_path = os.path.join(imagery_root, tile_name)
+            image_path = os.path.join(self.imagery_root, folder, file_name)
 
             if not os.path.exists(image_path):
                 print(f"[WARN] Missing TIFF: {image_path}")
                 continue
 
             try:
-                with rasterio.open(image_path) as src:
-                    row_px, col_px = src.index(x_world, y_world)
+                w, h = get_image_size(image_path)
             except Exception as e:
-                print(f"[WARN] Coordinate transform failed: {image_path} | {e}")
+                print(f"[WARN] Failed to read image size: {image_path} | {e}")
                 continue
+
+            x_px = fx * w
+            y_px = fy * h
 
             self.samples.append(
                 {
                     "image_path": image_path,
-                    "x": float(col_px),
-                    "y": float(row_px),
+                    "x": float(x_px),
+                    "y": float(y_px),
                     "label": label,
                 }
             )

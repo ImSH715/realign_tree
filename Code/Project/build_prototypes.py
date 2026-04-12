@@ -108,6 +108,11 @@ def parse_args():
     parser.add_argument("--correction_margin", type=float, default=0.0)
     parser.add_argument("--no_amp", action="store_true")
 
+    parser.add_argument("--gt_folder_field", type=str, required=True)
+    parser.add_argument("--gt_file_field", type=str, required=True)
+    parser.add_argument("--gt_fx_field", type=str, required=True)
+    parser.add_argument("--gt_fy_field", type=str, required=True)
+
     return parser.parse_args()
 
 
@@ -170,11 +175,13 @@ def main():
         shp_path=config.gt_path,
         imagery_root=config.imagery_root,
         label_field=config.gt_label_field,
-        tile_field=config.gt_tile_field,
+        folder_field=args.gt_folder_field,
+        file_field=args.gt_file_field,
+        fx_field=args.gt_fx_field,
+        fy_field=args.gt_fy_field,
         patch_size_px=config.patch_size_px,
         transform=gt_transform,
     )
-
     gt_loader = DataLoader(
         gt_dataset,
         batch_size=config.batch_size,
