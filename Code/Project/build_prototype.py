@@ -3,15 +3,14 @@ import json
 import time
 import argparse
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from src.models.checkpoint import load_encoder_from_checkpoint
+from src.data.gt_shp_dataset import ShapefilePointDataset
 from src.scoring.prototypes import (
-    GroundTruthTifDataset,
     extract_ground_truth_embeddings,
     read_embedding_csv_rows,
     compute_class_prototypes,
@@ -48,11 +47,15 @@ def format_seconds(seconds: float) -> str:
 class Phase2Config:
     phase1_ckpt: str
     phase1_embedding_csv: str
-    gt_root: str
-    gt_label_csv: str
+    gt_path: str
+    gt_type: str
+    gt_label_field: str
+    gt_tile_field: str
+    imagery_root: str
     output_dir: str
 
     image_size: int = 224
+    patch_size_px: int = 224
     batch_size: int = 32
     num_workers: int = 8
     device: str = "cuda"
@@ -71,8 +74,7 @@ def build_eval_transform(image_size: int) -> transforms.Compose:
     )
     return transforms.Compose(
         [
-            transforms.Resize(int(image_size * 1.14), interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.CenterCrop(image_size),
+            transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor(),
             normalize,
         ]
@@ -81,16 +83,21 @@ def build_eval_transform(image_size: int) -> transforms.Compose:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Phase 2: build semantic prototypes and correct labels from ground truth"
+        description="Phase 2: build semantic prototypes and correct labels from SHP ground truth"
     )
 
     parser.add_argument("--phase1_ckpt", type=str, required=True)
     parser.add_argument("--phase1_embedding_csv", type=str, required=True)
-    parser.add_argument("--gt_root", type=str, required=True)
-    parser.add_argument("--gt_label_csv", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
 
+    parser.add_argument("--gt_path", type=str, required=True)
+    parser.add_argument("--gt_type", type=str, default="shp", choices=["shp"])
+    parser.add_argument("--gt_label_field", type=str, required=True)
+    parser.add_argument("--gt_tile_field", type=str, required=True)
+    parser.add_argument("--imagery_root", type=str, required=True)
+
     parser.add_argument("--image_size", type=int, default=224)
+    parser.add_argument("--patch_size_px", type=int, default=224)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--device", type=str, default="cuda")
@@ -110,10 +117,14 @@ def main():
     config = Phase2Config(
         phase1_ckpt=args.phase1_ckpt,
         phase1_embedding_csv=args.phase1_embedding_csv,
-        gt_root=args.gt_root,
-        gt_label_csv=args.gt_label_csv,
+        gt_path=args.gt_path,
+        gt_type=args.gt_type,
+        gt_label_field=args.gt_label_field,
+        gt_tile_field=args.gt_tile_field,
+        imagery_root=args.imagery_root,
         output_dir=args.output_dir,
         image_size=args.image_size,
+        patch_size_px=args.patch_size_px,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         device=args.device,
@@ -140,8 +151,11 @@ def main():
     print("Phase 2 started")
     print(f"Phase 1 checkpoint     : {config.phase1_ckpt}")
     print(f"Phase 1 embedding CSV  : {config.phase1_embedding_csv}")
-    print(f"Ground truth root      : {config.gt_root}")
-    print(f"Ground truth label CSV : {config.gt_label_csv}")
+    print(f"Ground truth path      : {config.gt_path}")
+    print(f"Ground truth type      : {config.gt_type}")
+    print(f"GT label field         : {config.gt_label_field}")
+    print(f"GT tile field          : {config.gt_tile_field}")
+    print(f"Imagery root           : {config.imagery_root}")
     print(f"Output dir             : {config.output_dir}")
     print(f"Similarity             : {config.similarity}")
     print("=" * 100)
@@ -151,12 +165,16 @@ def main():
     model, _ = load_encoder_from_checkpoint(config.phase1_ckpt, device)
 
     gt_transform = build_eval_transform(config.image_size)
-    gt_dataset = GroundTruthTifDataset(
-        root_dir=config.gt_root,
-        label_csv=config.gt_label_csv,
+
+    gt_dataset = ShapefilePointDataset(
+        shp_path=config.gt_path,
+        imagery_root=config.imagery_root,
+        label_field=config.gt_label_field,
+        tile_field=config.gt_tile_field,
+        patch_size_px=config.patch_size_px,
         transform=gt_transform,
-        strict=True,
     )
+
     gt_loader = DataLoader(
         gt_dataset,
         batch_size=config.batch_size,
