@@ -134,3 +134,40 @@ def score_candidates(
         c.score = float(alpha * sim - beta * c.distance_to_origin)
 
     return sorted(candidates, key=lambda c: c.score, reverse=True)
+def score_candidates(
+    candidates,
+    target_label: str,
+    prototypes,
+    similarity_mode: str = "cosine",
+    alpha: float = 1.0,
+    beta: float = 0.002,
+):
+    import numpy as np
+
+    if target_label is None:
+        for c in candidates:
+            c.similarity = 0.0
+            c.score = float(-beta * c.distance_to_origin)
+        return sorted(candidates, key=lambda c: c.score, reverse=True)
+
+    if target_label not in prototypes:
+        raise KeyError(f"Prototype not found for label: {target_label}")
+
+    prototype = prototypes[target_label]
+
+    for c in candidates:
+        emb = c.embedding.astype(np.float32)
+
+        if similarity_mode == "cosine":
+            emb_n = emb / (np.linalg.norm(emb) + 1e-12)
+            proto_n = prototype / (np.linalg.norm(prototype) + 1e-12)
+            sim = float(np.dot(emb_n, proto_n))
+        elif similarity_mode == "euclidean":
+            sim = float(-np.linalg.norm(emb - prototype))
+        else:
+            raise ValueError("similarity must be one of: cosine, euclidean")
+
+        c.similarity = sim
+        c.score = float(alpha * sim - beta * c.distance_to_origin)
+
+    return sorted(candidates, key=lambda c: c.score, reverse=True)
