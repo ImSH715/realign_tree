@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument("--point_id_column", type=str, default="point_id")
     parser.add_argument("--x_column", type=str, default="x")
     parser.add_argument("--y_column", type=str, default="y")
-    parser.add_argument("--target_label_column", type=str, default="target_label")
+    parser.add_argument("--target_label_column", type=str, default="corrected_label")
 
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--patch_size_px", type=int, default=224)
