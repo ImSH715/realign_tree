@@ -32,21 +32,20 @@ python old_data_run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
   --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal_shihuahuaco_overlap_only.csv" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "./outputs/phase3/refined_all_supported.csv" \
+  --output_csv "./outputs/phase3/refined_shihuahuaco_overlap.csv" \
   --label_column "NOMBRE_COMUN" \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
-  --faja_column "FAJA" \
-  --pca_column "PCA" \
-  --search_radius_px 128 \
-  --coarse_step_px 16 \
-  --refine_radius_px 32 \
-  --refine_step_px 8 \
+  --image_column "matched_tif" \
+  --filter_label "Shihuahuaco" \
+  --search_radius_px 192 \
+  --coarse_step_px 8 \
+  --refine_radius_px 48 \
+  --refine_step_px 4 \
   --similarity cosine \
   --alpha 1.0 \
-  --beta 0.002 \
+  --beta 0.0002 \
   --batch_size 32 \
   --device cuda
-
+  
 echo "Job finished at $(date)"
