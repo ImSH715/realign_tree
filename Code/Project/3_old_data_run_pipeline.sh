@@ -28,19 +28,18 @@ python --version
 
 conda activate lejepa
 
-python run_pipeline.py \
+python old_datarun_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
   --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
   --output_csv "./outputs/phase3/refined_shihuahuaco.csv" \
-  --x_column "Este" \
-  --y_column "Norte" \
-  --label_column "Tree" \
-  --target_label_column "corrected_label" \
-  --coord_type world \
+  --label_column "NOMBRE_COMUN" \
+  --x_column "COORDENADA_ESTE" \
+  --y_column "COORDENADA_NORTE" \
+  --faja_column "FAJA" \
+  --pca_column "PCA" \
   --filter_label "Shihuahuaco" \
-  --default_image_path "YOUR_NEW_ORTHOMOSAIC_FILE.tif" \
   --search_radius_px 128 \
   --coarse_step_px 16 \
   --refine_radius_px 32 \
