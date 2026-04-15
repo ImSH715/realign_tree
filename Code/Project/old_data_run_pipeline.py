@@ -1,16 +1,13 @@
 import argparse
-import os
-import re
 import time
 from dataclasses import dataclass
 
-import torch
 import pandas as pd
 import rasterio
+import torch
 
 from src.models.checkpoint import load_encoder_from_checkpoint
 from src.data.points import InputPoint
-from src.data.tif_io import recursive_find_tif_files
 from src.data.patches import PatchExtractor, EncoderWrapper
 from src.scoring.prototypes import load_prototypes_csv
 from src.pipeline import FeatureGuidedBoundedSearchPipeline
@@ -32,8 +29,12 @@ class Phase3Config:
     encoder_ckpt: str
     prototypes_csv: str
     points_csv: str
-    imagery_root: str
     output_csv: str
+
+    label_column: str
+    x_column: str
+    y_column: str
+    image_column: str
 
     image_size: int = 224
     patch_size_px: int = 224
@@ -51,70 +52,42 @@ class Phase3Config:
     device: str = "cuda"
     mixed_precision: bool = True
 
-
-class CensusTileResolver:
-    def __init__(self, imagery_root: str):
-        self.tif_paths = recursive_find_tif_files(imagery_root)
-        self.index = {}
-
-        for p in self.tif_paths:
-            key = self._extract_key(os.path.basename(p))
-            if key is not None and key not in self.index:
-                self.index[key] = p
-
-        print(f"[INFO] Indexed TIFF files: {len(self.tif_paths)}")
-        print(f"[INFO] Indexed FAJA/PCA keys: {len(self.index)}")
-
-    def _extract_key(self, filename: str):
-        name = os.path.basename(filename).lower()
-        stem = os.path.splitext(name)[0]
-
-        m = re.search(r"pv\s*(\d+)\s*[-_]\s*0*(\d+)", stem, re.IGNORECASE)
-        if m:
-            faja = int(m.group(1))
-            pca = int(m.group(2))
-            return (faja, pca)
-
-        return None
-
-    def resolve(self, faja, pca):
-        faja_num = int(str(faja).strip())
-        pca_str = str(pca).lower().replace("pc", "").strip()
-        pca_num = int(pca_str)
-
-        key = (faja_num, pca_num)
-
-        if key in self.index:
-            return self.index[key]
-
-        raise FileNotFoundError(f"No TIFF found for FAJA={faja_num}, PCA={pca_num}")
+    filter_label: str = ""
 
 
 def load_censo_points(
-    csv_path,
-    imagery_root,
-    label_column,
-    x_column,
-    y_column,
-    faja_column,
-    pca_column,
-    filter_label=None,
+    csv_path: str,
+    label_column: str,
+    x_column: str,
+    y_column: str,
+    image_column: str,
+    filter_label: str = "",
 ):
     df = pd.read_csv(csv_path)
+
+    required = [label_column, x_column, y_column, image_column]
+    for col in required:
+        if col not in df.columns:
+            raise ValueError(
+                f"Missing required column '{col}' in CSV. "
+                f"Available columns: {df.columns.tolist()}"
+            )
+
     df[label_column] = df[label_column].astype(str).str.strip()
 
     if filter_label:
         df = df[df[label_column].str.lower() == filter_label.strip().lower()].copy()
 
-    resolver = CensusTileResolver(imagery_root)
     points = []
 
     for i, row in df.iterrows():
         try:
-            image_path = resolver.resolve(row[faja_column], row[pca_column])
+            image_path = str(row[image_column]).strip()
+            x_world = float(row[x_column])
+            y_world = float(row[y_column])
 
             with rasterio.open(image_path) as src:
-                r, c = src.index(float(row[x_column]), float(row[y_column]))
+                r, c = src.index(x_world, y_world)
 
             points.append(
                 InputPoint(
@@ -134,21 +107,23 @@ def load_censo_points(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Phase 3: bounded-search refinement on overlap-only census points"
+    )
 
     parser.add_argument("--encoder_ckpt", required=True)
     parser.add_argument("--prototypes_csv", required=True)
     parser.add_argument("--points_csv", required=True)
-    parser.add_argument("--imagery_root", required=True)
     parser.add_argument("--output_csv", required=True)
 
     parser.add_argument("--label_column", required=True)
     parser.add_argument("--x_column", required=True)
     parser.add_argument("--y_column", required=True)
-    parser.add_argument("--faja_column", required=True)
-    parser.add_argument("--pca_column", required=True)
-
+    parser.add_argument("--image_column", default="matched_tif")
     parser.add_argument("--filter_label", default="")
+
+    parser.add_argument("--image_size", type=int, default=224)
+    parser.add_argument("--patch_size_px", type=int, default=224)
 
     parser.add_argument("--search_radius_px", type=int, default=128)
     parser.add_argument("--coarse_step_px", type=int, default=16)
@@ -169,67 +144,89 @@ def parse_args():
 def main():
     args = parse_args()
 
-    if args.device == "cuda" and not torch.cuda.is_available():
+    config = Phase3Config(
+        encoder_ckpt=args.encoder_ckpt,
+        prototypes_csv=args.prototypes_csv,
+        points_csv=args.points_csv,
+        output_csv=args.output_csv,
+        label_column=args.label_column,
+        x_column=args.x_column,
+        y_column=args.y_column,
+        image_column=args.image_column,
+        image_size=args.image_size,
+        patch_size_px=args.patch_size_px,
+        search_radius_px=args.search_radius_px,
+        coarse_step_px=args.coarse_step_px,
+        refine_radius_px=args.refine_radius_px,
+        refine_step_px=args.refine_step_px,
+        similarity=args.similarity,
+        alpha=args.alpha,
+        beta=args.beta,
+        batch_size=args.batch_size,
+        device=args.device,
+        mixed_precision=not args.no_amp,
+        filter_label=args.filter_label,
+    )
+
+    if config.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA not available")
 
-    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    use_amp = (not args.no_amp and device.type == "cuda")
+    device = torch.device(config.device if torch.cuda.is_available() else "cpu")
+    use_amp = config.mixed_precision and device.type == "cuda"
 
-    model, _ = load_encoder_from_checkpoint(args.encoder_ckpt, device)
+    model, _ = load_encoder_from_checkpoint(config.encoder_ckpt, device)
 
     encoder = EncoderWrapper(
         model=model,
         device=device,
-        image_size=224,
+        image_size=config.image_size,
         use_amp=use_amp,
     )
 
-    prototypes = load_prototypes_csv(args.prototypes_csv)
+    prototypes = load_prototypes_csv(config.prototypes_csv)
 
     points = load_censo_points(
-        csv_path=args.points_csv,
-        imagery_root=args.imagery_root,
-        label_column=args.label_column,
-        x_column=args.x_column,
-        y_column=args.y_column,
-        faja_column=args.faja_column,
-        pca_column=args.pca_column,
-        filter_label=args.filter_label,
+        csv_path=config.points_csv,
+        label_column=config.label_column,
+        x_column=config.x_column,
+        y_column=config.y_column,
+        image_column=config.image_column,
+        filter_label=config.filter_label,
     )
 
-    extractor = PatchExtractor(224)
+    extractor = PatchExtractor(config.patch_size_px)
 
     pipeline = FeatureGuidedBoundedSearchPipeline(
         encoder=encoder,
         prototypes=prototypes,
         patch_extractor=extractor,
-        similarity_mode=args.similarity,
-        search_radius_px=args.search_radius_px,
-        coarse_step_px=args.coarse_step_px,
-        refine_radius_px=args.refine_radius_px,
-        refine_step_px=args.refine_step_px,
-        alpha=args.alpha,
-        beta=args.beta,
-        batch_size=args.batch_size,
+        similarity_mode=config.similarity,
+        search_radius_px=config.search_radius_px,
+        coarse_step_px=config.coarse_step_px,
+        refine_radius_px=config.refine_radius_px,
+        refine_step_px=config.refine_step_px,
+        alpha=config.alpha,
+        beta=config.beta,
+        batch_size=config.batch_size,
     )
 
     print("=" * 80)
     print("Phase 3 started")
-    print(f"Encoder checkpoint : {args.encoder_ckpt}")
-    print(f"Prototypes CSV     : {args.prototypes_csv}")
-    print(f"Points CSV         : {args.points_csv}")
-    print(f"Imagery root       : {args.imagery_root}")
-    print(f"Output CSV         : {args.output_csv}")
+    print(f"Encoder checkpoint : {config.encoder_ckpt}")
+    print(f"Prototypes CSV     : {config.prototypes_csv}")
+    print(f"Points CSV         : {config.points_csv}")
+    print(f"Output CSV         : {config.output_csv}")
     print(f"Points loaded      : {len(points)}")
+    print(f"Filter label       : {config.filter_label}")
     print("=" * 80)
 
     start = time.time()
     results = pipeline.run(points)
-    save_refinement_results_csv(results, args.output_csv)
+    save_refinement_results_csv(results, config.output_csv)
 
     print("=" * 80)
     print("Phase 3 completed")
-    print(f"Saved: {args.output_csv}")
+    print(f"Saved: {config.output_csv}")
     print(f"Time: {format_seconds(time.time() - start)}")
     print("=" * 80)
 
