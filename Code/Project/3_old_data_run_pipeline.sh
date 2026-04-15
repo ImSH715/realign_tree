@@ -28,7 +28,7 @@ python --version
 
 conda activate lejepa
 
-python old_datarun_pipeline.py \
+python old_data_run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
   --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
