@@ -31,7 +31,7 @@ conda activate lejepa
 python old_data_run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal_shihuahuaco_supported.csv" \
+  --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
   --output_csv "./outputs/phase3/refined_shihuahuaco_supported.csv" \
   --label_column "NOMBRE_COMUN" \
