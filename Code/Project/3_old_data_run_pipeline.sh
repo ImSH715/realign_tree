@@ -28,23 +28,27 @@ python --version
 
 conda activate lejepa
 
-python build_prototypes.py \
-  --phase1_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
-  --phase1_embedding_csv "./outputs/phase1/phase1_embeddings.csv" \
-  --gt_path "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/valid_points.shp" \
-  --gt_type shp \
-  --gt_label_field "Tree" \
-  --gt_folder_field "Folder" \
-  --gt_file_field "File" \
-  --gt_fx_field "fx" \
-  --gt_fy_field "fy" \
+python run_pipeline.py \
+  --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
+  --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
+  --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase2" \
-  --image_size 224 \
-  --patch_size_px 224 \
+  --output_csv "./outputs/phase3/refined_shihuahuaco.csv" \
+  --x_column "Este" \
+  --y_column "Norte" \
+  --label_column "Tree" \
+  --target_label_column "corrected_label" \
+  --coord_type world \
+  --filter_label "Shihuahuaco" \
+  --default_image_path "YOUR_NEW_ORTHOMOSAIC_FILE.tif" \
+  --search_radius_px 128 \
+  --coarse_step_px 16 \
+  --refine_radius_px 32 \
+  --refine_step_px 8 \
+  --similarity cosine \
+  --alpha 1.0 \
+  --beta 0.002 \
   --batch_size 32 \
-  --num_workers 4 \
-  --device cuda \
-  --similarity cosine
-
+  --device cuda
+  
 echo "Job finished at $(date)"
