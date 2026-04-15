@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import time
 from dataclasses import dataclass
 
@@ -16,10 +17,6 @@ from src.pipeline import FeatureGuidedBoundedSearchPipeline
 from src.outputs.export_csv import save_refinement_results_csv
 
 
-# =========================
-# Utils
-# =========================
-
 def format_seconds(seconds: float) -> str:
     seconds = max(0, int(seconds))
     h = seconds // 3600
@@ -29,10 +26,6 @@ def format_seconds(seconds: float) -> str:
         return f"{h:02d}:{m:02d}:{s:02d}"
     return f"{m:02d}:{s:02d}"
 
-
-# =========================
-# Config
-# =========================
 
 @dataclass
 class Phase3Config:
@@ -59,42 +52,43 @@ class Phase3Config:
     mixed_precision: bool = True
 
 
-# =========================
-# TILE RESOLVER (FAJA + PCA)
-# =========================
-
 class CensusTileResolver:
     def __init__(self, imagery_root: str):
         self.tif_paths = recursive_find_tif_files(imagery_root)
+        self.index = {}
+
+        for p in self.tif_paths:
+            key = self._extract_key(os.path.basename(p))
+            if key is not None and key not in self.index:
+                self.index[key] = p
+
+        print(f"[INFO] Indexed TIFF files: {len(self.tif_paths)}")
+        print(f"[INFO] Indexed FAJA/PCA keys: {len(self.index)}")
+
+    def _extract_key(self, filename: str):
+        name = os.path.basename(filename).lower()
+        stem = os.path.splitext(name)[0]
+
+        m = re.search(r"pv\s*(\d+)\s*[-_]\s*0*(\d+)", stem, re.IGNORECASE)
+        if m:
+            faja = int(m.group(1))
+            pca = int(m.group(2))
+            return (faja, pca)
+
+        return None
 
     def resolve(self, faja, pca):
-        faja = str(faja).strip()
-        pca = str(pca).lower().replace("pc", "").strip()
+        faja_num = int(str(faja).strip())
+        pca_str = str(pca).lower().replace("pc", "").strip()
+        pca_num = int(pca_str)
 
-        try:
-            pca = str(int(pca))
-        except:
-            pass
+        key = (faja_num, pca_num)
 
-        search_key = f"pv{faja}_{pca}".lower()
+        if key in self.index:
+            return self.index[key]
 
-        for p in self.tif_paths:
-            name = os.path.basename(p).lower()
-            stem = os.path.splitext(name)[0]
+        raise FileNotFoundError(f"No TIFF found for FAJA={faja_num}, PCA={pca_num}")
 
-            if stem.startswith(search_key):
-                return p
-
-        for p in self.tif_paths:
-            if search_key in os.path.basename(p).lower():
-                return p
-
-        raise FileNotFoundError(f"No TIFF found for FAJA={faja}, PCA={pca}")
-
-
-# =========================
-# LOAD CENSO CSV
-# =========================
 
 def load_censo_points(
     csv_path,
@@ -104,17 +98,15 @@ def load_censo_points(
     y_column,
     faja_column,
     pca_column,
-    filter_label=None
+    filter_label=None,
 ):
     df = pd.read_csv(csv_path)
-
     df[label_column] = df[label_column].astype(str).str.strip()
 
     if filter_label:
-        df = df[df[label_column].str.lower() == filter_label.lower()].copy()
+        df = df[df[label_column].str.lower() == filter_label.strip().lower()].copy()
 
     resolver = CensusTileResolver(imagery_root)
-
     points = []
 
     for i, row in df.iterrows():
@@ -130,7 +122,7 @@ def load_censo_points(
                     image_path=image_path,
                     x=float(c),
                     y=float(r),
-                    target_label=row[label_column],
+                    target_label=str(row[label_column]).strip(),
                 )
             )
 
@@ -140,10 +132,6 @@ def load_censo_points(
     print(f"[INFO] Loaded points: {len(points)}")
     return points
 
-
-# =========================
-# ARGUMENTS
-# =========================
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -167,7 +155,7 @@ def parse_args():
     parser.add_argument("--refine_radius_px", type=int, default=32)
     parser.add_argument("--refine_step_px", type=int, default=8)
 
-    parser.add_argument("--similarity", default="cosine")
+    parser.add_argument("--similarity", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--beta", type=float, default=0.002)
 
@@ -178,10 +166,6 @@ def parse_args():
     return parser.parse_args()
 
 
-# =========================
-# MAIN
-# =========================
-
 def main():
     args = parse_args()
 
@@ -189,6 +173,7 @@ def main():
         raise RuntimeError("CUDA not available")
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    use_amp = (not args.no_amp and device.type == "cuda")
 
     model, _ = load_encoder_from_checkpoint(args.encoder_ckpt, device)
 
@@ -196,7 +181,7 @@ def main():
         model=model,
         device=device,
         image_size=224,
-        use_amp=(not args.no_amp and device.type == "cuda"),
+        use_amp=use_amp,
     )
 
     prototypes = load_prototypes_csv(args.prototypes_csv)
@@ -230,19 +215,22 @@ def main():
 
     print("=" * 80)
     print("Phase 3 started")
-    print(f"Points: {len(points)}")
+    print(f"Encoder checkpoint : {args.encoder_ckpt}")
+    print(f"Prototypes CSV     : {args.prototypes_csv}")
+    print(f"Points CSV         : {args.points_csv}")
+    print(f"Imagery root       : {args.imagery_root}")
+    print(f"Output CSV         : {args.output_csv}")
+    print(f"Points loaded      : {len(points)}")
     print("=" * 80)
 
     start = time.time()
-
     results = pipeline.run(points)
-
     save_refinement_results_csv(results, args.output_csv)
 
     print("=" * 80)
-    print("Done")
+    print("Phase 3 completed")
     print(f"Saved: {args.output_csv}")
-    print(f"Time: {format_seconds(time.time()-start)}")
+    print(f"Time: {format_seconds(time.time() - start)}")
     print("=" * 80)
 
 
