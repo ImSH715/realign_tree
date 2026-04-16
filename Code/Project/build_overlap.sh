@@ -28,24 +28,12 @@ python --version
 
 conda activate lejepa
 
-python old_data_run_pipeline.py \
-  --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
-  --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal_overlap_all_strict.csv" \
-  --output_csv "./outputs/phase3/refined_shihuahuaco_overlap_strict.csv" \
-  --label_column "NOMBRE_COMUN" \
+python build_overlap.py \
+  --input_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
+  --output_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal_overlap_all.csv" \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
-  --image_column "matched_tif" \
-  --filter_label "Shihuahuaco" \
-  --search_radius_px 192 \
-  --coarse_step_px 8 \
-  --refine_radius_px 48 \
-  --refine_step_px 4 \
-  --similarity cosine \
-  --alpha 1.0 \
-  --beta 0.0002 \
-  --batch_size 32 \
-  --device cuda
-
+  --tolerance_m 10
+  
 echo "Job finished at $(date)"
