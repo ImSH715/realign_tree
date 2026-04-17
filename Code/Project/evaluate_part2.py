@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy.spatial import cKDTree
 
-SHP_PATH = "valid_points.shp"
+SHP_PATH = "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/valid_points.shp"
 CSV_PATH = "outputs/phase3/refined_points_world.csv"
-OUTPUT_CSV = "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/valid_points.shp"
+OUTPUT_CSV = "outputs/phase3/refined_points_vs_shp_evaluated.csv"
 
 # 1. Load ground-truth shapefile
 gdf = gpd.read_file(SHP_PATH).to_crs("EPSG:32718")
