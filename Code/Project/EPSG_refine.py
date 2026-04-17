@@ -1,8 +1,8 @@
 import pandas as pd
 import rasterio
 
-input_csv = "refined_points.csv"
-output_csv = "refined_points_world.csv"
+input_csv = "outputs/phase3/refined_points.csv"
+output_csv = "outputs/phase3/refined_points_world.csv"
 
 df = pd.read_csv(input_csv)
 
