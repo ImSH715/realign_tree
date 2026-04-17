@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-df = pd.read_csv("refined_points_world.csv")
+df = pd.read_csv("outputs/phase3/refined_points_world.csv")
 
 # expected columns:
 # gt_east, gt_north = ground truth answer
