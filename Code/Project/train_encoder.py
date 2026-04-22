@@ -1,3 +1,18 @@
+"""
+Phase 1 training script for self-supervised encoder learning on recursive TIFF patches.
+
+This script supports multiple backbones under the same training pipeline:
+- LeJEPA-style ViT baseline,
+- ResNet50 CNN baseline,
+- DINOv2 backbones from timm.
+
+It keeps the downstream pipeline stable by producing:
+- a trained checkpoint that can be loaded with load_encoder_from_checkpoint(),
+- and an embedding CSV for Phase 2 prototype construction.
+
+Phase 2 and Phase 3 do not need to change as long as model.encode(...) remains valid.
+"""
+
 import os
 import csv
 import math
@@ -10,7 +25,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.models.encoder import LeJEPALikeEncoder, LeJEPALikeLoss
+from src.models.encoder import SSLImageEncoder, LeJEPALikeLoss
 from src.models.checkpoint import save_checkpoint
 from src.data.tif_io import recursive_find_tif_files
 from src.data.patches import (
@@ -217,8 +232,27 @@ def parse_args():
     parser.add_argument("--train_root", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
 
-    parser.add_argument("--backbone_name", type=str, default="vit_base_patch16_224")
-    parser.add_argument("--backbone_pretrained", action="store_true")
+    parser.add_argument(
+        "--backbone_name",
+        type=str,
+        default="vit_base_patch16_224",
+        choices=[
+            "vit_base_patch16_224",
+            "resnet50",
+            "vit_small_patch14_dinov2.lvd142m",
+            "vit_base_patch14_dinov2.lvd142m",
+        ],
+    )
+    parser.add_argument(
+        "--pretrained_backbone",
+        action="store_true",
+        help="Use pretrained weights for the backbone if available in timm/cache.",
+    )
+    parser.add_argument(
+        "--backbone_pretrained",
+        action="store_true",
+        help="Backward-compatible alias for --pretrained_backbone.",
+    )
 
     parser.add_argument("--ssl_epochs", type=int, default=20)
     parser.add_argument("--batch_size_ssl", type=int, default=8)
@@ -260,7 +294,10 @@ def parse_args():
 def main():
     args = parse_args()
 
+    use_pretrained_backbone = args.pretrained_backbone or args.backbone_pretrained
+
     config = vars(args).copy()
+    config["pretrained_backbone"] = use_pretrained_backbone
     config["mixed_precision"] = not args.no_amp
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -344,11 +381,12 @@ def main():
         collate_fn=collate_patch_with_meta,
     )
 
-    model = LeJEPALikeEncoder(
+    model = SSLImageEncoder(
         backbone_name=args.backbone_name,
+        pretrained_backbone=use_pretrained_backbone,
+        image_size=args.image_size_global,
         projector_hidden_dim=args.projector_hidden_dim,
         projector_out_dim=args.projector_out_dim,
-        backbone_pretrained=args.backbone_pretrained,
     ).to(device)
 
     loss_fn = LeJEPALikeLoss(
@@ -368,7 +406,7 @@ def main():
         warmup_epochs=args.warmup_epochs_ssl,
     )
 
-    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     global_start_time = time.time()
     best_proxy_loss = float("inf")
@@ -376,6 +414,7 @@ def main():
     print("=" * 100)
     print("Phase 1 started")
     print(f"Backbone                  : {args.backbone_name}")
+    print(f"Pretrained backbone       : {use_pretrained_backbone}")
     print(f"Device                    : {device}")
     print(f"AMP enabled               : {use_amp}")
     print(f"Train TIFF files          : {len(tif_files)}")

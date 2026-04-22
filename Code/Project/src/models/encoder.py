@@ -1,46 +1,37 @@
-from typing import List, Tuple
+"""
+Unified SSL encoder module for LeJEPA-style training and downstream use.
+
+This file provides:
+- a backbone-agnostic encoder that supports ViT, ResNet50, and DINOv2 backbones,
+- projector and predictor heads for self-supervised training,
+- LeJEPA-like regularization and loss,
+- and backward-compatible class names so older imports do not break.
+
+Phase 2 and Phase 3 only depend on model.encode(...), so the downstream pipeline
+can remain unchanged as long as this interface is preserved.
+"""
+
+from typing import List, Tuple, Dict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-try:
-    import timm
-except ImportError as e:
-    raise ImportError("Please install timm with: pip install timm") from e
+from src.models.backbones import create_backbone
 
 
-class ViTBackbone(nn.Module):
-    def __init__(self, model_name: str = "vit_base_patch16_224", pretrained: bool = False):
-        super().__init__()
-        self.model = timm.create_model(
-            model_name,
-            pretrained=pretrained,
-            num_classes=0,
-            global_pool="",
-        )
-
-        if hasattr(self.model, "num_features"):
-            self.embed_dim = self.model.num_features
-        elif hasattr(self.model, "embed_dim"):
-            self.embed_dim = self.model.embed_dim
-        else:
-            raise ValueError("Could not infer embedding dimension from the backbone.")
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = self.model.forward_features(x)
-        if isinstance(feat, (tuple, list)):
-            feat = feat[0]
-
-        if feat.ndim == 3:
-            if hasattr(self.model, "num_prefix_tokens") and self.model.num_prefix_tokens > 0:
-                return feat[:, 0]
-            return feat.mean(dim=1)
-
-        return feat
+def off_diagonal(x: torch.Tensor) -> torch.Tensor:
+    n, m = x.shape
+    if n != m:
+        raise ValueError("Input must be a square matrix.")
+    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
 
 class MLPProjector(nn.Module):
+    """
+    MLP projector head used for self-supervised learning.
+    """
+
     def __init__(self, in_dim: int, hidden_dim: int = 2048, out_dim: int = 512):
         super().__init__()
         self.net = nn.Sequential(
@@ -54,45 +45,28 @@ class MLPProjector(nn.Module):
         return self.net(x)
 
 
-class LeJEPALikeEncoder(nn.Module):
-    def __init__(
-        self,
-        backbone_name: str,
-        projector_hidden_dim: int = 2048,
-        projector_out_dim: int = 512,
-        backbone_pretrained: bool = False,
-    ) -> None:
+class MLPPredictor(nn.Module):
+    """
+    Predictor head applied after the projector.
+    """
+
+    def __init__(self, dim: int = 512):
         super().__init__()
-        self.backbone = ViTBackbone(backbone_name, pretrained=backbone_pretrained)
-        self.projector = MLPProjector(
-            in_dim=self.backbone.embed_dim,
-            hidden_dim=projector_hidden_dim,
-            out_dim=projector_out_dim,
-        )
-        self.predictor = nn.Sequential(
-            nn.Linear(projector_out_dim, projector_out_dim),
+        self.net = nn.Sequential(
+            nn.Linear(dim, dim),
             nn.GELU(),
-            nn.Linear(projector_out_dim, projector_out_dim),
+            nn.Linear(dim, dim),
         )
 
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
-        return self.backbone(x)
-
-    def project(self, feat: torch.Tensor) -> torch.Tensor:
-        return self.projector(feat)
-
-    def predict(self, proj: torch.Tensor) -> torch.Tensor:
-        return self.predictor(proj)
-
-
-def off_diagonal(x: torch.Tensor) -> torch.Tensor:
-    n, m = x.shape
-    if n != m:
-        raise ValueError("Input must be a square matrix.")
-    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
 
 class SliceRegularization(nn.Module):
+    """
+    Slice-based regularization term to discourage collapsed solutions.
+    """
+
     def __init__(self, num_slices: int = 256):
         super().__init__()
         self.num_slices = num_slices
@@ -109,6 +83,14 @@ class SliceRegularization(nn.Module):
 
 
 class LeJEPALikeLoss(nn.Module):
+    """
+    LeJEPA-like SSL loss composed of:
+    - alignment loss between predicted and target projected views,
+    - variance regularization,
+    - covariance regularization,
+    - slice regularization.
+    """
+
     def __init__(
         self,
         align_weight: float = 1.0,
@@ -128,13 +110,17 @@ class LeJEPALikeLoss(nn.Module):
         var = z.var(dim=0, unbiased=False)
         std = torch.sqrt(var + 1e-4)
         return torch.mean(F.relu(1.0 - std))
-    
+
     def covariance_loss(self, z: torch.Tensor) -> torch.Tensor:
         z = z - z.mean(dim=0)
         cov = (z.T @ z) / max(1, (z.size(0) - 1))
         return off_diagonal(cov).pow(2).sum() / z.size(1)
 
-    def forward(self, predicted_views: List[torch.Tensor], target_views: List[torch.Tensor]) -> Tuple[torch.Tensor, dict]:
+    def forward(
+        self,
+        predicted_views: List[torch.Tensor],
+        target_views: List[torch.Tensor],
+    ) -> Tuple[torch.Tensor, dict]:
         align_losses = []
         var_losses = []
         cov_losses = []
@@ -177,3 +163,80 @@ class LeJEPALikeLoss(nn.Module):
             "slice_loss": float(slice_loss.item()),
         }
         return total, metrics
+
+
+class SSLImageEncoder(nn.Module):
+    """
+    Unified image encoder for LeJEPA-style training and downstream use.
+
+    Supports:
+    - timm ViTs
+    - ResNet50
+    - DINOv2 timm backbones
+
+    Downstream compatibility:
+    - Phase 2 / Phase 3 only need model.encode(x)
+    """
+
+    def __init__(
+        self,
+        backbone_name: str = "vit_base_patch16_224",
+        pretrained_backbone: bool = False,
+        image_size: int = 224,
+        projector_hidden_dim: int = 2048,
+        projector_out_dim: int = 512,
+    ) -> None:
+        super().__init__()
+        self.backbone_name = backbone_name
+        self.pretrained_backbone = pretrained_backbone
+        self.image_size = image_size
+        self.projector_hidden_dim = projector_hidden_dim
+        self.projector_out_dim = projector_out_dim
+
+        self.backbone, self.feature_dim = create_backbone(
+            backbone_name=backbone_name,
+            pretrained=pretrained_backbone,
+            img_size=image_size,
+            in_chans=3,
+        )
+
+        self.projector = MLPProjector(
+            in_dim=self.feature_dim,
+            hidden_dim=projector_hidden_dim,
+            out_dim=projector_out_dim,
+        )
+        self.predictor = MLPPredictor(dim=projector_out_dim)
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return self.backbone(x)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.encode(x)
+
+    def project(self, feat: torch.Tensor) -> torch.Tensor:
+        return self.projector(feat)
+
+    def predict(self, proj: torch.Tensor) -> torch.Tensor:
+        return self.predictor(proj)
+
+
+class LeJEPALikeEncoder(SSLImageEncoder):
+    """
+    Backward-compatible alias for older code paths that still import
+    LeJEPALikeEncoder.
+    """
+
+    def __init__(
+        self,
+        backbone_name: str = "vit_base_patch16_224",
+        projector_hidden_dim: int = 2048,
+        projector_out_dim: int = 512,
+        backbone_pretrained: bool = False,
+    ) -> None:
+        super().__init__(
+            backbone_name=backbone_name,
+            pretrained_backbone=backbone_pretrained,
+            image_size=224,
+            projector_hidden_dim=projector_hidden_dim,
+            projector_out_dim=projector_out_dim,
+        )
