@@ -2,8 +2,9 @@
 Build evaluation input CSV files for three evaluation settings:
 
 1. Direct GT evaluation:
-   Convert valid_points.shp into a CSV where each ground-truth point is matched
-   to the best TIFF tile and stored with its true world coordinates.
+   Convert a valid ground-truth SHP into a CSV where each point is matched to
+   one intersecting TIFF footprint using the same intersection logic that was
+   originally used to build valid_points.shp.
 
 2. Recovery evaluation:
    Create perturbed versions of the direct GT CSV by adding random offsets to the
@@ -13,7 +14,9 @@ Build evaluation input CSV files for three evaluation settings:
    Convert a census CSV into an overlap-only CSV by assigning each point to the
    best-matching TIFF tile based on raster bounds and center distance.
 
-This script does not train any model. It only prepares evaluation inputs.
+Important:
+For direct_gt_from_shp, this script now follows the original SHP/TIFF footprint
+intersection logic instead of using a stricter numeric bounds-only check.
 """
 
 import os
@@ -22,8 +25,127 @@ import argparse
 import pandas as pd
 import geopandas as gpd
 import rasterio
+from shapely.geometry import box
 
 from src.data.tif_io import recursive_find_tif_files
+
+
+def load_raster_footprints(imagery_root: str, target_crs=None):
+    tif_paths = recursive_find_tif_files(imagery_root)
+    footprints = []
+    error_files = []
+
+    for tif in tif_paths:
+        try:
+            with rasterio.open(tif) as src:
+                bounds = src.bounds
+                geom = box(bounds.left, bounds.bottom, bounds.right, bounds.top)
+                gdf = gpd.GeoDataFrame(
+                    {
+                        "image_path": [tif],
+                        "filename": [os.path.basename(tif)],
+                        "geometry": [geom],
+                    },
+                    crs=src.crs,
+                )
+
+                if target_crs is not None and gdf.crs is not None and gdf.crs != target_crs:
+                    gdf = gdf.to_crs(target_crs)
+
+                footprints.append(gdf)
+
+        except Exception as e:
+            error_files.append((tif, str(e)))
+
+    if len(footprints) == 0:
+        raise RuntimeError("No readable TIFF footprints found.")
+
+    footprints_gdf = pd.concat(footprints, ignore_index=True)
+    footprints_gdf = gpd.GeoDataFrame(footprints_gdf, geometry="geometry", crs=target_crs)
+
+    return footprints_gdf, error_files
+
+
+def center_distance_to_polygon(point_geom, poly_geom) -> float:
+    cx = poly_geom.centroid.x
+    cy = poly_geom.centroid.y
+    return math.sqrt((point_geom.x - cx) ** 2 + (point_geom.y - cy) ** 2)
+
+
+def build_direct_gt_from_shp(
+    shp_path: str,
+    imagery_root: str,
+    output_csv: str,
+    label_field: str,
+    point_id_field: str,
+    target_crs: str = "EPSG:32718",
+):
+    gdf = gpd.read_file(shp_path)
+
+    if gdf.crs is None:
+        raise RuntimeError("Input SHP has no CRS. Please define it first.")
+
+    gdf = gdf.to_crs(target_crs).copy()
+
+    if "temp_eval_id" not in gdf.columns:
+        gdf["temp_eval_id"] = range(len(gdf))
+
+    footprints_gdf, error_files = load_raster_footprints(imagery_root, target_crs=gdf.crs)
+
+    rows = []
+    no_match = 0
+
+    for _, row in gdf.iterrows():
+        geom = row.geometry
+        if geom is None or geom.is_empty:
+            continue
+
+        # Same logical idea as the original valid_points builder:
+        # keep a point if it intersects at least one TIFF footprint
+        matches = footprints_gdf[footprints_gdf.geometry.intersects(geom)]
+
+        if len(matches) == 0:
+            no_match += 1
+            continue
+
+        # If multiple TIFFs intersect, choose the one whose footprint centroid
+        # is closest to the point. This adds matched_tif deterministically
+        matches = matches.copy()
+        matches["center_dist"] = matches.geometry.apply(lambda g: center_distance_to_polygon(geom, g))
+        matches = matches.sort_values("center_dist", ascending=True)
+
+        best = matches.iloc[0]
+
+        point_id = str(row[point_id_field]) if point_id_field in gdf.columns else f"gt_{int(row['temp_eval_id'])}"
+        label = str(row[label_field]).strip()
+
+        rows.append(
+            {
+                "point_id": point_id,
+                "label": label,
+                "original_east": float(geom.x),
+                "original_north": float(geom.y),
+                "gt_east": float(geom.x),
+                "gt_north": float(geom.y),
+                "matched_tif": str(best["image_path"]),
+                "num_tif_matches": int(len(matches)),
+                "match_center_distance_m": float(best["center_dist"]),
+                "source": "valid_points_direct",
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    df.to_csv(output_csv, index=False)
+
+    print("=" * 100)
+    print("Direct GT input built from SHP")
+    print(f"SHP path                : {shp_path}")
+    print(f"Output CSV              : {output_csv}")
+    print(f"Rows kept               : {len(df)}")
+    print(f"Rows without TIFF match : {no_match}")
+    if len(error_files) > 0:
+        print(f"Unreadable TIFFs        : {len(error_files)}")
+    print("=" * 100)
 
 
 def load_raster_info(imagery_root: str):
@@ -79,75 +201,6 @@ def assign_best_tif(x: float, y: float, raster_info, tol: float):
     candidates.sort(key=lambda t: t[0])
     best = candidates[0][1]
     return best["path"], len(candidates), float(candidates[0][0])
-
-
-def build_direct_gt_from_shp(
-    shp_path: str,
-    imagery_root: str,
-    output_csv: str,
-    label_field: str,
-    point_id_field: str,
-    tolerance_m: float,
-    target_crs: str = "EPSG:32718",
-):
-    raster_info = load_raster_info(imagery_root)
-    gdf = gpd.read_file(shp_path)
-
-    if gdf.crs is None:
-        raise RuntimeError("Input SHP has no CRS. Please define it first.")
-
-    gdf = gdf.to_crs(target_crs)
-
-    rows = []
-    no_match = 0
-
-    for i, row in gdf.iterrows():
-        geom = row.geometry
-        if geom is None or geom.is_empty:
-            continue
-
-        x = float(geom.x)
-        y = float(geom.y)
-
-        matched_tif, num_matches, center_dist = assign_best_tif(
-            x=x,
-            y=y,
-            raster_info=raster_info,
-            tol=tolerance_m,
-        )
-
-        if matched_tif is None:
-            no_match += 1
-            continue
-
-        point_id = str(row[point_id_field]) if point_id_field in gdf.columns else f"gt_{i}"
-        label = str(row[label_field]).strip()
-
-        rows.append(
-            {
-                "point_id": point_id,
-                "label": label,
-                "original_east": x,
-                "original_north": y,
-                "gt_east": x,
-                "gt_north": y,
-                "matched_tif": matched_tif,
-                "num_tif_matches": num_matches,
-                "match_center_distance_m": center_dist,
-                "source": "valid_points_direct",
-            }
-        )
-
-    df = pd.DataFrame(rows)
-    df.to_csv(output_csv, index=False)
-
-    print("=" * 100)
-    print("Direct GT input built from SHP")
-    print(f"SHP path                : {shp_path}")
-    print(f"Output CSV              : {output_csv}")
-    print(f"Rows kept               : {len(df)}")
-    print(f"Rows without TIFF match : {no_match}")
-    print("=" * 100)
 
 
 def build_overlap_from_censo(
@@ -259,7 +312,6 @@ def parse_args():
     shp.add_argument("--output_csv", required=True)
     shp.add_argument("--label_field", default="Tree")
     shp.add_argument("--point_id_field", default="")
-    shp.add_argument("--tolerance_m", type=float, default=10.0)
     shp.add_argument("--target_crs", default="EPSG:32718")
 
     censo = sub.add_parser("censo_overlap")
@@ -291,7 +343,6 @@ def main():
             output_csv=args.output_csv,
             label_field=args.label_field,
             point_id_field=point_id_field,
-            tolerance_m=args.tolerance_m,
             target_crs=args.target_crs,
         )
     elif args.mode == "censo_overlap":

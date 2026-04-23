@@ -1,12 +1,35 @@
+"""
+Phase 3: feature-guided bounded search for coordinate refinement.
+
+This script supports two kinds of Phase 3 inputs:
+
+1. Original pipeline input format
+   - tile path already provided in a CSV column
+   - coordinates are pixel coordinates
+   - typical for corrected_labels.csv or old phase2 outputs
+
+2. Evaluation input format
+   - tile path stored in a matched TIFF column
+   - coordinates are world coordinates (easting/northing)
+   - typical for valid_points_direct.csv and recovery CSVs
+
+The script keeps the refinement logic unchanged, and only adds:
+- coordinate type handling (pixel or world)
+- flexible tile column naming
+- output augmentation with refined world coordinates
+"""
+
 import argparse
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
+import pandas as pd
+import rasterio
 import torch
 
 from src.models.checkpoint import load_encoder_from_checkpoint
-from src.data.points import load_points_csv
+from src.data.points import InputPoint, load_points_csv
 from src.data.tif_io import recursive_find_tif_files
 from src.data.patches import PatchExtractor, EncoderWrapper
 from src.scoring.prototypes import load_prototypes_csv
@@ -24,6 +47,18 @@ def format_seconds(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
+def world_to_pixel(image_path: str, east: float, north: float):
+    with rasterio.open(image_path) as src:
+        row, col = src.index(float(east), float(north))
+    return float(col), float(row)
+
+
+def pixel_to_world(image_path: str, x_col: float, y_row: float):
+    with rasterio.open(image_path) as src:
+        east, north = src.xy(float(y_row), float(x_col))
+    return float(east), float(north)
+
+
 @dataclass
 class Phase3Config:
     encoder_ckpt: str
@@ -37,6 +72,7 @@ class Phase3Config:
     x_column: str = "x"
     y_column: str = "y"
     target_label_column: str = "target_label"
+    coord_type: str = "pixel"   # pixel or world
 
     image_size: int = 224
     patch_size_px: int = 224
@@ -67,13 +103,95 @@ class TileResolver:
     def resolve(self, value: str) -> str:
         if value in self.lookup:
             return self.lookup[value]
+
         abs_value = os.path.abspath(value)
         if abs_value in self.lookup:
             return self.lookup[abs_value]
+
         base = os.path.basename(value)
         if base in self.lookup:
             return self.lookup[base]
+
         raise FileNotFoundError(f"Could not resolve imagery path: {value}")
+
+
+def load_points_csv_flexible(
+    csv_path: str,
+    tile_column: str,
+    point_id_column: str,
+    x_column: str,
+    y_column: str,
+    target_label_column: str,
+    coord_type: str,
+):
+    df = pd.read_csv(csv_path)
+
+    required = [tile_column, point_id_column, x_column, y_column, target_label_column]
+    for c in required:
+        if c not in df.columns:
+            raise ValueError(f"Missing required column '{c}' in {csv_path}")
+
+    points = []
+    for _, row in df.iterrows():
+        points.append(
+            InputPoint(
+                point_id=str(row[point_id_column]),
+                image_path=str(row[tile_column]),
+                x=float(row[x_column]),
+                y=float(row[y_column]),
+                target_label=str(row[target_label_column]).strip(),
+            )
+        )
+
+    return points, df
+
+
+def convert_points_world_to_pixel(points):
+    converted = []
+    for p in points:
+        x_px, y_px = world_to_pixel(p.image_path, p.x, p.y)
+        converted.append(
+            InputPoint(
+                point_id=p.point_id,
+                image_path=p.image_path,
+                x=x_px,
+                y=y_px,
+                target_label=p.target_label,
+            )
+        )
+    return converted
+
+
+def augment_output_with_world_coords(output_csv: str):
+    df = pd.read_csv(output_csv)
+
+    refined_east = []
+    refined_north = []
+    coarse_east = []
+    coarse_north = []
+
+    for _, row in df.iterrows():
+        try:
+            re, rn = pixel_to_world(row["image_path"], row["refined_x"], row["refined_y"])
+        except Exception:
+            re, rn = float("nan"), float("nan")
+
+        try:
+            ce, cn = pixel_to_world(row["image_path"], row["coarse_x"], row["coarse_y"])
+        except Exception:
+            ce, cn = float("nan"), float("nan")
+
+        refined_east.append(re)
+        refined_north.append(rn)
+        coarse_east.append(ce)
+        coarse_north.append(cn)
+
+    df["refined_east"] = refined_east
+    df["refined_north"] = refined_north
+    df["coarse_east"] = coarse_east
+    df["coarse_north"] = coarse_north
+
+    df.to_csv(output_csv, index=False)
 
 
 def parse_args():
@@ -92,6 +210,7 @@ def parse_args():
     parser.add_argument("--x_column", type=str, default="x")
     parser.add_argument("--y_column", type=str, default="y")
     parser.add_argument("--target_label_column", type=str, default="corrected_label")
+    parser.add_argument("--coord_type", type=str, default="pixel", choices=["pixel", "world"])
 
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--patch_size_px", type=int, default=224)
@@ -126,6 +245,7 @@ def main():
         x_column=args.x_column,
         y_column=args.y_column,
         target_label_column=args.target_label_column,
+        coord_type=args.coord_type,
         image_size=args.image_size,
         patch_size_px=args.patch_size_px,
         search_radius_px=args.search_radius_px,
@@ -159,17 +279,23 @@ def main():
     prototypes = load_prototypes_csv(config.prototypes_csv)
     tile_resolver = TileResolver(config.imagery_root)
 
-    points = load_points_csv(
+    # Flexible CSV loading
+    points, raw_df = load_points_csv_flexible(
         csv_path=config.points_csv,
         tile_column=config.tile_column,
         point_id_column=config.point_id_column,
         x_column=config.x_column,
         y_column=config.y_column,
         target_label_column=config.target_label_column,
+        coord_type=config.coord_type,
     )
 
     for p in points:
         p.image_path = tile_resolver.resolve(p.image_path)
+
+    # If input coordinates are in world CRS, convert them to pixel before refinement
+    if config.coord_type == "world":
+        points = convert_points_world_to_pixel(points)
 
     patch_extractor = PatchExtractor(patch_size_px=config.patch_size_px)
 
@@ -194,12 +320,22 @@ def main():
     print(f"Points CSV         : {config.points_csv}")
     print(f"Imagery root       : {config.imagery_root}")
     print(f"Output CSV         : {config.output_csv}")
+    print(f"Coordinate type    : {config.coord_type}")
     print(f"Points loaded      : {len(points)}")
     print("=" * 100)
 
     results = pipeline.run(points)
 
     save_refinement_results_csv(results, config.output_csv)
+    augment_output_with_world_coords(config.output_csv)
+
+    # Merge original input columns back in if useful
+    out_df = pd.read_csv(config.output_csv)
+    if "point_id" in raw_df.columns:
+        raw_df["point_id"] = raw_df["point_id"].astype(str)
+        out_df["point_id"] = out_df["point_id"].astype(str)
+        merged = out_df.merge(raw_df, on="point_id", how="left", suffixes=("", "_input"))
+        merged.to_csv(config.output_csv, index=False)
 
     elapsed = time.time() - start_time
     print("=" * 100)
