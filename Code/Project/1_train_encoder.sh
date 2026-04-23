@@ -30,16 +30,16 @@ conda activate lejepa
 
 python train_encoder.py \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_resnet50" \
-  --backbone_name "resnet50" \
+  --output_dir "./outputs/phase1_dino" \
+  --backbone_name "vit_small_patch14_dinov2.lvd142m" \
   --pretrained_backbone \
   --ssl_epochs 20 \
-  --batch_size_ssl 16 \
+  --batch_size_ssl 8 \
   --patches_per_image 10 \
   --num_workers 4 \
   --device cuda \
   --extract_stride_px 1024 \
-  --extract_batch_size 32 \
+  --extract_batch_size 16 \
   --image_size_global 224 \
   --image_size_local 224 \
   --max_extract_patches_per_image 20
