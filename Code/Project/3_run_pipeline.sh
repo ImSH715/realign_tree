@@ -32,13 +32,14 @@ python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
   --points_csv "./outputs/evaluation/valid_points_recovery_5m.csv" \
-  --imagery_root "/mnt/.../Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_csv "./outputs/evaluation/refined_recovery_5m.csv" \
-  --label_column "target_label" \
+  --tile_column "matched_tif" \
+  --point_id_column "point_id" \
   --x_column "original_east" \
   --y_column "original_north" \
-  --faja_column "FAJA" \
-  --pca_column "PCA" \
+  --target_label_column "label" \
+  --coord_type world \
   --search_radius_px 128 \
   --coarse_step_px 16 \
   --refine_radius_px 32 \
@@ -48,5 +49,16 @@ python run_pipeline.py \
   --beta 0.002 \
   --batch_size 32 \
   --device cuda
-  
+
+
+: << 'COMMENT'
+python run_pipeline.py \
+  --points_csv "./outputs/phase2/corrected_labels.csv" \
+  --tile_column "image_path" \
+  --x_column "x" \
+  --y_column "y" \
+  --target_label_column "corrected_label" \
+  --coord_type pixel
+COMMENT
+
 echo "Job finished at $(date)"
