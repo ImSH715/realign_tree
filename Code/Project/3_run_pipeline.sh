@@ -31,12 +31,14 @@ conda activate lejepa
 python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "./outputs/evaluation/random_5_15_input.csv" \
+  --points_csv "./outputs/evaluation/valid_points_recovery_5m.csv" \
   --imagery_root "/mnt/.../Ortomosaicos/2023" \
-  --output_csv "./outputs/evaluation/refined_random_5_15.csv" \
+  --output_csv "./outputs/evaluation/refined_recovery_5m.csv" \
   --label_column "target_label" \
   --x_column "original_east" \
   --y_column "original_north" \
+  --faja_column "FAJA" \
+  --pca_column "PCA" \
   --search_radius_px 128 \
   --coarse_step_px 16 \
   --refine_radius_px 32 \
