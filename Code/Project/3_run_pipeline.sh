@@ -33,7 +33,7 @@ python run_pipeline.py \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
   --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_csv "./outputs/evaluation/refined_recovery_5m.csv" \
+  --output_csv "./outputs/evaluation/refined_recovery_20m.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
