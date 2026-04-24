@@ -31,14 +31,14 @@ conda activate lejepa
 python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_csv "./outputs/evaluation/refined_recovery_20m.csv" \
-  --tile_column "matched_tif" \
-  --point_id_column "point_id" \
-  --x_column "original_east" \
-  --y_column "original_north" \
-  --target_label_column "label" \
+  --points_csv "./outputs/debug_qgis_overlap/censo_shihuahuaco_only.csv"\
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
+  --output_csv "./outputs/evaluation/refined_censo_overlap.csv" \
+  --tile_column "image_path" \
+  --point_id_column "index" \
+  --x_column "COORDENADA_ESTE" \
+  --y_column "COORDENADA_NORTE" \
+  --target_label_column "NOMBRE_COMUN" \
   --coord_type world \
   --search_radius_px 128 \
   --coarse_step_px 16 \
@@ -49,7 +49,6 @@ python run_pipeline.py \
   --beta 0.002 \
   --batch_size 32 \
   --device cuda
-
 
 : << 'COMMENT'
 python run_pipeline.py \
