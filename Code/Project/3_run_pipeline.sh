@@ -31,7 +31,7 @@ conda activate lejepa
 python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "./outputs/evaluation/valid_points_recovery_5m.csv" \
+  --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_csv "./outputs/evaluation/refined_recovery_5m.csv" \
   --tile_column "matched_tif" \
