@@ -56,6 +56,5 @@ python build_eval_inputs.py censo_overlap \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
   --label_column "NOMBRE_COMUN" \
-  --tolerance_m 10.0
 
 echo "Job finished at $(date)"
