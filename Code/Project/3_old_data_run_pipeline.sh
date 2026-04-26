@@ -42,7 +42,6 @@ python old_data_run_pipeline.py \
   --alpha 1.0 \
   --beta 0.0002 \
   --batch_size 32 \
-  --filter_label "shihuahuaco"\
   --device cuda
 
 echo "Job finished at $(date)"
