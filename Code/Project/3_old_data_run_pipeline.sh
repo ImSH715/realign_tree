@@ -37,7 +37,6 @@ python old_data_run_pipeline.py \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
   --image_column "matched_tif" \
-  --filter_label "Shihuahuaco" \
   --search_radius_px 192 \
   --coarse_step_px 8 \
   --refine_radius_px 48 \
@@ -47,5 +46,6 @@ python old_data_run_pipeline.py \
   --beta 0.0002 \
   --batch_size 32 \
   --device cuda
+
 
 echo "Job finished at $(date)"
