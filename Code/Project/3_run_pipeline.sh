@@ -1,44 +1,37 @@
 #!/bin/bash
 
-# --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=LeJEPA_train
-#SBATCH --partition=gpu                # Partition: gpu
-#SBATCH --qos=gpu                      # QOS: gpu
-#SBATCH --gres=gpu:1                   # Request 1 GPU
-#SBATCH --mem=82G                      # Request 82GB RAM
-#SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
-#SBATCH --nodes=1                      # Single node
-#SBATCH --ntasks=1                     # Single task
-#SBATCH --time=90:00:00                # Time limit (HH:MM:SS)
-#SBATCH --output=result_%j.out         # Standard output log
-#SBATCH --error=result_%j.err          # Error log
+#SBATCH --job-name=phase3_recovery20
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=82G
+#SBATCH --cpus-per-task=8
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=90:00:00
+#SBATCH --output=phase3_recovery20_%j.out
+#SBATCH --error=phase3_recovery20_%j.err
+#SBATCH --mail-type=END,FAIL
 
-# --- 2. Email Notification Settings ---
-#SBATCH --mail-type=END,FAIL           # Notify when finished or failed
-
-# --- 3. Environment Setup (Stanage Optimized) ---
 module load Anaconda3
-
 eval "$(conda shell.bash hook)"
-
 conda activate lejepa
 
 echo "Using Python from: $(which python)"
 python --version
-
-conda activate lejepa
+echo "Job started at $(date)"
 
 python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2/class_prototypes.csv" \
-  --points_csv "./outputs/debug_qgis_overlap/censo_shihuahuaco_only.csv"\
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "./outputs/evaluation/refined_censo_overlap.csv" \
-  --tile_column "image_path" \
-  --point_id_column "index" \
-  --x_column "COORDENADA_ESTE" \
-  --y_column "COORDENADA_NORTE" \
-  --target_label_column "NOMBRE_COMUN" \
+  --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --output_csv "./outputs/evaluation/refined_valid_points_recovery_20m.csv" \
+  --tile_column "matched_tif" \
+  --point_id_column "point_id" \
+  --x_column "original_east" \
+  --y_column "original_north" \
+  --target_label_column "label" \
   --coord_type world \
   --search_radius_px 128 \
   --coarse_step_px 16 \
@@ -59,5 +52,4 @@ python run_pipeline.py \
   --target_label_column "corrected_label" \
   --coord_type pixel
 COMMENT
-
 echo "Job finished at $(date)"

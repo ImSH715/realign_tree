@@ -1,3 +1,15 @@
+"""
+Phase 3 refinement pipeline.
+
+This script refines target points using a trained LeJEPA encoder and class
+prototypes. It supports world-coordinate input CSVs such as Censo overlap files.
+
+Expected CSV columns:
+- label column, e.g. NOMBRE_COMUN
+- x/y world coordinate columns, e.g. COORDENADA_ESTE / COORDENADA_NORTE
+- image path column, e.g. matched_tif
+"""
+
 import argparse
 import time
 from dataclasses import dataclass
@@ -19,9 +31,13 @@ def format_seconds(seconds: float) -> str:
     h = seconds // 3600
     m = (seconds % 3600) // 60
     s = seconds % 60
-    if h > 0:
-        return f"{h:02d}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
+    return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+
+
+def pixel_to_world(image_path, col, row):
+    with rasterio.open(image_path) as src:
+        xw, yw = src.xy(float(row), float(col))
+    return float(xw), float(yw)
 
 
 @dataclass
@@ -35,50 +51,51 @@ class Phase3Config:
     x_column: str
     y_column: str
     image_column: str
+    point_id_column: str = ""
 
     image_size: int = 224
     patch_size_px: int = 224
 
-    search_radius_px: int = 128
-    coarse_step_px: int = 16
-    refine_radius_px: int = 32
-    refine_step_px: int = 8
+    search_radius_px: int = 192
+    coarse_step_px: int = 8
+    refine_radius_px: int = 48
+    refine_step_px: int = 4
 
     similarity: str = "cosine"
     alpha: float = 1.0
-    beta: float = 0.002
+    beta: float = 0.0002
 
-    batch_size: int = 64
+    batch_size: int = 32
     device: str = "cuda"
     mixed_precision: bool = True
-
     filter_label: str = ""
 
 
-def load_censo_points(
-    csv_path: str,
-    label_column: str,
-    x_column: str,
-    y_column: str,
-    image_column: str,
-    filter_label: str = "",
+def load_target_points(
+    csv_path,
+    label_column,
+    x_column,
+    y_column,
+    image_column,
+    point_id_column="",
+    filter_label="",
 ):
     df = pd.read_csv(csv_path)
 
     required = [label_column, x_column, y_column, image_column]
     for col in required:
         if col not in df.columns:
-            raise ValueError(
-                f"Missing required column '{col}' in CSV. "
-                f"Available columns: {df.columns.tolist()}"
-            )
+            raise ValueError(f"Missing column '{col}'. Available: {df.columns.tolist()}")
 
     df[label_column] = df[label_column].astype(str).str.strip()
 
     if filter_label:
-        df = df[df[label_column].str.lower() == filter_label.strip().lower()].copy()
+        df = df[
+            df[label_column].str.lower() == filter_label.strip().lower()
+        ].copy()
 
     points = []
+    kept_rows = []
 
     for i, row in df.iterrows():
         try:
@@ -89,27 +106,79 @@ def load_censo_points(
             with rasterio.open(image_path) as src:
                 r, c = src.index(x_world, y_world)
 
+                if not (0 <= c < src.width and 0 <= r < src.height):
+                    print(f"[WARN] Skipping row {i}: pixel outside image col={c}, row={r}")
+                    continue
+
+            if point_id_column and point_id_column in df.columns:
+                point_id = str(row[point_id_column])
+            elif "point_id" in df.columns:
+                point_id = str(row["point_id"])
+            elif "index" in df.columns:
+                point_id = str(row["index"])
+            else:
+                point_id = f"pt_{i}"
+
             points.append(
                 InputPoint(
-                    point_id=f"pt_{i}",
+                    point_id=point_id,
                     image_path=image_path,
                     x=float(c),
                     y=float(r),
                     target_label=str(row[label_column]).strip(),
                 )
             )
+            kept_rows.append(row)
 
         except Exception as e:
             print(f"[WARN] Skipping row {i}: {e}")
 
+    meta_df = pd.DataFrame(kept_rows)
     print(f"[INFO] Loaded points: {len(points)}")
-    return points
+    return points, meta_df
+
+
+def add_world_coords_to_output(output_csv):
+    df = pd.read_csv(output_csv)
+
+    refined_east, refined_north = [], []
+    coarse_east, coarse_north = [], []
+    original_east, original_north = [], []
+
+    for _, row in df.iterrows():
+        try:
+            xw, yw = pixel_to_world(row["image_path"], row["refined_x"], row["refined_y"])
+        except Exception:
+            xw, yw = float("nan"), float("nan")
+        refined_east.append(xw)
+        refined_north.append(yw)
+
+        try:
+            xw, yw = pixel_to_world(row["image_path"], row["coarse_x"], row["coarse_y"])
+        except Exception:
+            xw, yw = float("nan"), float("nan")
+        coarse_east.append(xw)
+        coarse_north.append(yw)
+
+        try:
+            xw, yw = pixel_to_world(row["image_path"], row["original_x"], row["original_y"])
+        except Exception:
+            xw, yw = float("nan"), float("nan")
+        original_east.append(xw)
+        original_north.append(yw)
+
+    df["original_east"] = original_east
+    df["original_north"] = original_north
+    df["refined_east"] = refined_east
+    df["refined_north"] = refined_north
+    df["coarse_east"] = coarse_east
+    df["coarse_north"] = coarse_north
+
+    df.to_csv(output_csv, index=False)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Phase 3: bounded-search refinement on overlap-only census points"
-    )
+    parser = argparse.ArgumentParser(description="Phase 3 refinement pipeline")
 
     parser.add_argument("--encoder_ckpt", required=True)
     parser.add_argument("--prototypes_csv", required=True)
@@ -120,19 +189,20 @@ def parse_args():
     parser.add_argument("--x_column", required=True)
     parser.add_argument("--y_column", required=True)
     parser.add_argument("--image_column", default="matched_tif")
+    parser.add_argument("--point_id_column", default="")
     parser.add_argument("--filter_label", default="")
 
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--patch_size_px", type=int, default=224)
 
-    parser.add_argument("--search_radius_px", type=int, default=128)
-    parser.add_argument("--coarse_step_px", type=int, default=16)
-    parser.add_argument("--refine_radius_px", type=int, default=32)
-    parser.add_argument("--refine_step_px", type=int, default=8)
+    parser.add_argument("--search_radius_px", type=int, default=192)
+    parser.add_argument("--coarse_step_px", type=int, default=8)
+    parser.add_argument("--refine_radius_px", type=int, default=48)
+    parser.add_argument("--refine_step_px", type=int, default=4)
 
     parser.add_argument("--similarity", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--alpha", type=float, default=1.0)
-    parser.add_argument("--beta", type=float, default=0.002)
+    parser.add_argument("--beta", type=float, default=0.0002)
 
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--device", default="cuda")
@@ -153,6 +223,7 @@ def main():
         x_column=args.x_column,
         y_column=args.y_column,
         image_column=args.image_column,
+        point_id_column=args.point_id_column,
         image_size=args.image_size,
         patch_size_px=args.patch_size_px,
         search_radius_px=args.search_radius_px,
@@ -185,12 +256,13 @@ def main():
 
     prototypes = load_prototypes_csv(config.prototypes_csv)
 
-    points = load_censo_points(
+    points, _ = load_target_points(
         csv_path=config.points_csv,
         label_column=config.label_column,
         x_column=config.x_column,
         y_column=config.y_column,
         image_column=config.image_column,
+        point_id_column=config.point_id_column,
         filter_label=config.filter_label,
     )
 
@@ -222,7 +294,9 @@ def main():
 
     start = time.time()
     results = pipeline.run(points)
+
     save_refinement_results_csv(results, config.output_csv)
+    add_world_coords_to_output(config.output_csv)
 
     print("=" * 80)
     print("Phase 3 completed")
