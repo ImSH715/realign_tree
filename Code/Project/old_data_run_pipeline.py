@@ -1,13 +1,21 @@
 """
-Phase 3 refinement pipeline.
+Phase 3 refinement pipeline for old/Turing_L Censo data.
 
-This script refines target points using a trained LeJEPA encoder and class
-prototypes. It supports world-coordinate input CSVs such as Censo overlap files.
+This script is designed for Censo overlap CSV files where each row already has:
+- a world-coordinate point, e.g. COORDENADA_ESTE / COORDENADA_NORTE
+- a label, e.g. NOMBRE_COMUN
+- a matched TIFF path, e.g. matched_tif
 
-Expected CSV columns:
-- label column, e.g. NOMBRE_COMUN
-- x/y world coordinate columns, e.g. COORDENADA_ESTE / COORDENADA_NORTE
-- image path column, e.g. matched_tif
+Mechanism:
+1. Read world coordinates from CSV.
+2. Open the matched TIFF for each point.
+3. Convert world coordinates to pixel coordinates with rasterio.index().
+4. Run Phase 3 feature-guided bounded search in pixel space.
+5. Convert original/coarse/refined pixel coordinates back to world coordinates.
+6. Save output CSV with both pixel and world coordinates.
+
+This prevents the previous bug where world coordinates such as 458000/9150000
+were accidentally treated as pixel coordinates.
 """
 
 import argparse
@@ -34,10 +42,25 @@ def format_seconds(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
 
-def pixel_to_world(image_path, col, row):
+def pixel_to_world(image_path: str, col: float, row: float):
     with rasterio.open(image_path) as src:
-        xw, yw = src.xy(float(row), float(col))
-    return float(xw), float(yw)
+        east, north = src.xy(float(row), float(col))
+    return float(east), float(north)
+
+
+def world_to_pixel_checked(image_path: str, east: float, north: float):
+    with rasterio.open(image_path) as src:
+        row, col = src.index(float(east), float(north))
+
+        inside = (0 <= col < src.width) and (0 <= row < src.height)
+        if not inside:
+            raise ValueError(
+                f"world point outside TIFF after conversion: "
+                f"east={east}, north={north}, col={col}, row={row}, "
+                f"width={src.width}, height={src.height}, bounds={src.bounds}"
+            )
+
+    return float(col), float(row)
 
 
 @dataclass
@@ -72,43 +95,39 @@ class Phase3Config:
 
 
 def load_target_points(
-    csv_path,
-    label_column,
-    x_column,
-    y_column,
-    image_column,
-    point_id_column="",
-    filter_label="",
+    csv_path: str,
+    label_column: str,
+    x_column: str,
+    y_column: str,
+    image_column: str,
+    point_id_column: str = "",
+    filter_label: str = "",
 ):
     df = pd.read_csv(csv_path)
 
     required = [label_column, x_column, y_column, image_column]
     for col in required:
         if col not in df.columns:
-            raise ValueError(f"Missing column '{col}'. Available: {df.columns.tolist()}")
+            raise ValueError(f"Missing column '{col}'. Available columns: {df.columns.tolist()}")
 
     df[label_column] = df[label_column].astype(str).str.strip()
+    df[image_column] = df[image_column].astype(str).str.strip()
 
     if filter_label:
-        df = df[
-            df[label_column].str.lower() == filter_label.strip().lower()
-        ].copy()
+        df = df[df[label_column].str.lower() == filter_label.strip().lower()].copy()
 
     points = []
     kept_rows = []
+    skipped = 0
 
     for i, row in df.iterrows():
         try:
             image_path = str(row[image_column]).strip()
-            x_world = float(row[x_column])
-            y_world = float(row[y_column])
+            east = float(row[x_column])
+            north = float(row[y_column])
+            label = str(row[label_column]).strip()
 
-            with rasterio.open(image_path) as src:
-                r, c = src.index(x_world, y_world)
-
-                if not (0 <= c < src.width and 0 <= r < src.height):
-                    print(f"[WARN] Skipping row {i}: pixel outside image col={c}, row={r}")
-                    continue
+            col, pix_row = world_to_pixel_checked(image_path, east, north)
 
             if point_id_column and point_id_column in df.columns:
                 point_id = str(row[point_id_column])
@@ -123,49 +142,59 @@ def load_target_points(
                 InputPoint(
                     point_id=point_id,
                     image_path=image_path,
-                    x=float(c),
-                    y=float(r),
-                    target_label=str(row[label_column]).strip(),
+                    x=col,
+                    y=pix_row,
+                    target_label=label,
                 )
             )
-            kept_rows.append(row)
+
+            kept = row.copy()
+            kept["_phase3_point_id"] = point_id
+            kept["_input_pixel_x"] = col
+            kept["_input_pixel_y"] = pix_row
+            kept_rows.append(kept)
 
         except Exception as e:
+            skipped += 1
             print(f"[WARN] Skipping row {i}: {e}")
 
     meta_df = pd.DataFrame(kept_rows)
+
     print(f"[INFO] Loaded points: {len(points)}")
+    print(f"[INFO] Skipped rows : {skipped}")
     return points, meta_df
 
 
-def add_world_coords_to_output(output_csv):
+def add_world_coords_to_output(output_csv: str):
     df = pd.read_csv(output_csv)
 
+    original_east, original_north = [], []
     refined_east, refined_north = [], []
     coarse_east, coarse_north = [], []
-    original_east, original_north = [], []
 
     for _, row in df.iterrows():
+        image_path = row["image_path"]
+
         try:
-            xw, yw = pixel_to_world(row["image_path"], row["refined_x"], row["refined_y"])
+            xw, yw = pixel_to_world(image_path, row["original_x"], row["original_y"])
+        except Exception:
+            xw, yw = float("nan"), float("nan")
+        original_east.append(xw)
+        original_north.append(yw)
+
+        try:
+            xw, yw = pixel_to_world(image_path, row["refined_x"], row["refined_y"])
         except Exception:
             xw, yw = float("nan"), float("nan")
         refined_east.append(xw)
         refined_north.append(yw)
 
         try:
-            xw, yw = pixel_to_world(row["image_path"], row["coarse_x"], row["coarse_y"])
+            xw, yw = pixel_to_world(image_path, row["coarse_x"], row["coarse_y"])
         except Exception:
             xw, yw = float("nan"), float("nan")
         coarse_east.append(xw)
         coarse_north.append(yw)
-
-        try:
-            xw, yw = pixel_to_world(row["image_path"], row["original_x"], row["original_y"])
-        except Exception:
-            xw, yw = float("nan"), float("nan")
-        original_east.append(xw)
-        original_north.append(yw)
 
     df["original_east"] = original_east
     df["original_north"] = original_north
@@ -177,8 +206,31 @@ def add_world_coords_to_output(output_csv):
     df.to_csv(output_csv, index=False)
 
 
+def merge_original_csv_columns(output_csv: str, meta_df: pd.DataFrame):
+    if meta_df.empty:
+        return
+
+    out = pd.read_csv(output_csv)
+
+    meta = meta_df.copy()
+    meta["_phase3_point_id"] = meta["_phase3_point_id"].astype(str)
+    out["point_id"] = out["point_id"].astype(str)
+
+    merged = out.merge(
+        meta,
+        left_on="point_id",
+        right_on="_phase3_point_id",
+        how="left",
+        suffixes=("", "_input"),
+    )
+
+    merged.to_csv(output_csv, index=False)
+
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="Phase 3 refinement pipeline")
+    parser = argparse.ArgumentParser(
+        description="Phase 3 refinement for old/Turing_L Censo overlap data"
+    )
 
     parser.add_argument("--encoder_ckpt", required=True)
     parser.add_argument("--prototypes_csv", required=True)
@@ -256,7 +308,7 @@ def main():
 
     prototypes = load_prototypes_csv(config.prototypes_csv)
 
-    points, _ = load_target_points(
+    points, meta_df = load_target_points(
         csv_path=config.points_csv,
         label_column=config.label_column,
         x_column=config.x_column,
@@ -293,10 +345,12 @@ def main():
     print("=" * 80)
 
     start = time.time()
+
     results = pipeline.run(points)
 
     save_refinement_results_csv(results, config.output_csv)
     add_world_coords_to_output(config.output_csv)
+    merge_original_csv_columns(config.output_csv, meta_df)
 
     print("=" * 80)
     print("Phase 3 completed")
