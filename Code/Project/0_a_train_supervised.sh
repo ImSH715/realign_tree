@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=supervised_lejepa
+#SBATCH --job-name=0_a_resnet50
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
