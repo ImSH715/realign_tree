@@ -1,16 +1,17 @@
 """
 Supervised fine-tuning for the LeJEPA encoder using GT tree labels.
 
-This script:
-- loads a pretrained/self-supervised encoder checkpoint,
-- reads GT points from SHP,
-- crops patches centered at fx/fy,
-- trains a classifier head with cross-entropy,
-- updates the encoder so the feature space becomes species-aware,
-- saves the best encoder checkpoint for Phase 2 / Phase 3.
-
-Use this when self-supervised embeddings collapse and class prototypes are not
-separable.
+Outputs:
+- phase1_encoder_best.pth
+- phase1_encoder_last.pth
+- phase1_epoch_XXX.pth
+- classifier_head_best.pth
+- classifier_head_last.pth
+- classifier_head_epoch_XXX.pth
+- training_history.csv
+- class_to_idx.json
+- label_counts.json
+- val_classification_report.json
 """
 
 import argparse
@@ -21,6 +22,7 @@ from dataclasses import asdict, dataclass
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import rasterio
 import torch
 import torch.nn as nn
@@ -45,6 +47,7 @@ class Config:
     file_field: str = "File"
     fx_field: str = "fx"
     fy_field: str = "fy"
+    coord_mode: str = "auto"  # auto, pixel, normalized
 
     image_size: int = 224
     patch_size_px: int = 224
@@ -57,6 +60,9 @@ class Config:
     device: str = "cuda"
     seed: int = 42
     use_amp: bool = True
+    use_class_weights: bool = True
+    save_every: int = 1
+    monitor_metric: str = "val_macro_f1"
 
 
 def set_seed(seed):
@@ -85,28 +91,58 @@ def resolve_tif_path(imagery_root, folder, filename):
     if len(tif_paths) == 0:
         raise FileNotFoundError(f"No TIFF files found inside folder: {folder_root}")
 
-    matches = []
+    exact = []
+    contains = []
+    reverse_contains = []
+
     for p in tif_paths:
         tif_stem = os.path.splitext(os.path.basename(p))[0].lower()
-        if stem in tif_stem:
-            matches.append(p)
 
-    if len(matches) == 1:
-        return matches[0]
+        if tif_stem == stem:
+            exact.append(p)
+        elif stem in tif_stem:
+            contains.append(p)
+        elif tif_stem in stem:
+            reverse_contains.append(p)
 
-    if len(matches) > 1:
-        matches = sorted(matches, key=len)
-        return matches[0]
+    if exact:
+        return sorted(exact, key=len)[0]
+    if contains:
+        return sorted(contains, key=len)[0]
+    if reverse_contains:
+        return sorted(reverse_contains, key=len)[0]
 
     raise FileNotFoundError(
         f"No matching TIFF in folder={folder_root} for file stem={stem}. "
-        f"Found {len(tif_paths)} TIFFs."
+        f"Found {len(tif_paths)} TIFFs. First files: "
+        f"{[os.path.basename(p) for p in tif_paths[:10]]}"
     )
 
-def read_patch(image_path, cx, cy, patch_size):
+
+def convert_coord_if_needed(src, cx, cy, coord_mode):
+    cx = float(cx)
+    cy = float(cy)
+
+    if coord_mode == "pixel":
+        return cx, cy
+
+    if coord_mode == "normalized":
+        return cx * src.width, cy * src.height
+
+    if coord_mode == "auto":
+        if 0.0 <= cx <= 1.0 and 0.0 <= cy <= 1.0:
+            return cx * src.width, cy * src.height
+        return cx, cy
+
+    raise ValueError("coord_mode must be one of: auto, pixel, normalized")
+
+
+def read_patch(image_path, cx, cy, patch_size, coord_mode="auto"):
     half = patch_size // 2
 
     with rasterio.open(image_path) as src:
+        cx, cy = convert_coord_if_needed(src, cx, cy, coord_mode)
+
         col0 = int(round(cx)) - half
         row0 = int(round(cy)) - half
 
@@ -143,6 +179,7 @@ class GTPointDataset(Dataset):
         fy_field,
         patch_size_px,
         transform,
+        coord_mode="auto",
         class_to_idx=None,
     ):
         self.gdf = gpd.read_file(shp_path)
@@ -157,6 +194,12 @@ class GTPointDataset(Dataset):
         self.fy_field = fy_field
         self.patch_size_px = patch_size_px
         self.transform = transform
+        self.coord_mode = coord_mode
+
+        required = [label_field, folder_field, file_field, fx_field, fy_field]
+        for c in required:
+            if c not in self.gdf.columns:
+                raise ValueError(f"Missing required field '{c}'. Available: {self.gdf.columns.tolist()}")
 
         if class_to_idx is None:
             classes = sorted(self.gdf[label_field].unique().tolist())
@@ -169,13 +212,22 @@ class GTPointDataset(Dataset):
         self.rows = []
         for _, row in self.gdf.iterrows():
             label = str(row[label_field]).strip()
-            if label not in self.class_to_idx:
-                continue
-
-            self.rows.append(row)
+            if label in self.class_to_idx:
+                self.rows.append(row)
 
     def __len__(self):
         return len(self.rows)
+
+    def label_counts(self):
+        labels = [str(r[self.label_field]).strip() for r in self.rows]
+        return pd.Series(labels).value_counts().to_dict()
+
+    def targets(self):
+        ys = []
+        for r in self.rows:
+            label = str(r[self.label_field]).strip()
+            ys.append(self.class_to_idx[label])
+        return ys
 
     def __getitem__(self, idx):
         row = self.rows[idx]
@@ -191,6 +243,7 @@ class GTPointDataset(Dataset):
             cx=float(row[self.fx_field]),
             cy=float(row[self.fy_field]),
             patch_size=self.patch_size_px,
+            coord_mode=self.coord_mode,
         )
 
         x = self.transform(patch)
@@ -207,8 +260,10 @@ def build_train_transform(image_size):
         transforms.RandomVerticalFlip(),
         transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        ),
     ])
 
 
@@ -216,8 +271,10 @@ def build_eval_transform(image_size):
     return transforms.Compose([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        ),
     ])
 
 
@@ -261,25 +318,84 @@ def save_compatible_checkpoint(init_ckpt, model, output_path, extra):
         updated = dict(ckpt)
 
         replaced = False
-        for key in ["model", "model_state_dict", "encoder", "encoder_state_dict", "state_dict"]:
+        for key in ["model_state", "model", "model_state_dict", "encoder", "encoder_state_dict", "state_dict"]:
             if key in updated and isinstance(updated[key], dict):
                 updated[key] = state
                 replaced = True
                 break
 
         if not replaced:
-            updated["model_state_dict"] = state
+            updated["model_state"] = state
 
         updated["supervised_finetune"] = extra
         torch.save(updated, output_path)
     else:
         torch.save(
-            {"model_state_dict": state, "supervised_finetune": extra},
+            {"model_state": state, "supervised_finetune": extra},
             output_path,
         )
 
 
-def run_epoch(model, head, loader, criterion, optimizer, scaler, device, train=True):
+def save_checkpoint_bundle(
+    cfg,
+    init_ckpt,
+    model,
+    head,
+    feat_dim,
+    epoch,
+    metric_value,
+    classes,
+    class_to_idx,
+    name,
+):
+    encoder_path = os.path.join(cfg.output_dir, f"phase1_encoder_{name}.pth")
+    head_path = os.path.join(cfg.output_dir, f"classifier_head_{name}.pth")
+
+    extra = {
+        "epoch": int(epoch),
+        "metric_name": cfg.monitor_metric,
+        "metric_value": float(metric_value),
+        "classes": classes,
+        "class_to_idx": class_to_idx,
+        "coord_mode": cfg.coord_mode,
+        "supervised": True,
+    }
+
+    save_compatible_checkpoint(
+        init_ckpt=init_ckpt,
+        model=model,
+        output_path=encoder_path,
+        extra=extra,
+    )
+
+    torch.save(
+        {
+            "head_state_dict": head.state_dict(),
+            "classes": classes,
+            "class_to_idx": class_to_idx,
+            "feat_dim": feat_dim,
+            "epoch": int(epoch),
+            "metric_name": cfg.monitor_metric,
+            "metric_value": float(metric_value),
+        },
+        head_path,
+    )
+
+    return encoder_path, head_path
+
+
+def compute_class_weights(dataset, num_classes, device):
+    targets = np.array(dataset.targets(), dtype=np.int64)
+    counts = np.bincount(targets, minlength=num_classes).astype(np.float32)
+
+    counts[counts == 0] = 1.0
+    weights = counts.sum() / (num_classes * counts)
+    weights = weights / weights.mean()
+
+    return torch.tensor(weights, dtype=torch.float32, device=device)
+
+
+def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp, train=True):
     model.train(train)
     head.train(train)
 
@@ -295,7 +411,7 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, train=T
             optimizer.zero_grad(set_to_none=True)
 
         with torch.set_grad_enabled(train):
-            with torch.amp.autocast(device_type=device.type, enabled=(scaler is not None)):
+            with torch.amp.autocast(device_type=device.type, enabled=use_amp):
                 z = forward_features(model, x)
                 logits = head(z)
                 loss = criterion(logits, y)
@@ -315,12 +431,14 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, train=T
         y_true.extend(y.detach().cpu().numpy().tolist())
 
     acc = accuracy_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
+    macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
+    weighted_f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
 
     return {
         "loss": float(np.mean(losses)),
         "accuracy": float(acc),
-        "macro_f1": float(f1),
+        "macro_f1": float(macro_f1),
+        "weighted_f1": float(weighted_f1),
         "y_true": y_true,
         "y_pred": y_pred,
     }
@@ -340,6 +458,7 @@ def parse_args():
     parser.add_argument("--file_field", default="File")
     parser.add_argument("--fx_field", default="fx")
     parser.add_argument("--fy_field", default="fy")
+    parser.add_argument("--coord_mode", default="auto", choices=["auto", "pixel", "normalized"])
 
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--patch_size_px", type=int, default=224)
@@ -351,7 +470,13 @@ def parse_args():
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=42)
+
+    parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--monitor_metric", default="val_macro_f1",
+                        choices=["val_macro_f1", "val_weighted_f1", "val_accuracy", "neg_val_loss"])
+
     parser.add_argument("--no_amp", action="store_true")
+    parser.add_argument("--no_class_weights", action="store_true")
 
     return parser.parse_args()
 
@@ -371,6 +496,7 @@ def main():
         file_field=args.file_field,
         fx_field=args.fx_field,
         fy_field=args.fy_field,
+        coord_mode=args.coord_mode,
         image_size=args.image_size,
         patch_size_px=args.patch_size_px,
         batch_size=args.batch_size,
@@ -382,17 +508,21 @@ def main():
         device=args.device,
         seed=args.seed,
         use_amp=not args.no_amp,
+        use_class_weights=not args.no_class_weights,
+        save_every=args.save_every,
+        monitor_metric=args.monitor_metric,
     )
 
     set_seed(cfg.seed)
 
-    with open(os.path.join(cfg.output_dir, "supervised_config.json"), "w") as f:
-        json.dump(asdict(cfg), f, indent=2)
+    with open(os.path.join(cfg.output_dir, "supervised_config.json"), "w", encoding="utf-8") as f:
+        json.dump(asdict(cfg), f, indent=2, ensure_ascii=False)
 
     if cfg.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA requested but not available")
 
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
+    use_amp = cfg.use_amp and device.type == "cuda"
 
     model, _ = load_encoder_from_checkpoint(cfg.init_ckpt, device)
 
@@ -409,6 +539,7 @@ def main():
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
         transform=train_tf,
+        coord_mode=cfg.coord_mode,
     )
 
     val_ds = GTPointDataset(
@@ -421,15 +552,30 @@ def main():
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
         transform=val_tf,
+        coord_mode=cfg.coord_mode,
         class_to_idx=train_ds.class_to_idx,
     )
 
+    print("=" * 80)
+    print("Supervised fine-tuning setup")
     print("Classes:", train_ds.classes)
     print("Train samples:", len(train_ds))
     print("Val samples:", len(val_ds))
+    print("Coord mode:", cfg.coord_mode)
+    print("AMP enabled:", use_amp)
+    print("Class weights:", cfg.use_class_weights)
+    print("=" * 80)
+
+    label_counts = {
+        "train": train_ds.label_counts(),
+        "val": val_ds.label_counts(),
+    }
 
     with open(os.path.join(cfg.output_dir, "class_to_idx.json"), "w", encoding="utf-8") as f:
         json.dump(train_ds.class_to_idx, f, indent=2, ensure_ascii=False)
+
+    with open(os.path.join(cfg.output_dir, "label_counts.json"), "w", encoding="utf-8") as f:
+        json.dump(label_counts, f, indent=2, ensure_ascii=False)
 
     train_loader = DataLoader(
         train_ds,
@@ -437,6 +583,7 @@ def main():
         shuffle=True,
         num_workers=cfg.num_workers,
         pin_memory=(device.type == "cuda"),
+        persistent_workers=(cfg.num_workers > 0),
     )
 
     val_loader = DataLoader(
@@ -445,12 +592,19 @@ def main():
         shuffle=False,
         num_workers=cfg.num_workers,
         pin_memory=(device.type == "cuda"),
+        persistent_workers=(cfg.num_workers > 0),
     )
 
     feat_dim = infer_feature_dim(model, device, cfg.image_size)
     head = nn.Linear(feat_dim, len(train_ds.classes)).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    if cfg.use_class_weights:
+        class_weights = compute_class_weights(train_ds, len(train_ds.classes), device)
+        print("Class weights:", class_weights.detach().cpu().numpy().tolist())
+    else:
+        class_weights = None
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     optimizer = torch.optim.AdamW(
         [
@@ -460,19 +614,35 @@ def main():
         weight_decay=cfg.weight_decay,
     )
 
-    scaler = torch.amp.GradScaler("cuda", enabled=(cfg.use_amp and device.type == "cuda"))
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if device.type == "cuda" else None
 
-    best_f1 = -1
+    best_metric = -float("inf")
     history = []
-
     start = time.time()
 
     for epoch in range(1, cfg.epochs + 1):
         train_metrics = run_epoch(
-            model, head, train_loader, criterion, optimizer, scaler, device, train=True
+            model=model,
+            head=head,
+            loader=train_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scaler=scaler,
+            device=device,
+            use_amp=use_amp,
+            train=True,
         )
+
         val_metrics = run_epoch(
-            model, head, val_loader, criterion, optimizer, None, device, train=False
+            model=model,
+            head=head,
+            loader=val_loader,
+            criterion=criterion,
+            optimizer=None,
+            scaler=None,
+            device=device,
+            use_amp=False,
+            train=False,
         )
 
         row = {
@@ -480,51 +650,97 @@ def main():
             "train_loss": train_metrics["loss"],
             "train_accuracy": train_metrics["accuracy"],
             "train_macro_f1": train_metrics["macro_f1"],
+            "train_weighted_f1": train_metrics["weighted_f1"],
             "val_loss": val_metrics["loss"],
             "val_accuracy": val_metrics["accuracy"],
             "val_macro_f1": val_metrics["macro_f1"],
+            "val_weighted_f1": val_metrics["weighted_f1"],
         }
         history.append(row)
 
+        if cfg.monitor_metric == "neg_val_loss":
+            current_metric = -row["val_loss"]
+        else:
+            current_metric = row[cfg.monitor_metric]
+
         print(
             f"Epoch {epoch:03d} | "
-            f"train loss {row['train_loss']:.4f} acc {row['train_accuracy']:.4f} f1 {row['train_macro_f1']:.4f} | "
-            f"val loss {row['val_loss']:.4f} acc {row['val_accuracy']:.4f} f1 {row['val_macro_f1']:.4f}"
+            f"train loss {row['train_loss']:.4f} "
+            f"acc {row['train_accuracy']:.4f} "
+            f"macro_f1 {row['train_macro_f1']:.4f} "
+            f"weighted_f1 {row['train_weighted_f1']:.4f} | "
+            f"val loss {row['val_loss']:.4f} "
+            f"acc {row['val_accuracy']:.4f} "
+            f"macro_f1 {row['val_macro_f1']:.4f} "
+            f"weighted_f1 {row['val_weighted_f1']:.4f}"
         )
 
-        if val_metrics["macro_f1"] > best_f1:
-            best_f1 = val_metrics["macro_f1"]
-
-            save_compatible_checkpoint(
+        if current_metric > best_metric:
+            best_metric = current_metric
+            save_checkpoint_bundle(
+                cfg=cfg,
                 init_ckpt=cfg.init_ckpt,
                 model=model,
-                output_path=os.path.join(cfg.output_dir, "phase1_encoder_best.pth"),
-                extra={
-                    "epoch": epoch,
-                    "val_macro_f1": best_f1,
-                    "classes": train_ds.classes,
-                    "class_to_idx": train_ds.class_to_idx,
-                },
+                head=head,
+                feat_dim=feat_dim,
+                epoch=epoch,
+                metric_value=current_metric,
+                classes=train_ds.classes,
+                class_to_idx=train_ds.class_to_idx,
+                name="best",
+            )
+            print(f"[INFO] Saved new best checkpoint at epoch {epoch}: {cfg.monitor_metric}={current_metric:.6f}")
+
+        if cfg.save_every > 0 and epoch % cfg.save_every == 0:
+            save_checkpoint_bundle(
+                cfg=cfg,
+                init_ckpt=cfg.init_ckpt,
+                model=model,
+                head=head,
+                feat_dim=feat_dim,
+                epoch=epoch,
+                metric_value=current_metric,
+                classes=train_ds.classes,
+                class_to_idx=train_ds.class_to_idx,
+                name=f"epoch_{epoch:03d}",
             )
 
-            torch.save(
-                {
-                    "head_state_dict": head.state_dict(),
-                    "classes": train_ds.classes,
-                    "class_to_idx": train_ds.class_to_idx,
-                    "feat_dim": feat_dim,
-                },
-                os.path.join(cfg.output_dir, "classifier_head_best.pth"),
-            )
+        pd.DataFrame(history).to_csv(
+            os.path.join(cfg.output_dir, "training_history.csv"),
+            index=False,
+        )
 
-    import pandas as pd
-    pd.DataFrame(history).to_csv(os.path.join(cfg.output_dir, "training_history.csv"), index=False)
+    final_metric = history[-1][cfg.monitor_metric] if cfg.monitor_metric != "neg_val_loss" else -history[-1]["val_loss"]
 
-    val_final = run_epoch(model, head, val_loader, criterion, None, device, train=False)
+    save_checkpoint_bundle(
+        cfg=cfg,
+        init_ckpt=cfg.init_ckpt,
+        model=model,
+        head=head,
+        feat_dim=feat_dim,
+        epoch=cfg.epochs,
+        metric_value=final_metric,
+        classes=train_ds.classes,
+        class_to_idx=train_ds.class_to_idx,
+        name="last",
+    )
+
+    val_final = run_epoch(
+        model=model,
+        head=head,
+        loader=val_loader,
+        criterion=criterion,
+        optimizer=None,
+        scaler=None,
+        device=device,
+        use_amp=False,
+        train=False,
+    )
 
     report = classification_report(
         val_final["y_true"],
         val_final["y_pred"],
+        labels=list(range(len(train_ds.classes))),
         target_names=train_ds.classes,
         zero_division=0,
         output_dict=True,
@@ -535,8 +751,9 @@ def main():
 
     print("=" * 80)
     print("Supervised fine-tuning completed")
-    print(f"Best val macro F1: {best_f1:.4f}")
-    print(f"Saved encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_best.pth')}")
+    print(f"Best monitored metric: {cfg.monitor_metric} = {best_metric:.6f}")
+    print(f"Saved best encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_best.pth')}")
+    print(f"Saved last encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_last.pth')}")
     print(f"Elapsed: {time.time() - start:.1f}s")
     print("=" * 80)
 
