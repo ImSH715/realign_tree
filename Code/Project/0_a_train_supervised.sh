@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=lejepa_supervised
+#SBATCH --job-name=0_a_resnet50
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -37,13 +37,14 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/2023" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_resnet50_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
   --file_field "File" \
   --fx_field "fx" \
   --fy_field "fy" \
+  --coord_mode auto \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 32 \
@@ -52,6 +53,8 @@ python train_supervised_encoder.py \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
   --num_workers 4 \
+  --save_every 1 \
+  --monitor_metric val_macro_f1 \
   --device cuda
 
 # Lejepa
@@ -60,7 +63,7 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/2023" \
   --output_dir "./outputs/phase1_lejepa_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
