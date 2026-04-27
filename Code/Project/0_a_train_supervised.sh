@@ -23,7 +23,7 @@ echo "Job started at $(date)"
 
 # 1. Split GT
 python make_gt_splits.py \
-  --input_shp "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/valid_points.shp" \
+  --input_shp "./data/valid_points.shp" \
   --output_dir "./outputs/splits_gt" \
   --label_field "Tree" \
   --group_field "File" \
@@ -37,7 +37,7 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/2023" \
   --output_dir "./outputs/phase1_resnet50_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \

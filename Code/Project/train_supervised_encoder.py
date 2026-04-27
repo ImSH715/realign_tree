@@ -68,22 +68,40 @@ def set_seed(seed):
 
 
 def resolve_tif_path(imagery_root, folder, filename):
-    candidates = [
-        os.path.join(imagery_root, str(folder), str(filename)),
-        os.path.join(imagery_root, str(filename)),
-    ]
+    folder = str(folder).strip()
+    filename = str(filename).strip()
+    stem = os.path.splitext(os.path.basename(filename))[0].lower()
 
-    for p in candidates:
-        if os.path.exists(p):
-            return p
+    folder_root = os.path.join(imagery_root, folder)
+    if not os.path.exists(folder_root):
+        raise FileNotFoundError(f"Folder not found: {folder_root}")
 
-    basename = os.path.basename(str(filename))
-    for root, _, files in os.walk(imagery_root):
-        if basename in files:
-            return os.path.join(root, basename)
+    tif_paths = []
+    for root, _, files in os.walk(folder_root):
+        for f in files:
+            if f.lower().endswith((".tif", ".tiff")):
+                tif_paths.append(os.path.join(root, f))
 
-    raise FileNotFoundError(f"Could not find TIFF: folder={folder}, file={filename}")
+    if len(tif_paths) == 0:
+        raise FileNotFoundError(f"No TIFF files found inside folder: {folder_root}")
 
+    matches = []
+    for p in tif_paths:
+        tif_stem = os.path.splitext(os.path.basename(p))[0].lower()
+        if stem in tif_stem:
+            matches.append(p)
+
+    if len(matches) == 1:
+        return matches[0]
+
+    if len(matches) > 1:
+        matches = sorted(matches, key=len)
+        return matches[0]
+
+    raise FileNotFoundError(
+        f"No matching TIFF in folder={folder_root} for file stem={stem}. "
+        f"Found {len(tif_paths)} TIFFs."
+    )
 
 def read_patch(image_path, cx, cy, patch_size):
     half = patch_size // 2
@@ -277,7 +295,7 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, train=T
             optimizer.zero_grad(set_to_none=True)
 
         with torch.set_grad_enabled(train):
-            with torch.cuda.amp.autocast(enabled=(scaler is not None)):
+            with torch.amp.autocast(device_type=device.type, enabled=(scaler is not None)):
                 z = forward_features(model, x)
                 logits = head(z)
                 loss = criterion(logits, y)
@@ -442,7 +460,7 @@ def main():
         weight_decay=cfg.weight_decay,
     )
 
-    scaler = torch.cuda.amp.GradScaler(enabled=(cfg.use_amp and device.type == "cuda"))
+    scaler = torch.amp.GradScaler("cuda", enabled=(cfg.use_amp and device.type == "cuda"))
 
     best_f1 = -1
     history = []
