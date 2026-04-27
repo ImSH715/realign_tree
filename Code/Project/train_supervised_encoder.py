@@ -1,17 +1,13 @@
 """
-Supervised fine-tuning for the LeJEPA encoder using GT tree labels.
+Fast supervised fine-tuning for the encoder using GT tree labels.
 
-Outputs:
-- phase1_encoder_best.pth
-- phase1_encoder_last.pth
-- phase1_epoch_XXX.pth
-- classifier_head_best.pth
-- classifier_head_last.pth
-- classifier_head_epoch_XXX.pth
-- training_history.csv
-- class_to_idx.json
-- label_counts.json
-- val_classification_report.json
+Key features:
+- Pre-index TIFF files once.
+- Resolve image paths once during Dataset init.
+- Supports fx/fy as normalized, pixel, or auto.
+- Shows train/val progress bars.
+- Saves best / last / epoch checkpoints.
+- Uses modern torch.amp API.
 """
 
 import argparse
@@ -19,6 +15,7 @@ import os
 import json
 import time
 from dataclasses import asdict, dataclass
+from typing import Dict, List
 
 import geopandas as gpd
 import numpy as np
@@ -30,6 +27,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from sklearn.metrics import accuracy_score, f1_score, classification_report
+from tqdm import tqdm
 
 from src.models.checkpoint import load_encoder_from_checkpoint
 
@@ -47,7 +45,7 @@ class Config:
     file_field: str = "File"
     fx_field: str = "fx"
     fy_field: str = "fy"
-    coord_mode: str = "auto"  # auto, pixel, normalized
+    coord_mode: str = "auto"
 
     image_size: int = 224
     patch_size_px: int = 224
@@ -65,7 +63,7 @@ class Config:
     monitor_metric: str = "val_macro_f1"
 
 
-def set_seed(seed):
+def set_seed(seed: int):
     import random
     random.seed(seed)
     np.random.seed(seed)
@@ -73,30 +71,76 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-def resolve_tif_path(imagery_root, folder, filename):
+def normalize_stem(name: str) -> str:
+    return os.path.splitext(os.path.basename(str(name).strip()))[0].lower()
+
+
+def build_tif_index(imagery_root: str) -> Dict[str, List[str]]:
+    """
+    Index TIFFs once.
+
+    Returns:
+        folder_to_paths:
+            key = folder name like 2023-16
+            value = list of tif paths under that folder
+    """
+    folder_to_paths: Dict[str, List[str]] = {}
+
+    print("[INFO] Building TIFF index...")
+    for root, _, files in os.walk(imagery_root):
+        tif_files = [f for f in files if f.lower().endswith((".tif", ".tiff"))]
+        if not tif_files:
+            continue
+
+        rel = os.path.relpath(root, imagery_root)
+        parts = rel.split(os.sep)
+
+        # Find folder token like 2023-16 if present.
+        folder_key = None
+        for p in parts:
+            if p.startswith("2023-"):
+                folder_key = p
+                break
+
+        # Fallback: immediate relative folder.
+        if folder_key is None:
+            folder_key = parts[0] if parts and parts[0] != "." else ""
+
+        folder_to_paths.setdefault(folder_key, [])
+        for f in tif_files:
+            folder_to_paths[folder_key].append(os.path.join(root, f))
+
+    total = sum(len(v) for v in folder_to_paths.values())
+    print(f"[INFO] Indexed TIFF folders: {len(folder_to_paths)}")
+    print(f"[INFO] Indexed TIFF files  : {total}")
+
+    if total == 0:
+        raise RuntimeError(f"No TIFF files found under imagery_root: {imagery_root}")
+
+    return folder_to_paths
+
+
+def resolve_tif_path_fast(folder_to_paths: Dict[str, List[str]], folder, filename) -> str:
     folder = str(folder).strip()
-    filename = str(filename).strip()
-    stem = os.path.splitext(os.path.basename(filename))[0].lower()
+    stem = normalize_stem(filename)
 
-    folder_root = os.path.join(imagery_root, folder)
-    if not os.path.exists(folder_root):
-        raise FileNotFoundError(f"Folder not found: {folder_root}")
+    if folder not in folder_to_paths:
+        available = sorted(folder_to_paths.keys())[:20]
+        raise FileNotFoundError(
+            f"Folder key not found in TIFF index: {folder}. "
+            f"Example indexed folders: {available}"
+        )
 
-    tif_paths = []
-    for root, _, files in os.walk(folder_root):
-        for f in files:
-            if f.lower().endswith((".tif", ".tiff")):
-                tif_paths.append(os.path.join(root, f))
-
-    if len(tif_paths) == 0:
-        raise FileNotFoundError(f"No TIFF files found inside folder: {folder_root}")
+    paths = folder_to_paths[folder]
+    if not paths:
+        raise FileNotFoundError(f"No TIFF files indexed for folder: {folder}")
 
     exact = []
     contains = []
     reverse_contains = []
 
-    for p in tif_paths:
-        tif_stem = os.path.splitext(os.path.basename(p))[0].lower()
+    for p in paths:
+        tif_stem = normalize_stem(p)
 
         if tif_stem == stem:
             exact.append(p)
@@ -113,13 +157,12 @@ def resolve_tif_path(imagery_root, folder, filename):
         return sorted(reverse_contains, key=len)[0]
 
     raise FileNotFoundError(
-        f"No matching TIFF in folder={folder_root} for file stem={stem}. "
-        f"Found {len(tif_paths)} TIFFs. First files: "
-        f"{[os.path.basename(p) for p in tif_paths[:10]]}"
+        f"No matching TIFF in folder={folder} for file stem={stem}. "
+        f"Folder TIFF count={len(paths)}. First files={[os.path.basename(p) for p in paths[:10]]}"
     )
 
 
-def convert_coord_if_needed(src, cx, cy, coord_mode):
+def convert_coord_if_needed(src, cx, cy, coord_mode: str):
     cx = float(cx)
     cy = float(cy)
 
@@ -134,7 +177,7 @@ def convert_coord_if_needed(src, cx, cy, coord_mode):
             return cx * src.width, cy * src.height
         return cx, cy
 
-    raise ValueError("coord_mode must be one of: auto, pixel, normalized")
+    raise ValueError("coord_mode must be auto, pixel, or normalized")
 
 
 def read_patch(image_path, cx, cy, patch_size, coord_mode="auto"):
@@ -181,6 +224,7 @@ class GTPointDataset(Dataset):
         transform,
         coord_mode="auto",
         class_to_idx=None,
+        folder_to_paths=None,
     ):
         self.gdf = gpd.read_file(shp_path)
         self.gdf = self.gdf[self.gdf[label_field].notna()].copy()
@@ -209,11 +253,41 @@ class GTPointDataset(Dataset):
 
         self.classes = [c for c, _ in sorted(self.class_to_idx.items(), key=lambda x: x[1])]
 
+        if folder_to_paths is None:
+            folder_to_paths = build_tif_index(imagery_root)
+        self.folder_to_paths = folder_to_paths
+
         self.rows = []
-        for _, row in self.gdf.iterrows():
+        self.failed_rows = []
+
+        print(f"[INFO] Resolving TIFF paths for {os.path.basename(shp_path)}...")
+        iterator = tqdm(self.gdf.iterrows(), total=len(self.gdf), dynamic_ncols=True, desc="Resolving")
+        for i, (_, row) in enumerate(iterator):
             label = str(row[label_field]).strip()
-            if label in self.class_to_idx:
-                self.rows.append(row)
+            if label not in self.class_to_idx:
+                continue
+
+            try:
+                image_path = resolve_tif_path_fast(
+                    self.folder_to_paths,
+                    row[self.folder_field],
+                    row[self.file_field],
+                )
+
+                rec = row.copy()
+                rec["_image_path"] = image_path
+                self.rows.append(rec)
+
+            except Exception as e:
+                self.failed_rows.append((i, str(e)))
+                if len(self.failed_rows) <= 5:
+                    print(f"[WARN] Failed to resolve row {i}: {e}")
+
+        print(f"[INFO] Resolved samples: {len(self.rows)}")
+        print(f"[INFO] Failed samples  : {len(self.failed_rows)}")
+
+        if len(self.rows) == 0:
+            raise RuntimeError("No usable samples after TIFF path resolution.")
 
     def __len__(self):
         return len(self.rows)
@@ -231,12 +305,7 @@ class GTPointDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.rows[idx]
-
-        image_path = resolve_tif_path(
-            self.imagery_root,
-            row[self.folder_field],
-            row[self.file_field],
-        )
+        image_path = row["_image_path"]
 
         patch = read_patch(
             image_path=image_path,
@@ -260,10 +329,8 @@ def build_train_transform(image_size):
         transforms.RandomVerticalFlip(),
         transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
         transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        ),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
     ])
 
 
@@ -271,10 +338,8 @@ def build_eval_transform(image_size):
     return transforms.Compose([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        ),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
     ])
 
 
@@ -330,24 +395,10 @@ def save_compatible_checkpoint(init_ckpt, model, output_path, extra):
         updated["supervised_finetune"] = extra
         torch.save(updated, output_path)
     else:
-        torch.save(
-            {"model_state": state, "supervised_finetune": extra},
-            output_path,
-        )
+        torch.save({"model_state": state, "supervised_finetune": extra}, output_path)
 
 
-def save_checkpoint_bundle(
-    cfg,
-    init_ckpt,
-    model,
-    head,
-    feat_dim,
-    epoch,
-    metric_value,
-    classes,
-    class_to_idx,
-    name,
-):
+def save_checkpoint_bundle(cfg, model, head, feat_dim, epoch, metric_value, classes, class_to_idx, name):
     encoder_path = os.path.join(cfg.output_dir, f"phase1_encoder_{name}.pth")
     head_path = os.path.join(cfg.output_dir, f"classifier_head_{name}.pth")
 
@@ -362,7 +413,7 @@ def save_checkpoint_bundle(
     }
 
     save_compatible_checkpoint(
-        init_ckpt=init_ckpt,
+        init_ckpt=cfg.init_ckpt,
         model=model,
         output_path=encoder_path,
         extra=extra,
@@ -381,21 +432,19 @@ def save_checkpoint_bundle(
         head_path,
     )
 
-    return encoder_path, head_path
-
 
 def compute_class_weights(dataset, num_classes, device):
     targets = np.array(dataset.targets(), dtype=np.int64)
     counts = np.bincount(targets, minlength=num_classes).astype(np.float32)
-
     counts[counts == 0] = 1.0
+
     weights = counts.sum() / (num_classes * counts)
     weights = weights / weights.mean()
 
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
-def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp, train=True):
+def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp, train=True, epoch=0):
     model.train(train)
     head.train(train)
 
@@ -403,7 +452,10 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp
     y_true = []
     y_pred = []
 
-    for x, y in loader:
+    desc = f"Train {epoch:03d}" if train else f"Val {epoch:03d}"
+    iterator = tqdm(loader, desc=desc, dynamic_ncols=True)
+
+    for x, y in iterator:
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
 
@@ -426,9 +478,14 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp
                     optimizer.step()
 
         losses.append(float(loss.detach().cpu()))
+
         pred = logits.argmax(dim=1).detach().cpu().numpy()
         y_pred.extend(pred.tolist())
         y_true.extend(y.detach().cpu().numpy().tolist())
+
+        if len(y_true) > 0:
+            running_acc = accuracy_score(y_true, y_pred)
+            iterator.set_postfix(loss=f"{np.mean(losses):.4f}", acc=f"{running_acc:.4f}")
 
     acc = accuracy_score(y_true, y_pred)
     macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
@@ -472,8 +529,11 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
 
     parser.add_argument("--save_every", type=int, default=1)
-    parser.add_argument("--monitor_metric", default="val_macro_f1",
-                        choices=["val_macro_f1", "val_weighted_f1", "val_accuracy", "neg_val_loss"])
+    parser.add_argument(
+        "--monitor_metric",
+        default="val_macro_f1",
+        choices=["val_macro_f1", "val_weighted_f1", "val_accuracy", "neg_val_loss"],
+    )
 
     parser.add_argument("--no_amp", action="store_true")
     parser.add_argument("--no_class_weights", action="store_true")
@@ -524,10 +584,9 @@ def main():
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
     use_amp = cfg.use_amp and device.type == "cuda"
 
-    model, _ = load_encoder_from_checkpoint(cfg.init_ckpt, device)
+    folder_to_paths = build_tif_index(cfg.imagery_root)
 
-    train_tf = build_train_transform(cfg.image_size)
-    val_tf = build_eval_transform(cfg.image_size)
+    model, _ = load_encoder_from_checkpoint(cfg.init_ckpt, device)
 
     train_ds = GTPointDataset(
         shp_path=cfg.train_shp,
@@ -538,8 +597,9 @@ def main():
         fx_field=cfg.fx_field,
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
-        transform=train_tf,
+        transform=build_train_transform(cfg.image_size),
         coord_mode=cfg.coord_mode,
+        folder_to_paths=folder_to_paths,
     )
 
     val_ds = GTPointDataset(
@@ -551,20 +611,11 @@ def main():
         fx_field=cfg.fx_field,
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
-        transform=val_tf,
+        transform=build_eval_transform(cfg.image_size),
         coord_mode=cfg.coord_mode,
         class_to_idx=train_ds.class_to_idx,
+        folder_to_paths=folder_to_paths,
     )
-
-    print("=" * 80)
-    print("Supervised fine-tuning setup")
-    print("Classes:", train_ds.classes)
-    print("Train samples:", len(train_ds))
-    print("Val samples:", len(val_ds))
-    print("Coord mode:", cfg.coord_mode)
-    print("AMP enabled:", use_amp)
-    print("Class weights:", cfg.use_class_weights)
-    print("=" * 80)
 
     label_counts = {
         "train": train_ds.label_counts(),
@@ -576,6 +627,16 @@ def main():
 
     with open(os.path.join(cfg.output_dir, "label_counts.json"), "w", encoding="utf-8") as f:
         json.dump(label_counts, f, indent=2, ensure_ascii=False)
+
+    print("=" * 80)
+    print("Supervised fine-tuning setup")
+    print("Classes:", train_ds.classes)
+    print("Train samples:", len(train_ds))
+    print("Val samples:", len(val_ds))
+    print("Coord mode:", cfg.coord_mode)
+    print("AMP enabled:", use_amp)
+    print("Class weights:", cfg.use_class_weights)
+    print("=" * 80)
 
     train_loader = DataLoader(
         train_ds,
@@ -631,6 +692,7 @@ def main():
             device=device,
             use_amp=use_amp,
             train=True,
+            epoch=epoch,
         )
 
         val_metrics = run_epoch(
@@ -643,6 +705,7 @@ def main():
             device=device,
             use_amp=False,
             train=False,
+            epoch=epoch,
         )
 
         row = {
@@ -665,21 +728,16 @@ def main():
 
         print(
             f"Epoch {epoch:03d} | "
-            f"train loss {row['train_loss']:.4f} "
-            f"acc {row['train_accuracy']:.4f} "
-            f"macro_f1 {row['train_macro_f1']:.4f} "
-            f"weighted_f1 {row['train_weighted_f1']:.4f} | "
-            f"val loss {row['val_loss']:.4f} "
-            f"acc {row['val_accuracy']:.4f} "
-            f"macro_f1 {row['val_macro_f1']:.4f} "
-            f"weighted_f1 {row['val_weighted_f1']:.4f}"
+            f"train loss {row['train_loss']:.4f} acc {row['train_accuracy']:.4f} "
+            f"macro_f1 {row['train_macro_f1']:.4f} weighted_f1 {row['train_weighted_f1']:.4f} | "
+            f"val loss {row['val_loss']:.4f} acc {row['val_accuracy']:.4f} "
+            f"macro_f1 {row['val_macro_f1']:.4f} weighted_f1 {row['val_weighted_f1']:.4f}"
         )
 
         if current_metric > best_metric:
             best_metric = current_metric
             save_checkpoint_bundle(
                 cfg=cfg,
-                init_ckpt=cfg.init_ckpt,
                 model=model,
                 head=head,
                 feat_dim=feat_dim,
@@ -689,12 +747,11 @@ def main():
                 class_to_idx=train_ds.class_to_idx,
                 name="best",
             )
-            print(f"[INFO] Saved new best checkpoint at epoch {epoch}: {cfg.monitor_metric}={current_metric:.6f}")
+            print(f"[INFO] Saved best checkpoint: {cfg.monitor_metric}={current_metric:.6f}")
 
         if cfg.save_every > 0 and epoch % cfg.save_every == 0:
             save_checkpoint_bundle(
                 cfg=cfg,
-                init_ckpt=cfg.init_ckpt,
                 model=model,
                 head=head,
                 feat_dim=feat_dim,
@@ -714,7 +771,6 @@ def main():
 
     save_checkpoint_bundle(
         cfg=cfg,
-        init_ckpt=cfg.init_ckpt,
         model=model,
         head=head,
         feat_dim=feat_dim,
@@ -735,6 +791,7 @@ def main():
         device=device,
         use_amp=False,
         train=False,
+        epoch=cfg.epochs,
     )
 
     report = classification_report(
