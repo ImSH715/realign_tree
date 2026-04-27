@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=0_a_lejepa
+#SBATCH --job-name=0_a_resnet
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -34,11 +34,11 @@ python make_gt_splits.py \
 
 # 2. Supervised fine-tune LeJEPA encoder
 python train_supervised_encoder.py \
-  --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
+  --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_lejepa_supervised" \
+  --output_dir "./outputs/phase1_resnet50_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
   --file_field "File" \
@@ -54,7 +54,7 @@ python train_supervised_encoder.py \
   --weight_decay 1e-4 \
   --num_workers 0 \
   --device cuda
-  
+
 # Lejepa
 : << 'COMMENT'
 python train_supervised_encoder.py \
