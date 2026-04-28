@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=0_a_dinoH100
+#SBATCH --job-name=Dino_short
 #SBATCH --partition=gpu-h100-nvl
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -51,7 +51,7 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 16 \
-  --epochs 50 \
+  --epochs 10 \
   --lr_encoder 1e-5 \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
