@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --job-name=0_a_lejepa
-#SBATCH --partition=gpu-h100-nvl
+#SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=96G
+#SBATCH --mem=82G
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
