@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=dino_train
+#SBATCH --job-name=resnet_train
 #SBATCH --partition=gpu-h100-nvl       # Partition: gpu
 #SBATCH --qos=gpu                      # QOS: gpu
 #SBATCH --gres=gpu:1                   # Request 1 GPU
@@ -10,8 +10,8 @@
 #SBATCH --nodes=1                      # Single node
 #SBATCH --ntasks=1                     # Single task
 #SBATCH --time=90:00:00                # Time limit (HH:MM:SS)
-#SBATCH --output=logs/train_dino_%j.out         # Standard output log
-#SBATCH --error=logs/train_dino_%j.err          # Error log
+#SBATCH --output=logs/train_resnet_%j.out         # Standard output log
+#SBATCH --error=logs/train_resnet_%j.err          # Error log
 
 # --- 2. Email Notification Settings ---
 #SBATCH --mail-type=END,FAIL           # Notify when finished or failed
@@ -30,8 +30,8 @@ conda activate lejepa
 
 python train_encoder.py \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_dino" \
-  --backbone_name "vit_small_patch14_dinov2.lvd142m" \
+  --output_dir "./outputs/phase1_resnet50" \
+  --backbone_name "resnet50" \
   --pretrained_backbone \
   --ssl_epochs 100 \
   --batch_size_ssl 8 \
