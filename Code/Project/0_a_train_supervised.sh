@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=0_a_lejepa
-#SBATCH --partition=gpu-h100-nvl 
+#SBATCH --partition=gpu-h100-nvl
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=96G
@@ -9,8 +9,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/0_a_dino_ft_%j.out
-#SBATCH --error=logs/0_a_dino_ft_%j.err
+#SBATCH --output=logs/0_a_lejepa_ft_%j.out
+#SBATCH --error=logs/0_a_lejepa_ft_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
