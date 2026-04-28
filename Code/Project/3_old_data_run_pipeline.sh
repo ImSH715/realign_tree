@@ -1,22 +1,20 @@
 #!/bin/bash
 
-# --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=phase3_old_censo
+#SBATCH --job-name=0_a_dino_ft
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=82G
-#SBATCH --cpus-per-task=8
+#SBATCH --mem=48G
+#SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=90:00:00
-#SBATCH --output=phase3_old_%j.out
-#SBATCH --error=phase3_old_%j.err
-
-# --- 2. Email Notification Settings ---
+#SBATCH --time=12:00:00
+#SBATCH --output=logs/0_a_dino_ft_%j.out
+#SBATCH --error=logs/0_a_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
 
-# --- 3. Environment Setup ---
+mkdir -p logs
+
 module load Anaconda3
 eval "$(conda shell.bash hook)"
 conda activate lejepa
