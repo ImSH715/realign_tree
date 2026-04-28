@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#SBATCH --job-name=0_a_dino_ft
-#SBATCH --partition=gpu
+#SBATCH --job-name=0_a_dinoH100
+#SBATCH --partition=gpu-h100-nvl
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=48G
+#SBATCH --mem=96G
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -22,7 +22,8 @@ conda activate lejepa
 echo "Using Python from: $(which python)"
 python --version
 echo "Job started at $(date)"
-
+echo "Running on node: $(hostname)"
+nvidia-smi
 # 1. Split GT
 python make_gt_splits.py \
   --input_shp "./data/valid_points.shp" \
