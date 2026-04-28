@@ -1,69 +1,42 @@
 """
-Fast supervised fine-tuning for the encoder using GT tree labels.
+Phase 1 training script for self-supervised encoder learning on recursive TIFF patches.
 
-Key features:
-- Pre-index TIFF files once.
-- Resolve image paths once during Dataset init.
-- Supports fx/fy as normalized, pixel, or auto.
-- Shows train/val progress bars.
-- Saves best / last / epoch checkpoints.
-- Uses modern torch.amp API.
+This script supports multiple backbones under the same training pipeline:
+- LeJEPA-style ViT baseline,
+- ResNet50 CNN baseline,
+- DINOv2 backbones from timm.
+
+It keeps the downstream pipeline stable by producing:
+- a trained checkpoint that can be loaded with load_encoder_from_checkpoint(),
+- and an embedding CSV for Phase 2 prototype construction.
+
+Phase 2 and Phase 3 do not need to change as long as model.encode(...) remains valid.
 """
 
-import argparse
 import os
-import json
+import csv
+import math
 import time
-from dataclasses import asdict, dataclass
-from typing import Dict, List
+import argparse
+from dataclasses import asdict
 
-import geopandas as gpd
 import numpy as np
-import pandas as pd
-import rasterio
 import torch
-import torch.nn as nn
-from PIL import Image
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.models.checkpoint import load_encoder_from_checkpoint
+from src.models.encoder import SSLImageEncoder, LeJEPALikeLoss
+from src.models.checkpoint import save_checkpoint
+from src.data.tif_io import recursive_find_tif_files
+from src.data.patches import (
+    RandomPatchTifDataset,
+    GridPatchTifDataset,
+    collate_multiview_with_meta,
+    collate_patch_with_meta,
+)
 
 
-@dataclass
-class Config:
-    init_ckpt: str
-    train_shp: str
-    val_shp: str
-    imagery_root: str
-    output_dir: str
-
-    label_field: str = "Tree"
-    folder_field: str = "Folder"
-    file_field: str = "File"
-    fx_field: str = "fx"
-    fy_field: str = "fy"
-    coord_mode: str = "auto"
-
-    image_size: int = 224
-    patch_size_px: int = 224
-    batch_size: int = 32
-    epochs: int = 30
-    lr_encoder: float = 1e-5
-    lr_head: float = 1e-4
-    weight_decay: float = 1e-4
-    num_workers: int = 4
-    device: str = "cuda"
-    seed: int = 42
-    use_amp: bool = True
-    use_class_weights: bool = True
-    save_every: int = 1
-    monitor_metric: str = "val_macro_f1"
-
-
-def set_seed(seed: int):
+def set_seed(seed: int) -> None:
     import random
     random.seed(seed)
     np.random.seed(seed)
@@ -71,748 +44,475 @@ def set_seed(seed: int):
     torch.cuda.manual_seed_all(seed)
 
 
-def normalize_stem(name: str) -> str:
-    return os.path.splitext(os.path.basename(str(name).strip()))[0].lower()
+def format_seconds(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
 
 
-def build_tif_index(imagery_root: str) -> Dict[str, List[str]]:
-    """
-    Index TIFFs once.
+class AverageMeter:
+    def __init__(self) -> None:
+        self.reset()
 
-    Returns:
-        folder_to_paths:
-            key = folder name like 2023-16
-            value = list of tif paths under that folder
-    """
-    folder_to_paths: Dict[str, List[str]] = {}
+    def reset(self) -> None:
+        self.sum = 0.0
+        self.count = 0
 
-    print("[INFO] Building TIFF index...")
-    for root, _, files in os.walk(imagery_root):
-        tif_files = [f for f in files if f.lower().endswith((".tif", ".tiff"))]
-        if not tif_files:
-            continue
+    @property
+    def avg(self) -> float:
+        return self.sum / max(1, self.count)
 
-        rel = os.path.relpath(root, imagery_root)
-        parts = rel.split(os.sep)
-
-        # Find folder token like 2023-16 if present.
-        folder_key = None
-        for p in parts:
-            if p.startswith("2023-"):
-                folder_key = p
-                break
-
-        # Fallback: immediate relative folder.
-        if folder_key is None:
-            folder_key = parts[0] if parts and parts[0] != "." else ""
-
-        folder_to_paths.setdefault(folder_key, [])
-        for f in tif_files:
-            folder_to_paths[folder_key].append(os.path.join(root, f))
-
-    total = sum(len(v) for v in folder_to_paths.values())
-    print(f"[INFO] Indexed TIFF folders: {len(folder_to_paths)}")
-    print(f"[INFO] Indexed TIFF files  : {total}")
-
-    if total == 0:
-        raise RuntimeError(f"No TIFF files found under imagery_root: {imagery_root}")
-
-    return folder_to_paths
+    def update(self, value: float, n: int = 1) -> None:
+        self.sum += value * n
+        self.count += n
 
 
-def resolve_tif_path_fast(folder_to_paths: Dict[str, List[str]], folder, filename) -> str:
-    folder = str(folder).strip()
-    stem = normalize_stem(filename)
+def create_optimizer(model: torch.nn.Module, lr: float, weight_decay: float):
+    return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    if folder not in folder_to_paths:
-        available = sorted(folder_to_paths.keys())[:20]
-        raise FileNotFoundError(
-            f"Folder key not found in TIFF index: {folder}. "
-            f"Example indexed folders: {available}"
+
+def cosine_scheduler(optimizer, base_lr, min_lr, total_epochs, warmup_epochs):
+    def lr_lambda(epoch: int):
+        if epoch < warmup_epochs:
+            return float(epoch + 1) / max(1, warmup_epochs)
+        progress = (epoch - warmup_epochs) / max(1, total_epochs - warmup_epochs)
+        cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+        lr = min_lr + (base_lr - min_lr) * cosine
+        return lr / base_lr
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+
+
+def train_ssl_one_epoch(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    optimizer,
+    scaler,
+    loss_fn: torch.nn.Module,
+    device: torch.device,
+    epoch: int,
+    total_epochs: int,
+    global_start_time: float,
+    use_amp: bool,
+):
+    model.train()
+
+    meters = {
+        "ssl_total": AverageMeter(),
+        "align_loss": AverageMeter(),
+        "var_loss": AverageMeter(),
+        "cov_loss": AverageMeter(),
+        "slice_loss": AverageMeter(),
+    }
+
+    epoch_start = time.time()
+    pbar = tqdm(loader, desc=f"SSL Epoch {epoch+1}/{total_epochs}", dynamic_ncols=True)
+
+    for step, (views, _) in enumerate(pbar):
+        views = [v.to(device, non_blocking=True) for v in views]
+        optimizer.zero_grad(set_to_none=True)
+
+        with torch.amp.autocast(device_type=device.type, enabled=use_amp):
+            feats = [model.encode(v) for v in views]
+            projs = [model.project(f) for f in feats]
+            preds = [model.predict(p) for p in projs]
+            loss, metrics = loss_fn(preds, projs)
+
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        batch_size = views[0].size(0)
+        for key, value in metrics.items():
+            meters[key].update(value, batch_size)
+
+        elapsed_epoch = time.time() - epoch_start
+        elapsed_total = time.time() - global_start_time
+
+        avg_step_time = elapsed_epoch / max(1, step + 1)
+        epoch_eta = avg_step_time * (len(loader) - step - 1)
+
+        avg_epoch_time = elapsed_total / max(1e-6, epoch + (step + 1) / len(loader))
+        total_eta = avg_epoch_time * total_epochs - elapsed_total
+
+        pbar.set_postfix(
+            loss=f"{meters['ssl_total'].avg:.4f}",
+            align=f"{meters['align_loss'].avg:.4f}",
+            slice=f"{meters['slice_loss'].avg:.4f}",
+            epoch_eta=format_seconds(epoch_eta),
+            total_eta=format_seconds(total_eta),
         )
 
-    paths = folder_to_paths[folder]
-    if not paths:
-        raise FileNotFoundError(f"No TIFF files indexed for folder: {folder}")
-
-    exact = []
-    contains = []
-    reverse_contains = []
-
-    for p in paths:
-        tif_stem = normalize_stem(p)
-
-        if tif_stem == stem:
-            exact.append(p)
-        elif stem in tif_stem:
-            contains.append(p)
-        elif tif_stem in stem:
-            reverse_contains.append(p)
-
-    if exact:
-        return sorted(exact, key=len)[0]
-    if contains:
-        return sorted(contains, key=len)[0]
-    if reverse_contains:
-        return sorted(reverse_contains, key=len)[0]
-
-    raise FileNotFoundError(
-        f"No matching TIFF in folder={folder} for file stem={stem}. "
-        f"Folder TIFF count={len(paths)}. First files={[os.path.basename(p) for p in paths[:10]]}"
-    )
+    return {k: v.avg for k, v in meters.items()}
 
 
-def convert_coord_if_needed(src, cx, cy, coord_mode: str):
-    cx = float(cx)
-    cy = float(cy)
-
-    if coord_mode == "pixel":
-        return cx, cy
-
-    if coord_mode == "normalized":
-        return cx * src.width, cy * src.height
-
-    if coord_mode == "auto":
-        if 0.0 <= cx <= 1.0 and 0.0 <= cy <= 1.0:
-            return cx * src.width, cy * src.height
-        return cx, cy
-
-    raise ValueError("coord_mode must be auto, pixel, or normalized")
-
-
-def read_patch(image_path, cx, cy, patch_size, coord_mode="auto"):
-    half = patch_size // 2
-
-    with rasterio.open(image_path) as src:
-        cx, cy = convert_coord_if_needed(src, cx, cy, coord_mode)
-
-        col0 = int(round(cx)) - half
-        row0 = int(round(cy)) - half
-
-        window = rasterio.windows.Window(col0, row0, patch_size, patch_size)
-        arr = src.read(window=window, boundless=True, fill_value=0)
-
-    if arr.shape[0] >= 3:
-        arr = arr[:3]
-    elif arr.shape[0] == 1:
-        arr = np.repeat(arr, 3, axis=0)
-    else:
-        raise ValueError(f"Invalid band count: {arr.shape}")
-
-    arr = np.transpose(arr, (1, 2, 0))
-
-    if arr.dtype != np.uint8:
-        arr = arr.astype(np.float32)
-        lo, hi = np.nanpercentile(arr, [1, 99])
-        arr = np.clip((arr - lo) / (hi - lo + 1e-6), 0, 1)
-        arr = (arr * 255).astype(np.uint8)
-
-    return Image.fromarray(arr)
-
-
-class GTPointDataset(Dataset):
-    def __init__(
-        self,
-        shp_path,
-        imagery_root,
-        label_field,
-        folder_field,
-        file_field,
-        fx_field,
-        fy_field,
-        patch_size_px,
-        transform,
-        coord_mode="auto",
-        class_to_idx=None,
-        folder_to_paths=None,
-    ):
-        self.gdf = gpd.read_file(shp_path)
-        self.gdf = self.gdf[self.gdf[label_field].notna()].copy()
-        self.gdf[label_field] = self.gdf[label_field].astype(str).str.strip()
-
-        self.imagery_root = imagery_root
-        self.label_field = label_field
-        self.folder_field = folder_field
-        self.file_field = file_field
-        self.fx_field = fx_field
-        self.fy_field = fy_field
-        self.patch_size_px = patch_size_px
-        self.transform = transform
-        self.coord_mode = coord_mode
-
-        required = [label_field, folder_field, file_field, fx_field, fy_field]
-        for c in required:
-            if c not in self.gdf.columns:
-                raise ValueError(f"Missing required field '{c}'. Available: {self.gdf.columns.tolist()}")
-
-        if class_to_idx is None:
-            classes = sorted(self.gdf[label_field].unique().tolist())
-            self.class_to_idx = {c: i for i, c in enumerate(classes)}
-        else:
-            self.class_to_idx = class_to_idx
-
-        self.classes = [c for c, _ in sorted(self.class_to_idx.items(), key=lambda x: x[1])]
-
-        if folder_to_paths is None:
-            folder_to_paths = build_tif_index(imagery_root)
-        self.folder_to_paths = folder_to_paths
-
-        self.rows = []
-        self.failed_rows = []
-
-        print(f"[INFO] Resolving TIFF paths for {os.path.basename(shp_path)}...")
-        iterator = tqdm(self.gdf.iterrows(), total=len(self.gdf), dynamic_ncols=True, desc="Resolving")
-        for i, (_, row) in enumerate(iterator):
-            label = str(row[label_field]).strip()
-            if label not in self.class_to_idx:
-                continue
-
-            try:
-                image_path = resolve_tif_path_fast(
-                    self.folder_to_paths,
-                    row[self.folder_field],
-                    row[self.file_field],
-                )
-
-                rec = row.copy()
-                rec["_image_path"] = image_path
-                self.rows.append(rec)
-
-            except Exception as e:
-                self.failed_rows.append((i, str(e)))
-                if len(self.failed_rows) <= 5:
-                    print(f"[WARN] Failed to resolve row {i}: {e}")
-
-        print(f"[INFO] Resolved samples: {len(self.rows)}")
-        print(f"[INFO] Failed samples  : {len(self.failed_rows)}")
-
-        if len(self.rows) == 0:
-            raise RuntimeError("No usable samples after TIFF path resolution.")
-
-    def __len__(self):
-        return len(self.rows)
-
-    def label_counts(self):
-        labels = [str(r[self.label_field]).strip() for r in self.rows]
-        return pd.Series(labels).value_counts().to_dict()
-
-    def targets(self):
-        ys = []
-        for r in self.rows:
-            label = str(r[self.label_field]).strip()
-            ys.append(self.class_to_idx[label])
-        return ys
-
-    def __getitem__(self, idx):
-        row = self.rows[idx]
-        image_path = row["_image_path"]
-
-        patch = read_patch(
-            image_path=image_path,
-            cx=float(row[self.fx_field]),
-            cy=float(row[self.fy_field]),
-            patch_size=self.patch_size_px,
-            coord_mode=self.coord_mode,
-        )
-
-        x = self.transform(patch)
-        label = str(row[self.label_field]).strip()
-        y = self.class_to_idx[label]
-
-        return x, torch.tensor(y, dtype=torch.long)
-
-
-def build_train_transform(image_size):
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ])
-
-
-def build_eval_transform(image_size):
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ])
-
-
-def forward_features(model, x):
-    out = model(x)
-
-    if isinstance(out, dict):
-        for k in ["features", "embedding", "embeddings", "x", "last_hidden_state"]:
-            if k in out:
-                out = out[k]
-                break
-
-    if isinstance(out, (tuple, list)):
-        out = out[0]
-
-    if out.ndim == 4:
-        out = out.mean(dim=(2, 3))
-    elif out.ndim == 3:
-        out = out[:, 0]
-
-    return out
-
-
-def infer_feature_dim(model, device, image_size):
+@torch.no_grad()
+def evaluate_ssl_proxy_loss(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    loss_fn: torch.nn.Module,
+    device: torch.device,
+    use_amp: bool,
+    num_batches: int = 10,
+) -> float:
     model.eval()
-    with torch.no_grad():
-        x = torch.zeros(1, 3, image_size, image_size).to(device)
-        z = forward_features(model, x)
-    return int(z.shape[1])
-
-
-def save_compatible_checkpoint(init_ckpt, model, output_path, extra):
-    try:
-        ckpt = torch.load(init_ckpt, map_location="cpu")
-    except Exception:
-        ckpt = {}
-
-    state = model.state_dict()
-
-    if isinstance(ckpt, dict):
-        updated = dict(ckpt)
-
-        replaced = False
-        for key in ["model_state", "model", "model_state_dict", "encoder", "encoder_state_dict", "state_dict"]:
-            if key in updated and isinstance(updated[key], dict):
-                updated[key] = state
-                replaced = True
-                break
-
-        if not replaced:
-            updated["model_state"] = state
-
-        updated["supervised_finetune"] = extra
-        torch.save(updated, output_path)
-    else:
-        torch.save({"model_state": state, "supervised_finetune": extra}, output_path)
-
-
-def save_checkpoint_bundle(cfg, model, head, feat_dim, epoch, metric_value, classes, class_to_idx, name):
-    encoder_path = os.path.join(cfg.output_dir, f"phase1_encoder_{name}.pth")
-    head_path = os.path.join(cfg.output_dir, f"classifier_head_{name}.pth")
-
-    extra = {
-        "epoch": int(epoch),
-        "metric_name": cfg.monitor_metric,
-        "metric_value": float(metric_value),
-        "classes": classes,
-        "class_to_idx": class_to_idx,
-        "coord_mode": cfg.coord_mode,
-        "supervised": True,
-    }
-
-    save_compatible_checkpoint(
-        init_ckpt=cfg.init_ckpt,
-        model=model,
-        output_path=encoder_path,
-        extra=extra,
-    )
-
-    torch.save(
-        {
-            "head_state_dict": head.state_dict(),
-            "classes": classes,
-            "class_to_idx": class_to_idx,
-            "feat_dim": feat_dim,
-            "epoch": int(epoch),
-            "metric_name": cfg.monitor_metric,
-            "metric_value": float(metric_value),
-        },
-        head_path,
-    )
-
-
-def compute_class_weights(dataset, num_classes, device):
-    targets = np.array(dataset.targets(), dtype=np.int64)
-    counts = np.bincount(targets, minlength=num_classes).astype(np.float32)
-    counts[counts == 0] = 1.0
-
-    weights = counts.sum() / (num_classes * counts)
-    weights = weights / weights.mean()
-
-    return torch.tensor(weights, dtype=torch.float32, device=device)
-
-
-def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp, train=True, epoch=0):
-    model.train(train)
-    head.train(train)
-
     losses = []
-    y_true = []
-    y_pred = []
 
-    desc = f"Train {epoch:03d}" if train else f"Val {epoch:03d}"
-    iterator = tqdm(loader, desc=desc, dynamic_ncols=True)
+    pbar = tqdm(loader, desc="Evaluating proxy loss", dynamic_ncols=True)
+    for i, (views, _) in enumerate(pbar):
+        if i >= num_batches:
+            break
 
-    for x, y in iterator:
-        x = x.to(device, non_blocking=True)
-        y = y.to(device, non_blocking=True)
+        views = [v.to(device, non_blocking=True) for v in views]
 
-        if train:
-            optimizer.zero_grad(set_to_none=True)
+        with torch.amp.autocast(device_type=device.type, enabled=use_amp):
+            feats = [model.encode(v) for v in views]
+            projs = [model.project(f) for f in feats]
+            preds = [model.predict(p) for p in projs]
+            loss, _ = loss_fn(preds, projs)
 
-        with torch.set_grad_enabled(train):
+        losses.append(float(loss.item()))
+
+    if len(losses) == 0:
+        return float("inf")
+    return float(np.mean(losses))
+
+
+@torch.no_grad()
+def extract_embeddings_to_csv(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    output_csv: str,
+    use_amp: bool,
+) -> None:
+    model.eval()
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+
+    first_batch = True
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = None
+
+        pbar = tqdm(loader, desc="Extracting embeddings", dynamic_ncols=True)
+        for patches, metas in pbar:
+            patches = patches.to(device, non_blocking=True)
+
             with torch.amp.autocast(device_type=device.type, enabled=use_amp):
-                z = forward_features(model, x)
-                logits = head(z)
-                loss = criterion(logits, y)
+                feat = model.encode(patches)
 
-            if train:
-                if scaler is not None:
-                    scaler.scale(loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    loss.backward()
-                    optimizer.step()
+            feat_np = feat.detach().cpu().numpy()
 
-        losses.append(float(loss.detach().cpu()))
+            if first_batch:
+                dim = feat_np.shape[1]
+                header = ["image_path", "point_id", "x", "y"] + [f"emb_{i}" for i in range(dim)]
+                writer = csv.writer(f)
+                writer.writerow(header)
+                first_batch = False
 
-        pred = logits.argmax(dim=1).detach().cpu().numpy()
-        y_pred.extend(pred.tolist())
-        y_true.extend(y.detach().cpu().numpy().tolist())
-
-        if len(y_true) > 0:
-            running_acc = accuracy_score(y_true, y_pred)
-            iterator.set_postfix(loss=f"{np.mean(losses):.4f}", acc=f"{running_acc:.4f}")
-
-    acc = accuracy_score(y_true, y_pred)
-    macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
-    weighted_f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
-
-    return {
-        "loss": float(np.mean(losses)),
-        "accuracy": float(acc),
-        "macro_f1": float(macro_f1),
-        "weighted_f1": float(weighted_f1),
-        "y_true": y_true,
-        "y_pred": y_pred,
-    }
+            for i, meta in enumerate(metas):
+                point_id = f"{os.path.basename(meta['image_path'])}_{int(round(meta['x']))}_{int(round(meta['y']))}"
+                row = [
+                    meta["image_path"],
+                    point_id,
+                    float(meta["x"]),
+                    float(meta["y"]),
+                ] + feat_np[i].astype(np.float32).tolist()
+                writer.writerow(row)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--init_ckpt", required=True)
-    parser.add_argument("--train_shp", required=True)
-    parser.add_argument("--val_shp", required=True)
-    parser.add_argument("--imagery_root", required=True)
-    parser.add_argument("--output_dir", required=True)
-
-    parser.add_argument("--label_field", default="Tree")
-    parser.add_argument("--folder_field", default="Folder")
-    parser.add_argument("--file_field", default="File")
-    parser.add_argument("--fx_field", default="fx")
-    parser.add_argument("--fy_field", default="fy")
-    parser.add_argument("--coord_mode", default="auto", choices=["auto", "pixel", "normalized"])
-
-    parser.add_argument("--image_size", type=int, default=224)
-    parser.add_argument("--patch_size_px", type=int, default=224)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--lr_encoder", type=float, default=1e-5)
-    parser.add_argument("--lr_head", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-4)
-    parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--seed", type=int, default=42)
-
-    parser.add_argument("--save_every", type=int, default=1)
-    parser.add_argument(
-        "--monitor_metric",
-        default="val_macro_f1",
-        choices=["val_macro_f1", "val_weighted_f1", "val_accuracy", "neg_val_loss"],
+    parser = argparse.ArgumentParser(
+        description="Phase 1: unlabeled LeJEPA-style encoder training on recursive TIFF patches"
     )
 
+    parser.add_argument("--train_root", type=str, required=True)
+    parser.add_argument("--output_dir", type=str, required=True)
+
+    parser.add_argument(
+        "--backbone_name",
+        type=str,
+        default="vit_base_patch16_224",
+        choices=[
+            "vit_base_patch16_224",
+            "resnet50",
+            "vit_small_patch14_dinov2.lvd142m",
+            "vit_base_patch14_dinov2.lvd142m",
+        ],
+    )
+    parser.add_argument(
+        "--pretrained_backbone",
+        action="store_true",
+        help="Use pretrained weights for the backbone if available in timm/cache.",
+    )
+    parser.add_argument(
+        "--backbone_pretrained",
+        action="store_true",
+        help="Backward-compatible alias for --pretrained_backbone.",
+    )
+
+    parser.add_argument("--ssl_epochs", type=int, default=20)
+    parser.add_argument("--batch_size_ssl", type=int, default=8)
+    parser.add_argument("--ssl_lr", type=float, default=5e-4)
+    parser.add_argument("--weight_decay", type=float, default=5e-2)
+    parser.add_argument("--warmup_epochs_ssl", type=int, default=3)
+    parser.add_argument("--min_lr_ratio", type=float, default=1e-3)
+
+    parser.add_argument("--patch_size_px", type=int, default=224)
+    parser.add_argument("--patches_per_image", type=int, default=100)
+    parser.add_argument("--num_global_views", type=int, default=2)
+    parser.add_argument("--num_local_views", type=int, default=4)
+    parser.add_argument("--image_size_global", type=int, default=224)
+    parser.add_argument("--image_size_local", type=int, default=96)
+
+    parser.add_argument("--projector_hidden_dim", type=int, default=2048)
+    parser.add_argument("--projector_out_dim", type=int, default=512)
+
+    parser.add_argument("--align_weight", type=float, default=1.0)
+    parser.add_argument("--var_weight", type=float, default=25.0)
+    parser.add_argument("--cov_weight", type=float, default=1.0)
+    parser.add_argument("--slice_weight", type=float, default=1.0)
+    parser.add_argument("--num_slices", type=int, default=256)
+
+    parser.add_argument("--extract_stride_px", type=int, default=224)
+    parser.add_argument("--extract_batch_size", type=int, default=32)
+    parser.add_argument("--max_extract_patches_per_image", type=int, default=None)
+
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--tile_cache_size", type=int, default=0)
+    parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--no_amp", action="store_true")
-    parser.add_argument("--no_class_weights", action="store_true")
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    use_pretrained_backbone = args.pretrained_backbone or args.backbone_pretrained
+
+    config = vars(args).copy()
+    config["pretrained_backbone"] = use_pretrained_backbone
+    config["mixed_precision"] = not args.no_amp
+
     os.makedirs(args.output_dir, exist_ok=True)
+    set_seed(args.seed)
 
-    cfg = Config(
-        init_ckpt=args.init_ckpt,
-        train_shp=args.train_shp,
-        val_shp=args.val_shp,
-        imagery_root=args.imagery_root,
-        output_dir=args.output_dir,
-        label_field=args.label_field,
-        folder_field=args.folder_field,
-        file_field=args.file_field,
-        fx_field=args.fx_field,
-        fy_field=args.fy_field,
-        coord_mode=args.coord_mode,
-        image_size=args.image_size,
+    if args.device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is not available.")
+
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    use_amp = (not args.no_amp) and device.type == "cuda"
+
+    tif_files = recursive_find_tif_files(args.train_root)
+
+    print("=" * 100)
+    print("Recursive TIFF scan")
+    print(f"Train root: {args.train_root}")
+    print(f"Found TIFF files: {len(tif_files)}")
+    if len(tif_files) > 0:
+        print("First 5 files:")
+        for p in tif_files[:5]:
+            print(f"  {p}")
+    print("=" * 100)
+
+    if len(tif_files) == 0:
+        raise RuntimeError("No TIFF files found. Please check --train_root.")
+
+    with open(os.path.join(args.output_dir, "phase1_config.json"), "w", encoding="utf-8") as f:
+        import json
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+    train_dataset = RandomPatchTifDataset(
+        root_dir=args.train_root,
         patch_size_px=args.patch_size_px,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        lr_encoder=args.lr_encoder,
-        lr_head=args.lr_head,
-        weight_decay=args.weight_decay,
-        num_workers=args.num_workers,
-        device=args.device,
-        seed=args.seed,
-        use_amp=not args.no_amp,
-        use_class_weights=not args.no_class_weights,
-        save_every=args.save_every,
-        monitor_metric=args.monitor_metric,
+        patches_per_image=args.patches_per_image,
+        num_global_views=args.num_global_views,
+        num_local_views=args.num_local_views,
+        image_size_global=args.image_size_global,
+        image_size_local=args.image_size_local,
+        tile_cache_size=args.tile_cache_size,
     )
-
-    set_seed(cfg.seed)
-
-    with open(os.path.join(cfg.output_dir, "supervised_config.json"), "w", encoding="utf-8") as f:
-        json.dump(asdict(cfg), f, indent=2, ensure_ascii=False)
-
-    if cfg.device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA requested but not available")
-
-    device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
-    use_amp = cfg.use_amp and device.type == "cuda"
-
-    folder_to_paths = build_tif_index(cfg.imagery_root)
-
-    model, _ = load_encoder_from_checkpoint(cfg.init_ckpt, device)
-
-    train_ds = GTPointDataset(
-        shp_path=cfg.train_shp,
-        imagery_root=cfg.imagery_root,
-        label_field=cfg.label_field,
-        folder_field=cfg.folder_field,
-        file_field=cfg.file_field,
-        fx_field=cfg.fx_field,
-        fy_field=cfg.fy_field,
-        patch_size_px=cfg.patch_size_px,
-        transform=build_train_transform(cfg.image_size),
-        coord_mode=cfg.coord_mode,
-        folder_to_paths=folder_to_paths,
-    )
-
-    val_ds = GTPointDataset(
-        shp_path=cfg.val_shp,
-        imagery_root=cfg.imagery_root,
-        label_field=cfg.label_field,
-        folder_field=cfg.folder_field,
-        file_field=cfg.file_field,
-        fx_field=cfg.fx_field,
-        fy_field=cfg.fy_field,
-        patch_size_px=cfg.patch_size_px,
-        transform=build_eval_transform(cfg.image_size),
-        coord_mode=cfg.coord_mode,
-        class_to_idx=train_ds.class_to_idx,
-        folder_to_paths=folder_to_paths,
-    )
-
-    label_counts = {
-        "train": train_ds.label_counts(),
-        "val": val_ds.label_counts(),
-    }
-
-    with open(os.path.join(cfg.output_dir, "class_to_idx.json"), "w", encoding="utf-8") as f:
-        json.dump(train_ds.class_to_idx, f, indent=2, ensure_ascii=False)
-
-    with open(os.path.join(cfg.output_dir, "label_counts.json"), "w", encoding="utf-8") as f:
-        json.dump(label_counts, f, indent=2, ensure_ascii=False)
-
-    print("=" * 80)
-    print("Supervised fine-tuning setup")
-    print("Classes:", train_ds.classes)
-    print("Train samples:", len(train_ds))
-    print("Val samples:", len(val_ds))
-    print("Coord mode:", cfg.coord_mode)
-    print("AMP enabled:", use_amp)
-    print("Class weights:", cfg.use_class_weights)
-    print("=" * 80)
 
     train_loader = DataLoader(
-        train_ds,
-        batch_size=cfg.batch_size,
+        train_dataset,
+        batch_size=args.batch_size_ssl,
         shuffle=True,
-        num_workers=cfg.num_workers,
+        num_workers=args.num_workers,
         pin_memory=(device.type == "cuda"),
-        persistent_workers=(cfg.num_workers > 0),
+        drop_last=True,
+        persistent_workers=(args.num_workers > 0),
+        collate_fn=collate_multiview_with_meta,
     )
 
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=cfg.batch_size,
+    eval_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size_ssl,
         shuffle=False,
-        num_workers=cfg.num_workers,
+        num_workers=args.num_workers,
         pin_memory=(device.type == "cuda"),
-        persistent_workers=(cfg.num_workers > 0),
+        drop_last=False,
+        persistent_workers=(args.num_workers > 0),
+        collate_fn=collate_multiview_with_meta,
     )
 
-    feat_dim = infer_feature_dim(model, device, cfg.image_size)
-    head = nn.Linear(feat_dim, len(train_ds.classes)).to(device)
-
-    if cfg.use_class_weights:
-        class_weights = compute_class_weights(train_ds, len(train_ds.classes), device)
-        print("Class weights:", class_weights.detach().cpu().numpy().tolist())
-    else:
-        class_weights = None
-
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-
-    optimizer = torch.optim.AdamW(
-        [
-            {"params": model.parameters(), "lr": cfg.lr_encoder},
-            {"params": head.parameters(), "lr": cfg.lr_head},
-        ],
-        weight_decay=cfg.weight_decay,
+    extract_dataset = GridPatchTifDataset(
+        root_dir=args.train_root,
+        patch_size_px=args.patch_size_px,
+        stride_px=args.extract_stride_px,
+        image_size=args.image_size_global,
+        tile_cache_size=args.tile_cache_size,
+        max_patches_per_image=args.max_extract_patches_per_image,
     )
 
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if device.type == "cuda" else None
+    extract_loader = DataLoader(
+        extract_dataset,
+        batch_size=args.extract_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=(device.type == "cuda"),
+        drop_last=False,
+        persistent_workers=(args.num_workers > 0),
+        collate_fn=collate_patch_with_meta,
+    )
 
-    best_metric = -float("inf")
-    history = []
-    start = time.time()
+    model = SSLImageEncoder(
+        backbone_name=args.backbone_name,
+        pretrained_backbone=use_pretrained_backbone,
+        image_size=args.image_size_global,
+        projector_hidden_dim=args.projector_hidden_dim,
+        projector_out_dim=args.projector_out_dim,
+    ).to(device)
 
-    for epoch in range(1, cfg.epochs + 1):
-        train_metrics = run_epoch(
+    loss_fn = LeJEPALikeLoss(
+        align_weight=args.align_weight,
+        var_weight=args.var_weight,
+        cov_weight=args.cov_weight,
+        slice_weight=args.slice_weight,
+        num_slices=args.num_slices,
+    )
+
+    optimizer = create_optimizer(model, lr=args.ssl_lr, weight_decay=args.weight_decay)
+    scheduler = cosine_scheduler(
+        optimizer=optimizer,
+        base_lr=args.ssl_lr,
+        min_lr=args.ssl_lr * args.min_lr_ratio,
+        total_epochs=args.ssl_epochs,
+        warmup_epochs=args.warmup_epochs_ssl,
+    )
+
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+
+    global_start_time = time.time()
+    best_proxy_loss = float("inf")
+
+    print("=" * 100)
+    print("Phase 1 started")
+    print(f"Backbone                  : {args.backbone_name}")
+    print(f"Pretrained backbone       : {use_pretrained_backbone}")
+    print(f"Device                    : {device}")
+    print(f"AMP enabled               : {use_amp}")
+    print(f"Train TIFF files          : {len(tif_files)}")
+    print(f"Patches per image         : {args.patches_per_image}")
+    print(f"Train samples             : {len(train_dataset)}")
+    print(f"SSL epochs                : {args.ssl_epochs}")
+    print(f"Patch size                : {args.patch_size_px}")
+    print(f"Extraction stride         : {args.extract_stride_px}")
+    print(f"Extraction samples        : {len(extract_dataset)}")
+    print("=" * 100)
+
+    for epoch in range(args.ssl_epochs):
+        train_metrics = train_ssl_one_epoch(
             model=model,
-            head=head,
             loader=train_loader,
-            criterion=criterion,
             optimizer=optimizer,
             scaler=scaler,
+            loss_fn=loss_fn,
+            device=device,
+            epoch=epoch,
+            total_epochs=args.ssl_epochs,
+            global_start_time=global_start_time,
+            use_amp=use_amp,
+        )
+        scheduler.step()
+
+        proxy_loss = evaluate_ssl_proxy_loss(
+            model=model,
+            loader=eval_loader,
+            loss_fn=loss_fn,
             device=device,
             use_amp=use_amp,
-            train=True,
-            epoch=epoch,
+            num_batches=min(10, len(eval_loader)),
         )
-
-        val_metrics = run_epoch(
-            model=model,
-            head=head,
-            loader=val_loader,
-            criterion=criterion,
-            optimizer=None,
-            scaler=None,
-            device=device,
-            use_amp=False,
-            train=False,
-            epoch=epoch,
-        )
-
-        row = {
-            "epoch": epoch,
-            "train_loss": train_metrics["loss"],
-            "train_accuracy": train_metrics["accuracy"],
-            "train_macro_f1": train_metrics["macro_f1"],
-            "train_weighted_f1": train_metrics["weighted_f1"],
-            "val_loss": val_metrics["loss"],
-            "val_accuracy": val_metrics["accuracy"],
-            "val_macro_f1": val_metrics["macro_f1"],
-            "val_weighted_f1": val_metrics["weighted_f1"],
-        }
-        history.append(row)
-
-        if cfg.monitor_metric == "neg_val_loss":
-            current_metric = -row["val_loss"]
-        else:
-            current_metric = row[cfg.monitor_metric]
 
         print(
-            f"Epoch {epoch:03d} | "
-            f"train loss {row['train_loss']:.4f} acc {row['train_accuracy']:.4f} "
-            f"macro_f1 {row['train_macro_f1']:.4f} weighted_f1 {row['train_weighted_f1']:.4f} | "
-            f"val loss {row['val_loss']:.4f} acc {row['val_accuracy']:.4f} "
-            f"macro_f1 {row['val_macro_f1']:.4f} weighted_f1 {row['val_weighted_f1']:.4f}"
+            f"[SSL][Epoch {epoch+1}/{args.ssl_epochs}] "
+            f"total={train_metrics['ssl_total']:.4f} "
+            f"align={train_metrics['align_loss']:.4f} "
+            f"var={train_metrics['var_loss']:.4f} "
+            f"cov={train_metrics['cov_loss']:.4f} "
+            f"slice={train_metrics['slice_loss']:.4f} "
+            f"proxy_eval={proxy_loss:.4f}"
         )
 
-        if current_metric > best_metric:
-            best_metric = current_metric
-            save_checkpoint_bundle(
-                cfg=cfg,
+        if proxy_loss < best_proxy_loss:
+            best_proxy_loss = proxy_loss
+            save_checkpoint(
                 model=model,
-                head=head,
-                feat_dim=feat_dim,
+                optimizer=optimizer,
+                scheduler=scheduler,
                 epoch=epoch,
-                metric_value=current_metric,
-                classes=train_ds.classes,
-                class_to_idx=train_ds.class_to_idx,
-                name="best",
-            )
-            print(f"[INFO] Saved best checkpoint: {cfg.monitor_metric}={current_metric:.6f}")
-
-        if cfg.save_every > 0 and epoch % cfg.save_every == 0:
-            save_checkpoint_bundle(
-                cfg=cfg,
-                model=model,
-                head=head,
-                feat_dim=feat_dim,
-                epoch=epoch,
-                metric_value=current_metric,
-                classes=train_ds.classes,
-                class_to_idx=train_ds.class_to_idx,
-                name=f"epoch_{epoch:03d}",
+                best_metric=best_proxy_loss,
+                path=os.path.join(args.output_dir, "phase1_encoder_best.pth"),
+                config_dict=config,
             )
 
-        pd.DataFrame(history).to_csv(
-            os.path.join(cfg.output_dir, "training_history.csv"),
-            index=False,
-        )
+        if (epoch + 1) % args.save_every == 0:
+            save_checkpoint(
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                epoch=epoch,
+                best_metric=best_proxy_loss,
+                path=os.path.join(args.output_dir, f"phase1_epoch_{epoch+1:03d}.pth"),
+                config_dict=config,
+            )
 
-    final_metric = history[-1][cfg.monitor_metric] if cfg.monitor_metric != "neg_val_loss" else -history[-1]["val_loss"]
-
-    save_checkpoint_bundle(
-        cfg=cfg,
+    save_checkpoint(
         model=model,
-        head=head,
-        feat_dim=feat_dim,
-        epoch=cfg.epochs,
-        metric_value=final_metric,
-        classes=train_ds.classes,
-        class_to_idx=train_ds.class_to_idx,
-        name="last",
+        optimizer=optimizer,
+        scheduler=scheduler,
+        epoch=args.ssl_epochs - 1,
+        best_metric=best_proxy_loss,
+        path=os.path.join(args.output_dir, "phase1_encoder_last.pth"),
+        config_dict=config,
     )
 
-    val_final = run_epoch(
+    print("\n[Stage 2/2] Embedding extraction")
+    output_csv = os.path.join(args.output_dir, "phase1_embeddings.csv")
+    extract_embeddings_to_csv(
         model=model,
-        head=head,
-        loader=val_loader,
-        criterion=criterion,
-        optimizer=None,
-        scaler=None,
+        loader=extract_loader,
         device=device,
-        use_amp=False,
-        train=False,
-        epoch=cfg.epochs,
+        output_csv=output_csv,
+        use_amp=use_amp,
     )
 
-    report = classification_report(
-        val_final["y_true"],
-        val_final["y_pred"],
-        labels=list(range(len(train_ds.classes))),
-        target_names=train_ds.classes,
-        zero_division=0,
-        output_dict=True,
-    )
+    total_elapsed = time.time() - global_start_time
 
-    with open(os.path.join(cfg.output_dir, "val_classification_report.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
-
-    print("=" * 80)
-    print("Supervised fine-tuning completed")
-    print(f"Best monitored metric: {cfg.monitor_metric} = {best_metric:.6f}")
-    print(f"Saved best encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_best.pth')}")
-    print(f"Saved last encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_last.pth')}")
-    print(f"Elapsed: {time.time() - start:.1f}s")
-    print("=" * 80)
+    print("\n" + "=" * 100)
+    print("Phase 1 completed")
+    print(f"Best checkpoint            : {os.path.join(args.output_dir, 'phase1_encoder_best.pth')}")
+    print(f"Last checkpoint            : {os.path.join(args.output_dir, 'phase1_encoder_last.pth')}")
+    print(f"Embedding CSV              : {output_csv}")
+    print(f"Best proxy loss            : {best_proxy_loss:.4f}")
+    print(f"Total elapsed              : {format_seconds(total_elapsed)}")
+    print("=" * 100)
 
 
 if __name__ == "__main__":
