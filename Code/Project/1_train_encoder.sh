@@ -2,10 +2,10 @@
 
 # --- 1. Slurm Resource Configuration ---
 #SBATCH --job-name=resnet_train
-#SBATCH --partition=gpu-h100-nvl       # Partition: gpu
+#SBATCH --partition=gpu       # Partition: gpu
 #SBATCH --qos=gpu                      # QOS: gpu
 #SBATCH --gres=gpu:1                   # Request 1 GPU
-#SBATCH --mem=96G                      # Request 96GB RAM
+#SBATCH --mem=82G                      # Request 96GB RAM
 #SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
 #SBATCH --nodes=1                      # Single node
 #SBATCH --ntasks=1                     # Single task
