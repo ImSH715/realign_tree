@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=0_b_dino
-#SBATCH --partition=gpu-h100-nvl 
+#SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=96G
