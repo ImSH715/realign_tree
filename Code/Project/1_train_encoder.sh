@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=LeJEPA_train
+#SBATCH --job-name=Dino_train
 #SBATCH --partition=gpu-h100-nvl       # Partition: gpu
 #SBATCH --qos=gpu                      # QOS: gpu
 #SBATCH --gres=gpu:1                   # Request 1 GPU
