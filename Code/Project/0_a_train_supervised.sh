@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=0_a_resnet
+#SBATCH --job-name=0_a_dino
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -9,8 +9,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/0_a_resnet_ft_%j.out
-#SBATCH --error=logs/0_a_resnet_ft_%j.err
+#SBATCH --output=logs/0_a_dino_ft_%j.out
+#SBATCH --error=logs/0_a_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -37,11 +37,11 @@ python make_gt_splits.py \
 
 # 2. Supervised fine-tune LeJEPA encoder
 python train_supervised_encoder.py \
-  --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
+  --init_ckpt "./outputs/phase1_dino/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_resnet50_supervised" \
+  --output_dir "./outputs/phase1_dino_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
   --file_field "File" \
