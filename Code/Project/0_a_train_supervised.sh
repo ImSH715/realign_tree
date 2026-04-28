@@ -1,17 +1,19 @@
 #!/bin/bash
 
-#SBATCH --job-name=0_a_dino
+#SBATCH --job-name=0_a_dino_ft
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=82G
-#SBATCH --cpus-per-task=8
+#SBATCH --mem=48G
+#SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=90:00:00
-#SBATCH --output=supervised_%j.out
-#SBATCH --error=supervised_%j.err
+#SBATCH --time=12:00:00
+#SBATCH --output=logs/0_a_dino_ft_%j.out
+#SBATCH --error=logs/0_a_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
+
+mkdir -p logs
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
