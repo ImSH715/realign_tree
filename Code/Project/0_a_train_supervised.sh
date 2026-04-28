@@ -51,7 +51,7 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 16 \
-  --epochs 10 \
+  --epochs 70 \
   --lr_encoder 1e-5 \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
