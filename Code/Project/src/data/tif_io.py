@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import rasterio
 from PIL import Image
-from preproccess import preprocess
+from preprocess import preprocess
 
 def recursive_find_tif_files(root_dir: str) -> List[str]:
     patterns = ["**/*.tif", "**/*.TIF", "**/*.tiff", "**/*.TIFF"]
