@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import rasterio
 from PIL import Image
-
+from preproccess import preprocess
 
 def recursive_find_tif_files(root_dir: str) -> List[str]:
     patterns = ["**/*.tif", "**/*.TIF", "**/*.tiff", "**/*.TIFF"]
@@ -69,7 +69,8 @@ def read_patch_as_pil(path: str, left: int, top: int, width: int, height: int) -
             rgb = (rgb - min_val) / (max_val - min_val)
         rgb = (rgb * 255.0).clip(0, 255).astype(np.uint8)
 
-    return Image.fromarray(rgb)
+    img = Image.fromarray(rgb)
+    return preprocess(img)
 
 
 class TileCache:
