@@ -4,11 +4,11 @@
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=96G
+#SBATCH --mem=82G
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=12:00:00
+#SBATCH --time=90:00:00
 #SBATCH --output=logs/0_b_dino_ft_%j.out
 #SBATCH --error=logs/0_b_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
