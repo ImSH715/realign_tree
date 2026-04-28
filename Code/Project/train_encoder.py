@@ -1,28 +1,32 @@
 """
-Phase 1 training script for self-supervised encoder learning on recursive TIFF patches.
+Phase 1: self-supervised encoder pretraining on recursive TIFF patches.
 
-This script supports multiple backbones under the same training pipeline:
-- LeJEPA-style ViT baseline,
-- ResNet50 CNN baseline,
-- DINOv2 backbones from timm.
+This stage does NOT use labels.
+It learns general image representations from random TIFF patches.
 
-It keeps the downstream pipeline stable by producing:
-- a trained checkpoint that can be loaded with load_encoder_from_checkpoint(),
-- and an embedding CSV for Phase 2 prototype construction.
+Outputs:
+- phase1_encoder_best.pth
+- phase1_encoder_last.pth
+- phase1_epoch_XXX.pth
+- phase1_embeddings.csv
+- phase1_training_history.csv
+- debug_patches/*.png
 
-Phase 2 and Phase 3 do not need to change as long as model.encode(...) remains valid.
+Downstream Phase 2 / Phase 3 remain compatible as long as model.encode(...) works.
 """
 
 import os
 import csv
 import math
 import time
+import json
 import argparse
-from dataclasses import asdict
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torchvision.utils import save_image
 from tqdm import tqdm
 
 from src.models.encoder import SSLImageEncoder, LeJEPALikeLoss
@@ -55,30 +59,35 @@ def format_seconds(seconds: float) -> str:
 
 
 class AverageMeter:
-    def __init__(self) -> None:
+    def __init__(self):
         self.reset()
 
-    def reset(self) -> None:
+    def reset(self):
         self.sum = 0.0
         self.count = 0
 
     @property
-    def avg(self) -> float:
+    def avg(self):
         return self.sum / max(1, self.count)
 
-    def update(self, value: float, n: int = 1) -> None:
-        self.sum += value * n
+    def update(self, value, n=1):
+        self.sum += float(value) * n
         self.count += n
 
 
-def create_optimizer(model: torch.nn.Module, lr: float, weight_decay: float):
-    return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+def create_optimizer(model, lr, weight_decay):
+    return torch.optim.AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
 
 
 def cosine_scheduler(optimizer, base_lr, min_lr, total_epochs, warmup_epochs):
     def lr_lambda(epoch: int):
         if epoch < warmup_epochs:
             return float(epoch + 1) / max(1, warmup_epochs)
+
         progress = (epoch - warmup_epochs) / max(1, total_epochs - warmup_epochs)
         cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
         lr = min_lr + (base_lr - min_lr) * cosine
@@ -87,17 +96,47 @@ def cosine_scheduler(optimizer, base_lr, min_lr, total_epochs, warmup_epochs):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
 
+def get_lr(optimizer):
+    return optimizer.param_groups[0]["lr"]
+
+
+def backward_step(loss, optimizer, scaler, grad_clip_norm):
+    if scaler is not None:
+        scaler.scale(loss).backward()
+
+        if grad_clip_norm > 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                [p for group in optimizer.param_groups for p in group["params"]],
+                grad_clip_norm,
+            )
+
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        loss.backward()
+
+        if grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(
+                [p for group in optimizer.param_groups for p in group["params"]],
+                grad_clip_norm,
+            )
+
+        optimizer.step()
+
+
 def train_ssl_one_epoch(
-    model: torch.nn.Module,
-    loader: DataLoader,
+    model,
+    loader,
     optimizer,
     scaler,
-    loss_fn: torch.nn.Module,
-    device: torch.device,
-    epoch: int,
-    total_epochs: int,
-    global_start_time: float,
-    use_amp: bool,
+    loss_fn,
+    device,
+    epoch,
+    total_epochs,
+    global_start_time,
+    use_amp,
+    grad_clip_norm,
 ):
     model.train()
 
@@ -114,6 +153,7 @@ def train_ssl_one_epoch(
 
     for step, (views, _) in enumerate(pbar):
         views = [v.to(device, non_blocking=True) for v in views]
+
         optimizer.zero_grad(set_to_none=True)
 
         with torch.amp.autocast(device_type=device.type, enabled=use_amp):
@@ -122,11 +162,15 @@ def train_ssl_one_epoch(
             preds = [model.predict(p) for p in projs]
             loss, metrics = loss_fn(preds, projs)
 
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        backward_step(
+            loss=loss,
+            optimizer=optimizer,
+            scaler=scaler,
+            grad_clip_norm=grad_clip_norm,
+        )
 
         batch_size = views[0].size(0)
+
         for key, value in metrics.items():
             meters[key].update(value, batch_size)
 
@@ -142,7 +186,9 @@ def train_ssl_one_epoch(
         pbar.set_postfix(
             loss=f"{meters['ssl_total'].avg:.4f}",
             align=f"{meters['align_loss'].avg:.4f}",
+            var=f"{meters['var_loss'].avg:.4f}",
             slice=f"{meters['slice_loss'].avg:.4f}",
+            lr=f"{get_lr(optimizer):.2e}",
             epoch_eta=format_seconds(epoch_eta),
             total_eta=format_seconds(total_eta),
         )
@@ -152,17 +198,18 @@ def train_ssl_one_epoch(
 
 @torch.no_grad()
 def evaluate_ssl_proxy_loss(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    loss_fn: torch.nn.Module,
-    device: torch.device,
-    use_amp: bool,
-    num_batches: int = 10,
-) -> float:
+    model,
+    loader,
+    loss_fn,
+    device,
+    use_amp,
+    num_batches=10,
+):
     model.eval()
-    losses = []
 
-    pbar = tqdm(loader, desc="Evaluating proxy loss", dynamic_ncols=True)
+    losses = []
+    pbar = tqdm(loader, desc="Evaluating SSL proxy", dynamic_ncols=True)
+
     for i, (views, _) in enumerate(pbar):
         if i >= num_batches:
             break
@@ -176,28 +223,60 @@ def evaluate_ssl_proxy_loss(
             loss, _ = loss_fn(preds, projs)
 
         losses.append(float(loss.item()))
+        pbar.set_postfix(proxy=f"{np.mean(losses):.4f}")
 
     if len(losses) == 0:
         return float("inf")
+
     return float(np.mean(losses))
+
+
+def denormalize_for_debug(x):
+    mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+    return (x * std + mean).clamp(0, 1)
+
+
+@torch.no_grad()
+def save_debug_patches(loader, output_dir, max_images=32):
+    os.makedirs(output_dir, exist_ok=True)
+
+    saved = 0
+    for patches, metas in loader:
+        patches = denormalize_for_debug(patches)
+
+        for i in range(patches.size(0)):
+            if saved >= max_images:
+                return
+
+            meta = metas[i]
+            base = os.path.basename(meta["image_path"])
+            x = int(round(float(meta["x"])))
+            y = int(round(float(meta["y"])))
+
+            out_path = os.path.join(output_dir, f"{saved:04d}_{base}_{x}_{y}.png")
+            save_image(patches[i], out_path)
+            saved += 1
 
 
 @torch.no_grad()
 def extract_embeddings_to_csv(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    device: torch.device,
-    output_csv: str,
-    use_amp: bool,
-) -> None:
+    model,
+    loader,
+    device,
+    output_csv,
+    use_amp,
+):
     model.eval()
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
 
     first_batch = True
+
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = None
 
         pbar = tqdm(loader, desc="Extracting embeddings", dynamic_ncols=True)
+
         for patches, metas in pbar:
             patches = patches.to(device, non_blocking=True)
 
@@ -214,27 +293,32 @@ def extract_embeddings_to_csv(
                 first_batch = False
 
             for i, meta in enumerate(metas):
-                point_id = f"{os.path.basename(meta['image_path'])}_{int(round(meta['x']))}_{int(round(meta['y']))}"
+                point_id = (
+                    f"{os.path.basename(meta['image_path'])}_"
+                    f"{int(round(meta['x']))}_"
+                    f"{int(round(meta['y']))}"
+                )
+
                 row = [
                     meta["image_path"],
                     point_id,
                     float(meta["x"]),
                     float(meta["y"]),
                 ] + feat_np[i].astype(np.float32).tolist()
+
                 writer.writerow(row)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Phase 1: unlabeled LeJEPA-style encoder training on recursive TIFF patches"
+        description="Phase 1: self-supervised encoder training on recursive TIFF patches"
     )
 
-    parser.add_argument("--train_root", type=str, required=True)
-    parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--train_root", required=True)
+    parser.add_argument("--output_dir", required=True)
 
     parser.add_argument(
         "--backbone_name",
-        type=str,
         default="vit_base_patch16_224",
         choices=[
             "vit_base_patch16_224",
@@ -243,16 +327,9 @@ def parse_args():
             "vit_base_patch14_dinov2.lvd142m",
         ],
     )
-    parser.add_argument(
-        "--pretrained_backbone",
-        action="store_true",
-        help="Use pretrained weights for the backbone if available in timm/cache.",
-    )
-    parser.add_argument(
-        "--backbone_pretrained",
-        action="store_true",
-        help="Backward-compatible alias for --pretrained_backbone.",
-    )
+
+    parser.add_argument("--pretrained_backbone", action="store_true")
+    parser.add_argument("--backbone_pretrained", action="store_true")
 
     parser.add_argument("--ssl_epochs", type=int, default=20)
     parser.add_argument("--batch_size_ssl", type=int, default=8)
@@ -260,6 +337,7 @@ def parse_args():
     parser.add_argument("--weight_decay", type=float, default=5e-2)
     parser.add_argument("--warmup_epochs_ssl", type=int, default=3)
     parser.add_argument("--min_lr_ratio", type=float, default=1e-3)
+    parser.add_argument("--grad_clip_norm", type=float, default=1.0)
 
     parser.add_argument("--patch_size_px", type=int, default=224)
     parser.add_argument("--patches_per_image", type=int, default=100)
@@ -281,12 +359,19 @@ def parse_args():
     parser.add_argument("--extract_batch_size", type=int, default=32)
     parser.add_argument("--max_extract_patches_per_image", type=int, default=None)
 
-    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--eval_batches", type=int, default=10)
+
+    parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--tile_cache_size", type=int, default=0)
+
     parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--debug_patches", type=int, default=32)
+
+    parser.add_argument("--skip_extract", action="store_true")
     parser.add_argument("--no_amp", action="store_true")
+    parser.add_argument("--cudnn_benchmark", action="store_true")
 
     return parser.parse_args()
 
@@ -301,7 +386,11 @@ def main():
     config["mixed_precision"] = not args.no_amp
 
     os.makedirs(args.output_dir, exist_ok=True)
+
     set_seed(args.seed)
+
+    if args.cudnn_benchmark:
+        torch.backends.cudnn.benchmark = True
 
     if args.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is not available.")
@@ -313,19 +402,19 @@ def main():
 
     print("=" * 100)
     print("Recursive TIFF scan")
-    print(f"Train root: {args.train_root}")
-    print(f"Found TIFF files: {len(tif_files)}")
-    if len(tif_files) > 0:
-        print("First 5 files:")
-        for p in tif_files[:5]:
-            print(f"  {p}")
+    print(f"Train root        : {args.train_root}")
+    print(f"Found TIFF files  : {len(tif_files)}")
     print("=" * 100)
 
     if len(tif_files) == 0:
         raise RuntimeError("No TIFF files found. Please check --train_root.")
 
+    print("First 10 TIFF files:")
+    for p in tif_files[:10]:
+        print(f"  {p}")
+    print("=" * 100)
+
     with open(os.path.join(args.output_dir, "phase1_config.json"), "w", encoding="utf-8") as f:
-        import json
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     train_dataset = RandomPatchTifDataset(
@@ -361,25 +450,35 @@ def main():
         collate_fn=collate_multiview_with_meta,
     )
 
-    extract_dataset = GridPatchTifDataset(
-        root_dir=args.train_root,
-        patch_size_px=args.patch_size_px,
-        stride_px=args.extract_stride_px,
-        image_size=args.image_size_global,
-        tile_cache_size=args.tile_cache_size,
-        max_patches_per_image=args.max_extract_patches_per_image,
-    )
+    extract_dataset = None
+    extract_loader = None
 
-    extract_loader = DataLoader(
-        extract_dataset,
-        batch_size=args.extract_batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=(device.type == "cuda"),
-        drop_last=False,
-        persistent_workers=(args.num_workers > 0),
-        collate_fn=collate_patch_with_meta,
-    )
+    if not args.skip_extract:
+        extract_dataset = GridPatchTifDataset(
+            root_dir=args.train_root,
+            patch_size_px=args.patch_size_px,
+            stride_px=args.extract_stride_px,
+            image_size=args.image_size_global,
+            tile_cache_size=args.tile_cache_size,
+            max_patches_per_image=args.max_extract_patches_per_image,
+        )
+
+        extract_loader = DataLoader(
+            extract_dataset,
+            batch_size=args.extract_batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=(device.type == "cuda"),
+            drop_last=False,
+            persistent_workers=(args.num_workers > 0),
+            collate_fn=collate_patch_with_meta,
+        )
+
+        save_debug_patches(
+            loader=extract_loader,
+            output_dir=os.path.join(args.output_dir, "debug_patches"),
+            max_images=args.debug_patches,
+        )
 
     model = SSLImageEncoder(
         backbone_name=args.backbone_name,
@@ -397,7 +496,12 @@ def main():
         num_slices=args.num_slices,
     )
 
-    optimizer = create_optimizer(model, lr=args.ssl_lr, weight_decay=args.weight_decay)
+    optimizer = create_optimizer(
+        model=model,
+        lr=args.ssl_lr,
+        weight_decay=args.weight_decay,
+    )
+
     scheduler = cosine_scheduler(
         optimizer=optimizer,
         base_lr=args.ssl_lr,
@@ -406,25 +510,30 @@ def main():
         warmup_epochs=args.warmup_epochs_ssl,
     )
 
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-
-    global_start_time = time.time()
-    best_proxy_loss = float("inf")
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if device.type == "cuda" else None
 
     print("=" * 100)
     print("Phase 1 started")
-    print(f"Backbone                  : {args.backbone_name}")
-    print(f"Pretrained backbone       : {use_pretrained_backbone}")
-    print(f"Device                    : {device}")
-    print(f"AMP enabled               : {use_amp}")
-    print(f"Train TIFF files          : {len(tif_files)}")
-    print(f"Patches per image         : {args.patches_per_image}")
-    print(f"Train samples             : {len(train_dataset)}")
-    print(f"SSL epochs                : {args.ssl_epochs}")
-    print(f"Patch size                : {args.patch_size_px}")
-    print(f"Extraction stride         : {args.extract_stride_px}")
-    print(f"Extraction samples        : {len(extract_dataset)}")
+    print(f"Backbone              : {args.backbone_name}")
+    print(f"Pretrained backbone   : {use_pretrained_backbone}")
+    print(f"Device                : {device}")
+    print(f"AMP enabled           : {use_amp}")
+    print(f"Train TIFF files      : {len(tif_files)}")
+    print(f"Patches per image     : {args.patches_per_image}")
+    print(f"Train samples         : {len(train_dataset)}")
+    print(f"SSL epochs            : {args.ssl_epochs}")
+    print(f"Patch size            : {args.patch_size_px}")
+    print(f"Global image size     : {args.image_size_global}")
+    print(f"Local image size      : {args.image_size_local}")
+    print(f"Extraction enabled    : {not args.skip_extract}")
+    if extract_dataset is not None:
+        print(f"Extraction stride     : {args.extract_stride_px}")
+        print(f"Extraction samples    : {len(extract_dataset)}")
     print("=" * 100)
+
+    global_start_time = time.time()
+    best_proxy_loss = float("inf")
+    history = []
 
     for epoch in range(args.ssl_epochs):
         train_metrics = train_ssl_one_epoch(
@@ -438,7 +547,9 @@ def main():
             total_epochs=args.ssl_epochs,
             global_start_time=global_start_time,
             use_amp=use_amp,
+            grad_clip_norm=args.grad_clip_norm,
         )
+
         scheduler.step()
 
         proxy_loss = evaluate_ssl_proxy_loss(
@@ -447,8 +558,16 @@ def main():
             loss_fn=loss_fn,
             device=device,
             use_amp=use_amp,
-            num_batches=min(10, len(eval_loader)),
+            num_batches=min(args.eval_batches, len(eval_loader)),
         )
+
+        row = {
+            "epoch": epoch + 1,
+            "lr": get_lr(optimizer),
+            "proxy_loss": proxy_loss,
+            **train_metrics,
+        }
+        history.append(row)
 
         print(
             f"[SSL][Epoch {epoch+1}/{args.ssl_epochs}] "
@@ -457,11 +576,18 @@ def main():
             f"var={train_metrics['var_loss']:.4f} "
             f"cov={train_metrics['cov_loss']:.4f} "
             f"slice={train_metrics['slice_loss']:.4f} "
-            f"proxy_eval={proxy_loss:.4f}"
+            f"proxy_eval={proxy_loss:.4f} "
+            f"lr={get_lr(optimizer):.2e}"
         )
+
+        with open(os.path.join(args.output_dir, "phase1_training_history.csv"), "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(history[0].keys()))
+            writer.writeheader()
+            writer.writerows(history)
 
         if proxy_loss < best_proxy_loss:
             best_proxy_loss = proxy_loss
+
             save_checkpoint(
                 model=model,
                 optimizer=optimizer,
@@ -472,7 +598,9 @@ def main():
                 config_dict=config,
             )
 
-        if (epoch + 1) % args.save_every == 0:
+            print(f"[INFO] Saved best checkpoint: proxy_loss={best_proxy_loss:.6f}")
+
+        if args.save_every > 0 and (epoch + 1) % args.save_every == 0:
             save_checkpoint(
                 model=model,
                 optimizer=optimizer,
@@ -493,25 +621,33 @@ def main():
         config_dict=config,
     )
 
-    print("\n[Stage 2/2] Embedding extraction")
-    output_csv = os.path.join(args.output_dir, "phase1_embeddings.csv")
-    extract_embeddings_to_csv(
-        model=model,
-        loader=extract_loader,
-        device=device,
-        output_csv=output_csv,
-        use_amp=use_amp,
-    )
+    if not args.skip_extract and extract_loader is not None:
+        print("\n[Stage 2/2] Embedding extraction")
+
+        output_csv = os.path.join(args.output_dir, "phase1_embeddings.csv")
+
+        extract_embeddings_to_csv(
+            model=model,
+            loader=extract_loader,
+            device=device,
+            output_csv=output_csv,
+            use_amp=use_amp,
+        )
+    else:
+        output_csv = None
 
     total_elapsed = time.time() - global_start_time
 
     print("\n" + "=" * 100)
     print("Phase 1 completed")
-    print(f"Best checkpoint            : {os.path.join(args.output_dir, 'phase1_encoder_best.pth')}")
-    print(f"Last checkpoint            : {os.path.join(args.output_dir, 'phase1_encoder_last.pth')}")
-    print(f"Embedding CSV              : {output_csv}")
-    print(f"Best proxy loss            : {best_proxy_loss:.4f}")
-    print(f"Total elapsed              : {format_seconds(total_elapsed)}")
+    print(f"Best checkpoint      : {os.path.join(args.output_dir, 'phase1_encoder_best.pth')}")
+    print(f"Last checkpoint      : {os.path.join(args.output_dir, 'phase1_encoder_last.pth')}")
+    if output_csv:
+        print(f"Embedding CSV        : {output_csv}")
+    else:
+        print("Embedding CSV        : skipped")
+    print(f"Best proxy loss      : {best_proxy_loss:.4f}")
+    print(f"Total elapsed        : {format_seconds(total_elapsed)}")
     print("=" * 100)
 
 
