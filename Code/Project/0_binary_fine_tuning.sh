@@ -25,8 +25,8 @@ echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
-  --train_shp "./outputs/splits_binary/valid_points_train.csv" \
-  --val_shp "./outputs/splits_binary/valid_points_val.csv" \
+  --train_shp "./outputs/splits_binary/valid_points_train.shp" \
+  --val_shp "./outputs/splits_binary/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/binary_shihuahuaco" \
   --label_field BinaryTree \
