@@ -28,7 +28,7 @@ python train_supervised_encoder.py \
   --train_shp "./outputs/splits_binary/valid_points_train.shp" \
   --val_shp "./outputs/splits_binary/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/binary_shihuahuaco_classweights_check" \
+  --output_dir "./outputs/binary_lejepa_shihuahuaco_v3" \
   --label_field BinaryTree \
   --folder_field Folder \
   --file_field File \
@@ -49,5 +49,5 @@ python train_supervised_encoder.py \
   --num_workers 0 \
   --device cpu \
   --no_amp
-  
+
 echo "Job finished at $(date)"
