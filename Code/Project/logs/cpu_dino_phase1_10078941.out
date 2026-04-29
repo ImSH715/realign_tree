@@ -42,3 +42,4 @@ Extraction samples    : 3560
 [INFO] Saved best checkpoint: proxy_loss=20.139350
 [SSL][Epoch 2/30] total=20.5676 align=0.0037 var=0.6968 cov=2.1944 slice=0.9495 proxy_eval=20.6236 lr=5.00e-04
 [SSL][Epoch 3/30] total=20.7505 align=0.0037 var=0.7072 cov=2.1096 slice=0.9570 proxy_eval=20.4310 lr=5.00e-04
+[SSL][Epoch 4/30] total=20.2064 align=0.0038 var=0.6892 cov=2.0283 slice=0.9450 proxy_eval=20.3209 lr=4.98e-04

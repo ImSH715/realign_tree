@@ -33,3 +33,4 @@ Epoch 004 | frozen=0 | train loss 2.9102 acc 0.1250 macro_f1 0.0731 weighted_f1 
 Epoch 005 | frozen=0 | train loss 2.9190 acc 0.1263 macro_f1 0.0757 weighted_f1 0.1328 | val loss 3.3027 acc 0.0367 macro_f1 0.0147 weighted_f1 0.0164
 Epoch 006 | frozen=0 | train loss 2.8612 acc 0.1339 macro_f1 0.0821 weighted_f1 0.1263 | val loss 3.2868 acc 0.0321 macro_f1 0.0451 weighted_f1 0.0421
 [INFO] Saved best checkpoint at epoch 6: val_macro_f1=0.045093
+Epoch 007 | frozen=0 | train loss 2.8249 acc 0.1454 macro_f1 0.0887 weighted_f1 0.1354 | val loss 3.3569 acc 0.0138 macro_f1 0.0145 weighted_f1 0.0072

@@ -100,3 +100,8 @@ Extraction samples    : 3560
 [SSL][Epoch 56/100] total=19.3585 align=0.0038 var=0.6469 cov=2.2542 slice=0.9272 proxy_eval=19.5754 lr=2.14e-04
 [SSL][Epoch 57/100] total=19.2818 align=0.0038 var=0.6441 cov=2.2488 slice=0.9264 proxy_eval=19.4127 lr=2.06e-04
 [INFO] Saved best checkpoint: proxy_loss=19.412745
+[SSL][Epoch 58/100] total=19.2768 align=0.0038 var=0.6426 cov=2.2805 slice=0.9261 proxy_eval=19.3456 lr=1.98e-04
+[INFO] Saved best checkpoint: proxy_loss=19.345595
+[SSL][Epoch 59/100] total=19.3064 align=0.0038 var=0.6456 cov=2.2359 slice=0.9262 proxy_eval=19.3102 lr=1.90e-04
+[INFO] Saved best checkpoint: proxy_loss=19.310183
+[SSL][Epoch 60/100] total=19.2785 align=0.0038 var=0.6435 cov=2.2616 slice=0.9260 proxy_eval=19.3392 lr=1.82e-04
