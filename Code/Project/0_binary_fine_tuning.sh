@@ -28,10 +28,8 @@ python train_supervised_encoder.py \
   --train_shp "./outputs/splits_binary/valid_points_train.shp" \
   --val_shp "./outputs/splits_binary/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/binary_shihuahuaco_v2" \
+  --output_dir "./outputs/binary_shihuahuaco_v3" \
   --label_field BinaryTree \
-  --print_val_dist \
-  --print_train_dist \
   --folder_field Folder \
   --file_field File \
   --fx_field fx \
@@ -41,14 +39,13 @@ python train_supervised_encoder.py \
   --patch_size_px 224 \
   --batch_size 8 \
   --epochs 20 \
-  --lr_encoder 1e-7 \
+  --lr_encoder 1e-5 \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
-  --freeze_encoder_epochs 5 \
+  --freeze_encoder_epochs 3 \
   --patience 5 \
-  --balanced_sampler \
-  --no_class_weights \
   --debug_patches 64 \
+  --print_train_dist \
   --print_val_dist \
   --num_workers 0 \
   --device cpu \
