@@ -31,7 +31,7 @@ python build_prototypes.py \
   --gt_file_field "File" \
   --gt_fx_field "fx" \
   --gt_fy_field "fy" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase2_resnet50_supervised" \
   --image_size 224 \
   --patch_size_px 224 \
@@ -51,7 +51,7 @@ python build_prototypes.py \
   --gt_file_field "File" \
   --gt_fx_field "fx" \
   --gt_fy_field "fy" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase2_lejepa_supervised" \
   --image_size 224 \
   --patch_size_px 224 \
@@ -72,7 +72,7 @@ python build_prototypes.py \
   --gt_file_field "File" \
   --gt_fx_field "fx" \
   --gt_fy_field "fy" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase2_resnet50_supervised" \
   --image_size 224 \
   --patch_size_px 224 \

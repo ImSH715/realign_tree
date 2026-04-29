@@ -29,7 +29,7 @@ python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1_lejepa_supervised/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2_lejepa_supervised/class_prototypes.csv" \
   --points_csv "$INPUT_CSV" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_csv "./outputs/evaluation/${OUT_PREFIX}_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \

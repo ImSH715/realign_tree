@@ -37,7 +37,7 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_resnet50_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
@@ -61,7 +61,7 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/2023" \
   --output_dir "./outputs/phase1_lejepa_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \
@@ -85,7 +85,7 @@ python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_resnet50/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_resnet50_supervised" \
   --label_field "Tree" \
   --folder_field "Folder" \

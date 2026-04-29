@@ -29,7 +29,7 @@ python --version
 conda activate lejepa
 
 python train_encoder.py \
-  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --train_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_dino" \
   --backbone_name "vit_small_patch14_dinov2.lvd142m" \
   --pretrained_backbone \
@@ -45,9 +45,9 @@ python train_encoder.py \
   --max_extract_patches_per_image 20
 
 # Lejepa
-: << 'COMMENT'
+
 python train_encoder.py \
-  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --train_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_lejepa" \
   --backbone_name "vit_base_patch16_224" \
   --ssl_epochs 20 \
@@ -60,12 +60,12 @@ python train_encoder.py \
   --image_size_global 224 \
   --image_size_local 224 \
   --max_extract_patches_per_image 20
-COMMENT
+
 
 # Resnet
-: << 'COMMENT'
+
 python train_encoder.py \
-  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --train_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_resnet50" \
   --backbone_name "resnet50" \
   --pretrained_backbone \
@@ -79,12 +79,12 @@ python train_encoder.py \
   --image_size_global 224 \
   --image_size_local 224 \
   --max_extract_patches_per_image 20
-COMMENT
+
 
 #DINO
 : << 'COMMENT'
 python train_encoder.py \
-  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --train_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_dino" \
   --backbone_name "vit_small_patch14_dinov2.lvd142m" \
   --pretrained_backbone \

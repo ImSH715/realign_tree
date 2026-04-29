@@ -29,8 +29,8 @@ python --version
 conda activate lejepa
 
 python build_eval_inputs.py direct_gt_from_shp \
-  --shp_path "/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --shp_path "/mnt/parscratch/users/acc21pf/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_csv "./outputs/evaluation/valid_points_direct.csv" \
   --label_field "Tree" \
   --point_id_field "Tree" \
@@ -50,8 +50,8 @@ python build_eval_inputs.py recovery_from_direct_gt \
   --seed 42
 
 python build_eval_inputs.py censo_overlap \
-  --input_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
+  --input_csv "/mnt/parscratch/users/acc21pf/realign_tree/Code/Project/data/Censo_Forestal.csv" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
   --output_csv "./outputs/evaluation/Censo_Forestal_overlap_all.csv" \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
