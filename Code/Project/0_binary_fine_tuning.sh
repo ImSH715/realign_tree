@@ -46,6 +46,6 @@ python train_supervised_encoder.py \
   --debug_patches 64 \
   --balanced_sampler \
   --num_workers 0 \
-  --device cuda
+  --device cpu
 
 echo "Job finished at $(date)"
