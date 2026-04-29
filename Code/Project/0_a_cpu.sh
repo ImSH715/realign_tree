@@ -38,7 +38,7 @@ python train_supervised_encoder.py \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_lejepa_supervised" \
+  --output_dir "./outputs/phase1_lejepa_supervised_cpu" \
   --label_field "Tree" \
   --folder_field "Folder" \
   --file_field "File" \
@@ -47,12 +47,16 @@ python train_supervised_encoder.py \
   --coord_mode auto \
   --image_size 224 \
   --patch_size_px 224 \
-  --batch_size 16 \
-  --epochs 70 \
-  --lr_encoder 1e-5 \
+  --batch_size 8 \
+  --epochs 30 \
+  --lr_encoder 1e-6 \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
-  --num_workers 0 \
-  --device cpu
+  --freeze_encoder_epochs 3 \
+  --patience 8 \
+  --debug_patches 64 \
+  --num_workers 8 \
+  --device cpu \
+  --no_amp
 
 echo "Job finished at $(date)"
