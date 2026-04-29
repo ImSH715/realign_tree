@@ -25,28 +25,22 @@ echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
-  --train_shp "./outputs/splits_gt_random/valid_points_train.shp" \
-  --val_shp "./outputs/splits_gt_random/valid_points_val.shp" \
+  --train_shp "./outputs/splits_binary/valid_points_train.csv" \
+  --val_shp "./outputs/splits_binary/valid_points_val.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_5_debug" \
-  --label_field "Tree" \
-  --folder_field "Folder" \
-  --file_field "File" \
-  --fx_field "fx" \
-  --fy_field "fy" \
+  --output_dir "./outputs/binary_shihuahuaco" \
+  --label_field BinaryTree \
+  --folder_field Folder \
+  --file_field File \
+  --fx_field fx \
+  --fy_field fy \
   --coord_mode auto \
-  --image_size 224 \
-  --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 50 \
-  --lr_encoder 1e-7 \
+  --epochs 30 \
+  --lr_encoder 1e-5 \
   --lr_head 1e-4 \
-  --freeze_encoder_epochs 10 \
   --weight_decay 1e-4 \
   --num_workers 0 \
-  --device cpu \
-  --balanced_sampler \
-  --no_class_weights \
-  --print_val_dist
+  --device cpu
 
 echo "Job finished at $(date)"
