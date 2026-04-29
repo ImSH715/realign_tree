@@ -1,17 +1,19 @@
 #!/bin/bash
 
-#SBATCH --job-name=phase2_supervised_lejepa
+#SBATCH --job-name=0_b_dino
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=82G
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=phase2_sup_%j.out
-#SBATCH --error=phase2_sup_%j.err
+#SBATCH --output=logs/0_b_dino_ft_%j.out
+#SBATCH --error=logs/0_b_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
+
+mkdir -p logs
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -20,10 +22,12 @@ conda activate lejepa
 echo "Using Python from: $(which python)"
 python --version
 echo "Job started at $(date)"
+echo "Running on node: $(hostname)"
+nvidia-smi
 
 python build_prototypes.py \
-  --phase1_ckpt "./outputs/phase1_resnet50_supervised/phase1_encoder_best.pth" \
-  --phase1_embedding_csv "./outputs/phase1_resnet50/phase1_embeddings.csv" \
+  --phase1_ckpt "./outputs/phase1_dino_supervised/phase1_encoder_best.pth" \
+  --phase1_embedding_csv "./outputs/phase1_dino/phase1_embeddings.csv" \
   --gt_path "./outputs/splits_gt/valid_points_train.shp" \
   --gt_type shp \
   --gt_label_field "Tree" \
@@ -32,7 +36,7 @@ python build_prototypes.py \
   --gt_fx_field "fx" \
   --gt_fy_field "fy" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase2_resnet50_supervised" \
+  --output_dir "./outputs/phase2_dino_supervised" \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 32 \

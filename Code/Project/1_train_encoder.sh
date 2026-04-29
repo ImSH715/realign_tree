@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=LeJEPA_train
-#SBATCH --partition=gpu                # Partition: gpu
+#SBATCH --job-name=dino_train
+#SBATCH --partition=gpu       # Partition: gpu
 #SBATCH --qos=gpu                      # QOS: gpu
 #SBATCH --gres=gpu:1                   # Request 1 GPU
-#SBATCH --mem=82G                      # Request 82GB RAM
+#SBATCH --mem=82G                      # Request 96GB RAM
 #SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
 #SBATCH --nodes=1                      # Single node
 #SBATCH --ntasks=1                     # Single task
 #SBATCH --time=90:00:00                # Time limit (HH:MM:SS)
-#SBATCH --output=result_%j.out         # Standard output log
-#SBATCH --error=result_%j.err          # Error log
+#SBATCH --output=logs/train_dino_%j.out         # Standard output log
+#SBATCH --error=logs/train_dino_%j.err          # Error log
 
 # --- 2. Email Notification Settings ---
 #SBATCH --mail-type=END,FAIL           # Notify when finished or failed
@@ -33,7 +33,7 @@ python train_encoder.py \
   --output_dir "./outputs/phase1_dino" \
   --backbone_name "vit_small_patch14_dinov2.lvd142m" \
   --pretrained_backbone \
-  --ssl_epochs 20 \
+  --ssl_epochs 100 \
   --batch_size_ssl 8 \
   --patches_per_image 10 \
   --num_workers 4 \
