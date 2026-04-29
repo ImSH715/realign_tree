@@ -1,0 +1,61 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+====================================================================================================
+Recursive TIFF scan
+Train root: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Found TIFF files: 179
+First 5 files:
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_18032023_001_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_002_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+====================================================================================================
+[WARN] Skipping unreadable TIFF in training set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif
+[WARN] Skipping unreadable TIFF in extraction set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif | 25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif: TIFFReadDirectory:Failed to read directory at offset 1529645938
+====================================================================================================
+Phase 1 started
+Backbone                  : resnet50
+Pretrained backbone       : True
+Device                    : cuda
+AMP enabled               : True
+Train TIFF files          : 179
+Patches per image         : 10
+Train samples             : 1780
+SSL epochs                : 20
+Patch size                : 224
+Extraction stride         : 1024
+Extraction samples        : 3560
+====================================================================================================
+[SSL][Epoch 1/20] total=17.4993 align=0.0040 var=0.5501 cov=2.7811 slice=0.9616 proxy_eval=16.9229
+[SSL][Epoch 2/20] total=16.6708 align=0.0037 var=0.5034 cov=3.1399 slice=0.9427 proxy_eval=16.8214
+[SSL][Epoch 3/20] total=16.5861 align=0.0037 var=0.4994 cov=3.1625 slice=0.9336 proxy_eval=16.9381
+[SSL][Epoch 4/20] total=16.5111 align=0.0037 var=0.4956 cov=3.1855 slice=0.9329 proxy_eval=17.2410
+[SSL][Epoch 5/20] total=16.4070 align=0.0037 var=0.4904 cov=3.2137 slice=0.9303 proxy_eval=17.2371
+[SSL][Epoch 6/20] total=16.3577 align=0.0037 var=0.4874 cov=3.2380 slice=0.9301 proxy_eval=16.9190
+[SSL][Epoch 7/20] total=16.3127 align=0.0038 var=0.4856 cov=3.2404 slice=0.9287 proxy_eval=17.1004
+[SSL][Epoch 8/20] total=16.2245 align=0.0038 var=0.4808 cov=3.2737 slice=0.9262 proxy_eval=17.1587
+[SSL][Epoch 9/20] total=16.1594 align=0.0038 var=0.4780 cov=3.2815 slice=0.9246 proxy_eval=17.1374
+[SSL][Epoch 10/20] total=16.1415 align=0.0038 var=0.4768 cov=3.2946 slice=0.9238 proxy_eval=17.5786
+[SSL][Epoch 11/20] total=16.0894 align=0.0038 var=0.4745 cov=3.3003 slice=0.9226 proxy_eval=18.1811
+[SSL][Epoch 12/20] total=16.0208 align=0.0038 var=0.4708 cov=3.3246 slice=0.9216 proxy_eval=17.6150
+[SSL][Epoch 13/20] total=16.0317 align=0.0038 var=0.4714 cov=3.3222 slice=0.9213 proxy_eval=17.5107
+[SSL][Epoch 14/20] total=15.9571 align=0.0038 var=0.4678 cov=3.3375 slice=0.9204 proxy_eval=17.8375
+[SSL][Epoch 15/20] total=15.9536 align=0.0038 var=0.4676 cov=3.3397 slice=0.9199 proxy_eval=17.2923
+[SSL][Epoch 16/20] total=15.9137 align=0.0038 var=0.4656 cov=3.3493 slice=0.9195 proxy_eval=17.7372
+[SSL][Epoch 17/20] total=15.9325 align=0.0038 var=0.4666 cov=3.3450 slice=0.9194 proxy_eval=17.5489
+[SSL][Epoch 18/20] total=15.9395 align=0.0038 var=0.4671 cov=3.3391 slice=0.9193 proxy_eval=17.5893
+[SSL][Epoch 19/20] total=15.9229 align=0.0038 var=0.4665 cov=3.3385 slice=0.9191 proxy_eval=17.6688
+[SSL][Epoch 20/20] total=15.9234 align=0.0038 var=0.4661 cov=3.3486 slice=0.9191 proxy_eval=17.5543
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint            : ./outputs/phase1_resnet50/phase1_encoder_best.pth
+Last checkpoint            : ./outputs/phase1_resnet50/phase1_encoder_last.pth
+Embedding CSV              : ./outputs/phase1_resnet50/phase1_embeddings.csv
+Best proxy loss            : 16.8214
+Total elapsed              : 56:40
+====================================================================================================
+Job finished at Thu 23 Apr 17:57:43 BST 2026

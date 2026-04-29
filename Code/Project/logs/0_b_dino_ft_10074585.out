@@ -1,0 +1,170 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Wed 29 Apr 02:36:00 BST 2026
+Running on node: gpu33.pri.stanage.alces.network
+Wed Apr 29 02:36:00 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 NVL                On  |   00000000:56:00.0 Off |                    0 |
+| N/A   46C    P0             62W /  400W |       1MiB /  95830MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+====================================================================================================
+Phase 2 started
+Phase 1 checkpoint     : ./outputs/phase1_dino_supervised/phase1_encoder_best.pth
+Phase 1 embedding CSV  : ./outputs/phase1_dino/phase1_embeddings.csv
+Ground truth path      : ./outputs/splits_gt/valid_points_train.shp
+Ground truth type      : shp
+GT label field         : Tree
+GT folder field        : Folder
+GT file field          : File
+GT fx field            : fx
+GT fy field            : fy
+Imagery root           : /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Output dir             : ./outputs/phase2_dino_supervised
+Similarity             : cosine
+====================================================================================================
+[INFO] Indexed TIFF files for SHP matching: 179
+[DEBUG] row=0
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.20773893000902063, fy=0.0995816625249923
+[DEBUG] row=1
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.6224489851529381, fy=0.9333111900793607
+[DEBUG] row=2
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_26032023_005
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.5071007099550986, fy=0.7627037076017229
+[DEBUG] row=3
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_26032023_006
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_006_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.21160060391147587, fy=0.837209451492591
+[DEBUG] row=4
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_26032023_005
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.8920334210109244, fy=0.390180208569743
+[DEBUG] row=5
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_26032023_005
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.22628064723909655, fy=0.3699878670444442
+[DEBUG] row=6
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparen
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.46740522634906984, fy=0.12266312796628988
+[DEBUG] row=7
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_26032023_007
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_007_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.20233364971855763, fy=0.2597119966593607
+[DEBUG] row=8
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparen
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.2165102600051172, fy=0.16318674846862646
+[DEBUG] row=9
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparen
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.19350829173497786, fy=0.4568268406767509
+[DEBUG] row=10
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.7670646943906927, fy=0.23858375785517166
+[DEBUG] row=11
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.4783983058631459, fy=0.28967517196331843
+[DEBUG] row=12
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.9772939528986708, fy=0.5013562925696659
+[DEBUG] row=13
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.7089533552317819, fy=0.5455536140798396
+[DEBUG] row=14
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparen
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.4831554017537257, fy=0.590522608117708
+[DEBUG] row=15
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparen
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.631359853437646, fy=0.6259749891981063
+[DEBUG] row=16
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.6148131424920609, fy=0.19545393537772454
+[DEBUG] row=17
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.617675778866973, fy=0.22507893505234458
+[DEBUG] row=18
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.3215752065218387, fy=0.22188597644581232
+[DEBUG] row=19
+[DEBUG] folder=2023-01
+[DEBUG] file=25-PUC-C-DE-CPC-002-12_23032023_004
+[DEBUG] resolved_path=/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+[DEBUG] exists=True
+[DEBUG] fx=0.4458401331903665, fy=0.8341355190867407
+[INFO] Loaded valid SHP samples: 784
+====================================================================================================
+Phase 2 completed
+Ground truth embeddings : ./outputs/phase2_dino_supervised/ground_truth_embeddings.csv
+Prototype CSV           : ./outputs/phase2_dino_supervised/class_prototypes.csv
+Corrected labels CSV    : ./outputs/phase2_dino_supervised/corrected_labels.csv
+Summary JSON            : ./outputs/phase2_dino_supervised/correction_summary.json
+Elapsed                 : 02:07
+====================================================================================================
+Job finished at Wed 29 Apr 02:38:55 BST 2026

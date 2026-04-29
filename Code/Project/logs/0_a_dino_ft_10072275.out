@@ -1,0 +1,168 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Tue 28 Apr 21:17:02 BST 2026
+Running on node: gpu34.pri.stanage.alces.network
+Tue Apr 28 21:17:02 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 NVL                On  |   00000000:56:00.0 Off |                    0 |
+| N/A   38C    P0             61W /  400W |       1MiB /  95830MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+================================================================================
+GT split completed
+Train: 784 -> ./outputs/splits_gt/valid_points_train.shp
+Val  : 218 -> ./outputs/splits_gt/valid_points_val.shp
+Test : 124 -> ./outputs/splits_gt/valid_points_test.shp
+================================================================================
+
+Train label counts:
+Tree
+Huayruro           134
+Copaiba             85
+Ana caspi           81
+Catahua             74
+Shihuahuaco         73
+Estoraque           55
+Lupuna              53
+AzÃºcar huayo       52
+Ishpingo            35
+Mashonaste          27
+Capirona            26
+Almendro            23
+Quillobordon        18
+Catuaba             14
+Caoba                9
+Guacamayo caspi      9
+Cumala               5
+Yacushapana          5
+Pashaco              3
+Tahuari              2
+Palo baston          1
+Name: count, dtype: int64
+
+Val label counts:
+Tree
+Lupuna             61
+Shihuahuaco        55
+Cumala             43
+Ana caspi          12
+Caoba              11
+Palo baston         9
+Copaiba             9
+Capirona            8
+Ishpingo            5
+Guacamayo caspi     3
+Estoraque           2
+Name: count, dtype: int64
+
+Test label counts:
+Tree
+Yacushapana        25
+Ana caspi          22
+Shihuahuaco        13
+Copaiba            12
+Ishpingo           12
+Caoba               7
+Huimba              7
+Almendro            6
+Capirona            6
+Guacamayo caspi     6
+Cedro               5
+AzÃºcar huayo       2
+Estoraque           1
+Name: count, dtype: int64
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 784
+[INFO] Failed samples  : 0
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+================================================================================
+Supervised fine-tuning setup
+Classes: ['Almendro', 'Ana caspi', 'AzÃºcar huayo', 'Caoba', 'Capirona', 'Catahua', 'Catuaba', 'Copaiba', 'Cumala', 'Estoraque', 'Guacamayo caspi', 'Huayruro', 'Ishpingo', 'Lupuna', 'Mashonaste', 'Palo baston', 'Pashaco', 'Quillobordon', 'Shihuahuaco', 'Tahuari', 'Yacushapana']
+Train samples: 784
+Val samples: 218
+Coord mode: auto
+AMP enabled: True
+Class weights: True
+================================================================================
+Class weights: [0.32091185450553894, 0.09112311899662018, 0.14194178581237793, 0.8201080560684204, 0.28388357162475586, 0.09974287450313568, 0.5272123217582703, 0.08683497458696365, 1.4761945009231567, 0.13419950008392334, 0.8201080560684204, 0.05508188158273697, 0.2108849436044693, 0.13926362991333008, 0.27336937189102173, 7.380972385406494, 2.460324287414551, 0.4100540280342102, 0.10110921412706375, 3.690486192703247, 1.4761945009231567]
+Epoch 001 | train loss 3.2215 acc 0.0842 macro_f1 0.0515 weighted_f1 0.0832 | val loss 3.4073 acc 0.0459 macro_f1 0.0157 weighted_f1 0.0569
+[INFO] Saved best checkpoint: val_macro_f1=0.015672
+Epoch 002 | train loss 2.7591 acc 0.1378 macro_f1 0.0945 weighted_f1 0.1326 | val loss 3.3295 acc 0.0092 macro_f1 0.0042 weighted_f1 0.0078
+Epoch 003 | train loss 2.6507 acc 0.1429 macro_f1 0.1050 weighted_f1 0.1484 | val loss 3.3803 acc 0.0321 macro_f1 0.0113 weighted_f1 0.0391
+Epoch 004 | train loss 2.5462 acc 0.1556 macro_f1 0.1120 weighted_f1 0.1634 | val loss 3.5262 acc 0.0092 macro_f1 0.0058 weighted_f1 0.0130
+Epoch 005 | train loss 2.5023 acc 0.1607 macro_f1 0.1130 weighted_f1 0.1644 | val loss 3.6129 acc 0.0092 macro_f1 0.0034 weighted_f1 0.0174
+Epoch 006 | train loss 2.4647 acc 0.1735 macro_f1 0.1332 weighted_f1 0.1729 | val loss 3.5332 acc 0.0459 macro_f1 0.0189 weighted_f1 0.0708
+[INFO] Saved best checkpoint: val_macro_f1=0.018891
+Epoch 007 | train loss 2.3550 acc 0.1786 macro_f1 0.1411 weighted_f1 0.1738 | val loss 3.5820 acc 0.0183 macro_f1 0.0060 weighted_f1 0.0315
+Epoch 008 | train loss 2.3448 acc 0.1849 macro_f1 0.1448 weighted_f1 0.1765 | val loss 3.8708 acc 0.0642 macro_f1 0.0229 weighted_f1 0.0798
+[INFO] Saved best checkpoint: val_macro_f1=0.022940
+Epoch 009 | train loss 2.3528 acc 0.1696 macro_f1 0.1408 weighted_f1 0.1570 | val loss 3.9327 acc 0.0275 macro_f1 0.0220 weighted_f1 0.0332
+Epoch 010 | train loss 2.3143 acc 0.1977 macro_f1 0.1570 weighted_f1 0.1931 | val loss 3.7441 acc 0.0596 macro_f1 0.0175 weighted_f1 0.0814
+Epoch 011 | train loss 2.2926 acc 0.1824 macro_f1 0.1554 weighted_f1 0.1741 | val loss 4.0449 acc 0.0092 macro_f1 0.0034 weighted_f1 0.0171
+Epoch 012 | train loss 2.2717 acc 0.1862 macro_f1 0.1674 weighted_f1 0.1847 | val loss 4.6029 acc 0.0275 macro_f1 0.0207 weighted_f1 0.0235
+Epoch 013 | train loss 2.1593 acc 0.2321 macro_f1 0.1851 weighted_f1 0.2244 | val loss 4.2764 acc 0.0229 macro_f1 0.0074 weighted_f1 0.0394
+Epoch 014 | train loss 2.1352 acc 0.2258 macro_f1 0.1953 weighted_f1 0.2216 | val loss 3.9755 acc 0.0183 macro_f1 0.0068 weighted_f1 0.0307
+Epoch 015 | train loss 2.1269 acc 0.2219 macro_f1 0.2025 weighted_f1 0.2137 | val loss 4.5328 acc 0.0092 macro_f1 0.0070 weighted_f1 0.0129
+Epoch 016 | train loss 2.1249 acc 0.2245 macro_f1 0.2036 weighted_f1 0.2148 | val loss 4.0751 acc 0.0413 macro_f1 0.0221 weighted_f1 0.0486
+Epoch 017 | train loss 2.1396 acc 0.1964 macro_f1 0.1768 weighted_f1 0.1958 | val loss 4.7442 acc 0.0229 macro_f1 0.0103 weighted_f1 0.0304
+Epoch 018 | train loss 2.1123 acc 0.2372 macro_f1 0.2002 weighted_f1 0.2334 | val loss 4.5795 acc 0.0229 macro_f1 0.0105 weighted_f1 0.0374
+Epoch 019 | train loss 2.0414 acc 0.2449 macro_f1 0.2192 weighted_f1 0.2449 | val loss 4.9893 acc 0.0183 macro_f1 0.0217 weighted_f1 0.0259
+Epoch 020 | train loss 2.0233 acc 0.2602 macro_f1 0.2224 weighted_f1 0.2487 | val loss 4.7965 acc 0.0138 macro_f1 0.0091 weighted_f1 0.0211
+Epoch 021 | train loss 2.0172 acc 0.2462 macro_f1 0.2082 weighted_f1 0.2461 | val loss 5.1382 acc 0.0046 macro_f1 0.0012 weighted_f1 0.0073
+Epoch 022 | train loss 2.0271 acc 0.2577 macro_f1 0.2254 weighted_f1 0.2588 | val loss 5.1226 acc 0.0138 macro_f1 0.0061 weighted_f1 0.0170
+Epoch 023 | train loss 1.9688 acc 0.2755 macro_f1 0.2426 weighted_f1 0.2698 | val loss 4.8681 acc 0.0229 macro_f1 0.0137 weighted_f1 0.0314
+Epoch 024 | train loss 1.9501 acc 0.2768 macro_f1 0.2409 weighted_f1 0.2763 | val loss 5.0965 acc 0.0642 macro_f1 0.0178 weighted_f1 0.0754
+Epoch 025 | train loss 1.9472 acc 0.2972 macro_f1 0.2738 weighted_f1 0.3074 | val loss 4.9974 acc 0.0275 macro_f1 0.0148 weighted_f1 0.0260
+Epoch 026 | train loss 1.8434 acc 0.2934 macro_f1 0.2722 weighted_f1 0.2850 | val loss 4.9390 acc 0.0459 macro_f1 0.0325 weighted_f1 0.0454
+[INFO] Saved best checkpoint: val_macro_f1=0.032480
+Epoch 027 | train loss 1.7918 acc 0.2857 macro_f1 0.2534 weighted_f1 0.2861 | val loss 5.3234 acc 0.0183 macro_f1 0.0132 weighted_f1 0.0264
+Epoch 028 | train loss 1.7305 acc 0.3151 macro_f1 0.3118 weighted_f1 0.3071 | val loss 5.3837 acc 0.0275 macro_f1 0.0120 weighted_f1 0.0399
+Epoch 029 | train loss 1.7922 acc 0.2908 macro_f1 0.2641 weighted_f1 0.2832 | val loss 5.3598 acc 0.0413 macro_f1 0.0217 weighted_f1 0.0339
+Epoch 030 | train loss 1.8460 acc 0.3125 macro_f1 0.2885 weighted_f1 0.3093 | val loss 5.4733 acc 0.0459 macro_f1 0.0226 weighted_f1 0.0558
+Epoch 031 | train loss 1.7689 acc 0.3291 macro_f1 0.3143 weighted_f1 0.3288 | val loss 5.6524 acc 0.0459 macro_f1 0.0151 weighted_f1 0.0612
+Epoch 032 | train loss 1.7490 acc 0.3431 macro_f1 0.3603 weighted_f1 0.3473 | val loss 5.9110 acc 0.0275 macro_f1 0.0127 weighted_f1 0.0398
+Epoch 033 | train loss 1.7116 acc 0.3431 macro_f1 0.3087 weighted_f1 0.3388 | val loss 5.9601 acc 0.0321 macro_f1 0.0152 weighted_f1 0.0447
+Epoch 034 | train loss 1.7276 acc 0.3265 macro_f1 0.3323 weighted_f1 0.3258 | val loss 5.6735 acc 0.0138 macro_f1 0.0082 weighted_f1 0.0157
+Epoch 035 | train loss 1.6554 acc 0.3852 macro_f1 0.3598 weighted_f1 0.3855 | val loss 5.9879 acc 0.0413 macro_f1 0.0198 weighted_f1 0.0629
+Epoch 036 | train loss 1.6165 acc 0.3431 macro_f1 0.3719 weighted_f1 0.3414 | val loss 6.2800 acc 0.0275 macro_f1 0.0117 weighted_f1 0.0459
+Epoch 037 | train loss 1.6056 acc 0.3648 macro_f1 0.3727 weighted_f1 0.3597 | val loss 6.2404 acc 0.0046 macro_f1 0.0018 weighted_f1 0.0089
+Epoch 038 | train loss 1.6031 acc 0.3737 macro_f1 0.3623 weighted_f1 0.3746 | val loss 6.2130 acc 0.0413 macro_f1 0.0164 weighted_f1 0.0547
+Epoch 039 | train loss 1.5590 acc 0.3724 macro_f1 0.3916 weighted_f1 0.3666 | val loss 5.8914 acc 0.0413 macro_f1 0.0290 weighted_f1 0.0539
+Epoch 040 | train loss 1.5222 acc 0.4107 macro_f1 0.3994 weighted_f1 0.4105 | val loss 6.2632 acc 0.0183 macro_f1 0.0078 weighted_f1 0.0275
+Epoch 041 | train loss 1.4887 acc 0.3992 macro_f1 0.3756 weighted_f1 0.4077 | val loss 6.3910 acc 0.0138 macro_f1 0.0115 weighted_f1 0.0172
+Epoch 042 | train loss 1.4776 acc 0.3941 macro_f1 0.4027 weighted_f1 0.3948 | val loss 6.2809 acc 0.0596 macro_f1 0.0254 weighted_f1 0.0826
+Epoch 043 | train loss 1.3637 acc 0.4349 macro_f1 0.4395 weighted_f1 0.4297 | val loss 6.2993 acc 0.0229 macro_f1 0.0080 weighted_f1 0.0285
+Epoch 044 | train loss 1.3596 acc 0.4171 macro_f1 0.4477 weighted_f1 0.4146 | val loss 6.4789 acc 0.0183 macro_f1 0.0063 weighted_f1 0.0230
+Epoch 045 | train loss 1.3919 acc 0.4388 macro_f1 0.4578 weighted_f1 0.4365 | val loss 6.2656 acc 0.0229 macro_f1 0.0097 weighted_f1 0.0331
+Epoch 046 | train loss 1.3399 acc 0.4490 macro_f1 0.4459 weighted_f1 0.4476 | val loss 6.3644 acc 0.0367 macro_f1 0.0145 weighted_f1 0.0388
+Epoch 047 | train loss 1.3408 acc 0.4477 macro_f1 0.4519 weighted_f1 0.4457 | val loss 6.8404 acc 0.0183 macro_f1 0.0074 weighted_f1 0.0261
+Epoch 048 | train loss 1.5027 acc 0.4375 macro_f1 0.3907 weighted_f1 0.4413 | val loss 6.6158 acc 0.0229 macro_f1 0.0147 weighted_f1 0.0309
+Epoch 049 | train loss 1.4046 acc 0.4401 macro_f1 0.4680 weighted_f1 0.4416 | val loss 6.8536 acc 0.0505 macro_f1 0.0190 weighted_f1 0.0677
+Epoch 050 | train loss 1.3141 acc 0.4592 macro_f1 0.4948 weighted_f1 0.4624 | val loss 6.9338 acc 0.0229 macro_f1 0.0113 weighted_f1 0.0305
+================================================================================
+Supervised fine-tuning completed
+Best monitored metric: val_macro_f1 = 0.032480
+Saved best encoder: ./outputs/phase1_dino_supervised/phase1_encoder_best.pth
+Saved last encoder: ./outputs/phase1_dino_supervised/phase1_encoder_last.pth
+Elapsed: 10826.4s
+================================================================================
+Job finished at Wed 29 Apr 00:18:15 BST 2026

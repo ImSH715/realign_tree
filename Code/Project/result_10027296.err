@@ -1,0 +1,17 @@
+usage: run_pipeline.py [-h] --encoder_ckpt ENCODER_CKPT --prototypes_csv
+                       PROTOTYPES_CSV --points_csv POINTS_CSV --imagery_root
+                       IMAGERY_ROOT --output_csv OUTPUT_CSV
+                       [--tile_column TILE_COLUMN]
+                       [--point_id_column POINT_ID_COLUMN]
+                       [--x_column X_COLUMN] [--y_column Y_COLUMN]
+                       [--target_label_column TARGET_LABEL_COLUMN]
+                       [--coord_type {pixel,world}] [--image_size IMAGE_SIZE]
+                       [--patch_size_px PATCH_SIZE_PX]
+                       [--search_radius_px SEARCH_RADIUS_PX]
+                       [--coarse_step_px COARSE_STEP_PX]
+                       [--refine_radius_px REFINE_RADIUS_PX]
+                       [--refine_step_px REFINE_STEP_PX]
+                       [--similarity {cosine,euclidean}] [--alpha ALPHA]
+                       [--beta BETA] [--batch_size BATCH_SIZE]
+                       [--device DEVICE] [--no_amp]
+run_pipeline.py: error: unrecognized arguments: --label_column target_label --faja_column FAJA --pca_column PCA

@@ -1,0 +1,15 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+====================================================================================================
+Phase 2 started
+Phase 1 checkpoint     : ./outputs/phase1/phase1_encoder_best.pth
+Phase 1 embedding CSV  : ./outputs/phase1/phase1_embeddings.csv
+Ground truth path      : /mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp
+Ground truth type      : shp
+GT label field         : species
+GT tile field          : image_path
+Imagery root           : /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Output dir             : ./outputs/phase2
+Similarity             : cosine
+====================================================================================================
+Job finished at Sun 12 Apr 22:37:09 BST 2026

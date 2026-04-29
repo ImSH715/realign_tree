@@ -1,0 +1,32 @@
+/mnt/parscratch/users/acb20si/realign_tree/Code/Project/src/models/checkpoint.py:29: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state = torch.load(ckpt_path, map_location=device)
+Traceback (most recent call last):
+  File "/users/acb20si/.conda/envs/lejepa/lib/python3.11/site-packages/pandas/core/indexes/base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'species'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/build_prototypes.py", line 246, in <module>
+    main()
+  File "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/build_prototypes.py", line 169, in main
+    gt_dataset = ShapefilePointDataset(
+                 ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/src/data/gt_shp_dataset.py", line 40, in __init__
+    label = str(row[label_field])
+                ~~~^^^^^^^^^^^^^
+  File "/users/acb20si/.conda/envs/lejepa/lib/python3.11/site-packages/pandas/core/series.py", line 1130, in __getitem__
+    return self._get_value(key)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/users/acb20si/.conda/envs/lejepa/lib/python3.11/site-packages/pandas/core/series.py", line 1246, in _get_value
+    loc = self.index.get_loc(label)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/users/acb20si/.conda/envs/lejepa/lib/python3.11/site-packages/pandas/core/indexes/base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'species'

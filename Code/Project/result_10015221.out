@@ -1,0 +1,40 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+[WARN] Missing keys while loading checkpoint: ['predictor.net.0.weight', 'predictor.net.0.bias', 'predictor.net.2.weight', 'predictor.net.2.bias']
+[WARN] Unexpected keys while loading checkpoint: ['predictor.0.weight', 'predictor.0.bias', 'predictor.2.weight', 'predictor.2.bias']
+====================================================================================================
+Evaluation Phase 3 started
+Input CSV          : ./outputs/evaluation/valid_points_recovery_5m.csv
+Output CSV         : ./outputs/evaluation/recovery_5m_refined.csv
+Points loaded      : 807
+Filter label       : 
+====================================================================================================
+====================================================================================================
+Evaluation Phase 3 completed
+Saved output CSV   : ./outputs/evaluation/recovery_5m_refined.csv
+Elapsed            : 15:56:00
+====================================================================================================
+====================================================================================================
+Direct GT / Recovery evaluation summary
+n: 57367
+mean_before_m: 2.5246218834609175
+mean_after_m: 160256.57196308294
+median_before_m: 2.5885582172609047
+median_after_m: 127263.07079262818
+mean_movement_m: 160256.4982007834
+improved: 394
+unchanged: 0
+worse: 56973
+acc_before_0.5m: 0.11421200341659839
+acc_after_0.5m: 0.0014991197029651194
+acc_before_1m: 0.1985287708961598
+acc_after_1m: 0.0028762180347586593
+acc_before_2m: 0.3930308365436575
+acc_after_2m: 0.005612983073892656
+acc_before_5m: 1.0
+acc_after_5m: 0.014015026060278558
+acc_before_10m: 1.0
+acc_after_10m: 0.014363658549340214
+====================================================================================================
+Saved evaluated CSV: ./outputs/evaluation/recovery_5m_refined_evaluated.csv
+Job finished at Fri 24 Apr 08:59:35 BST 2026

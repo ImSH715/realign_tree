@@ -1,0 +1,17 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+====================================================================================================
+Phase 3 started
+Encoder checkpoint : ./outputs/phase1/phase1_encoder_best.pth
+Prototypes CSV     : ./outputs/phase2/class_prototypes.csv
+Points CSV         : ./outputs/phase2/corrected_labels.csv
+Imagery root       : /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Output CSV         : ./outputs/phase3/refined_points.csv
+Points loaded      : 3560
+====================================================================================================
+====================================================================================================
+Phase 3 completed
+Saved results to   : ./outputs/phase3/refined_points.csv
+Elapsed            : 66:58:04
+====================================================================================================
+Job finished at Thu 16 Apr 23:39:41 BST 2026

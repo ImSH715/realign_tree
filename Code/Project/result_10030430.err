@@ -1,0 +1,4 @@
+usage: build_eval_inputs.py [-h]
+                            {direct_gt_from_shp,censo_overlap,recovery_from_direct_gt}
+                            ...
+build_eval_inputs.py: error: unrecognized arguments: --tolerance_m 10.0

@@ -1,0 +1,35 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Wed 29 Apr 16:24:54 BST 2026
+Running on node: node062.pri.stanage.alces.network
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 784
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/phase1_lejepa_supervised_cpu/debug_patches/train
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/phase1_lejepa_supervised_cpu/debug_patches/val
+================================================================================
+Phase 1.5 supervised fine-tuning setup
+Classes: ['Almendro', 'Ana caspi', 'AzÃºcar huayo', 'Caoba', 'Capirona', 'Catahua', 'Catuaba', 'Copaiba', 'Cumala', 'Estoraque', 'Guacamayo caspi', 'Huayruro', 'Ishpingo', 'Lupuna', 'Mashonaste', 'Palo baston', 'Pashaco', 'Quillobordon', 'Shihuahuaco', 'Tahuari', 'Yacushapana']
+Train samples: 784
+Val samples: 218
+Coord mode: auto
+AMP enabled: False
+Class weights: True
+Balanced sampler: False
+Debug patches: ./outputs/phase1_lejepa_supervised_cpu/debug_patches
+================================================================================
+Class weights: [0.32091185450553894, 0.09112311899662018, 0.14194178581237793, 0.8201080560684204, 0.28388357162475586, 0.09974287450313568, 0.5272123217582703, 0.08683497458696365, 1.4761945009231567, 0.13419950008392334, 0.8201080560684204, 0.05508188158273697, 0.2108849436044693, 0.13926362991333008, 0.27336937189102173, 7.380972385406494, 2.460324287414551, 0.4100540280342102, 0.10110921412706375, 3.690486192703247, 1.4761945009231567]
+Epoch 001 | frozen=1 | train loss 3.3600 acc 0.0791 macro_f1 0.0493 weighted_f1 0.0768 | val loss 3.5396 acc 0.0229 macro_f1 0.0188 weighted_f1 0.0113
+[INFO] Saved best checkpoint at epoch 1: val_macro_f1=0.018835
+Epoch 002 | frozen=1 | train loss 3.0546 acc 0.0931 macro_f1 0.0532 weighted_f1 0.0919 | val loss 3.2702 acc 0.0183 macro_f1 0.0057 weighted_f1 0.0216
+Epoch 003 | frozen=1 | train loss 2.9524 acc 0.1071 macro_f1 0.0678 weighted_f1 0.1055 | val loss 3.2317 acc 0.0138 macro_f1 0.0067 weighted_f1 0.0137
+Epoch 004 | frozen=0 | train loss 2.9102 acc 0.1250 macro_f1 0.0731 weighted_f1 0.1313 | val loss 3.1985 acc 0.0321 macro_f1 0.0134 weighted_f1 0.0381
+Epoch 005 | frozen=0 | train loss 2.9190 acc 0.1263 macro_f1 0.0757 weighted_f1 0.1328 | val loss 3.3027 acc 0.0367 macro_f1 0.0147 weighted_f1 0.0164
+Epoch 006 | frozen=0 | train loss 2.8612 acc 0.1339 macro_f1 0.0821 weighted_f1 0.1263 | val loss 3.2868 acc 0.0321 macro_f1 0.0451 weighted_f1 0.0421
+[INFO] Saved best checkpoint at epoch 6: val_macro_f1=0.045093

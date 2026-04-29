@@ -1,0 +1,46 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Wed 29 Apr 15:21:11 BST 2026
+Running on node: node031.pri.stanage.alces.network
+====================================================================================================
+Recursive TIFF scan
+Train root        : /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Found TIFF files  : 179
+====================================================================================================
+First 10 TIFF files:
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_18032023_001_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_002_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_006_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_007_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_02042023_01_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_02_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_03_IDW_transparent_mosaic_group1.tif
+====================================================================================================
+[WARN] Skipping unreadable TIFF in training set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif
+[WARN] Skipping unreadable TIFF in extraction set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif | 25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif: TIFFReadDirectory:Failed to read directory at offset 1529645938
+====================================================================================================
+Phase 1 started
+Backbone              : resnet50
+Pretrained backbone   : True
+Device                : cpu
+AMP enabled           : False
+Train TIFF files      : 179
+Patches per image     : 10
+Train samples         : 1780
+SSL epochs            : 100
+Patch size            : 224
+Global image size     : 224
+Local image size      : 224
+Extraction enabled    : True
+Extraction stride     : 1024
+Extraction samples    : 3560
+====================================================================================================
+[SSL][Epoch 1/100] total=19.2855 align=0.0035 var=0.6400 cov=2.3192 slice=0.9616 proxy_eval=19.2953 lr=3.33e-04
+[INFO] Saved best checkpoint: proxy_loss=19.295333
+[SSL][Epoch 2/100] total=19.1819 align=0.0036 var=0.6349 cov=2.3619 slice=0.9436 proxy_eval=19.5024 lr=5.00e-04
+[SSL][Epoch 3/100] total=19.3227 align=0.0036 var=0.6394 cov=2.3773 slice=0.9576 proxy_eval=19.8638 lr=5.00e-04
+[SSL][Epoch 4/100] total=19.0553 align=0.0036 var=0.6283 cov=2.3931 slice=0.9517 proxy_eval=20.5853 lr=5.00e-04
+[SSL][Epoch 5/100] total=18.7224 align=0.0038 var=0.6142 cov=2.4302 slice=0.9343 proxy_eval=21.1282 lr=4.99e-04

@@ -1,0 +1,40 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+[WARN] Missing keys while loading checkpoint: ['predictor.net.0.weight', 'predictor.net.0.bias', 'predictor.net.2.weight', 'predictor.net.2.bias']
+[WARN] Unexpected keys while loading checkpoint: ['predictor.0.weight', 'predictor.0.bias', 'predictor.2.weight', 'predictor.2.bias']
+====================================================================================================
+Evaluation Phase 3 started
+Input CSV          : ./outputs/evaluation/valid_points_direct.csv
+Output CSV         : ./outputs/evaluation/direct_gt_refined.csv
+Points loaded      : 807
+Filter label       : 
+====================================================================================================
+====================================================================================================
+Evaluation Phase 3 completed
+Saved output CSV   : ./outputs/evaluation/direct_gt_refined.csv
+Elapsed            : 16:32:43
+====================================================================================================
+====================================================================================================
+Direct GT / Recovery evaluation summary
+n: 57367
+mean_before_m: 0.0
+mean_after_m: 160256.5714207258
+median_before_m: 0.0
+median_after_m: 127264.72322782649
+mean_movement_m: 160256.5714207258
+improved: 0
+unchanged: 0
+worse: 57367
+acc_before_0.5m: 1.0
+acc_after_0.5m: 0.013579235448951487
+acc_before_1m: 1.0
+acc_after_1m: 0.013997594435825475
+acc_before_2m: 1.0
+acc_after_2m: 0.014049889309184722
+acc_before_5m: 1.0
+acc_after_5m: 0.014067320933637805
+acc_before_10m: 1.0
+acc_after_10m: 0.01434622692488713
+====================================================================================================
+Saved evaluated CSV: ./outputs/evaluation/direct_gt_refined_evaluated.csv
+Job finished at Fri 24 Apr 09:36:14 BST 2026
