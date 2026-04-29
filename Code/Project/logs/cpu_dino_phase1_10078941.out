@@ -43,3 +43,17 @@ Extraction samples    : 3560
 [SSL][Epoch 2/30] total=20.5676 align=0.0037 var=0.6968 cov=2.1944 slice=0.9495 proxy_eval=20.6236 lr=5.00e-04
 [SSL][Epoch 3/30] total=20.7505 align=0.0037 var=0.7072 cov=2.1096 slice=0.9570 proxy_eval=20.4310 lr=5.00e-04
 [SSL][Epoch 4/30] total=20.2064 align=0.0038 var=0.6892 cov=2.0283 slice=0.9450 proxy_eval=20.3209 lr=4.98e-04
+[SSL][Epoch 5/30] total=20.4539 align=0.0038 var=0.7024 cov=1.9420 slice=0.9471 proxy_eval=20.6041 lr=4.93e-04
+[SSL][Epoch 6/30] total=20.2900 align=0.0038 var=0.6855 cov=2.2028 slice=0.9459 proxy_eval=20.2327 lr=4.85e-04
+[SSL][Epoch 7/30] total=20.3945 align=0.0038 var=0.6948 cov=2.0657 slice=0.9547 proxy_eval=20.4466 lr=4.73e-04
+[SSL][Epoch 8/30] total=20.3324 align=0.0038 var=0.6936 cov=2.0316 slice=0.9562 proxy_eval=20.2231 lr=4.59e-04
+[SSL][Epoch 9/30] total=20.1798 align=0.0039 var=0.6869 cov=2.0547 slice=0.9495 proxy_eval=20.0084 lr=4.42e-04
+[INFO] Saved best checkpoint: proxy_loss=20.008360
+[SSL][Epoch 10/30] total=19.8118 align=0.0038 var=0.6699 cov=2.1205 slice=0.9403 proxy_eval=19.5842 lr=4.22e-04
+[INFO] Saved best checkpoint: proxy_loss=19.584230
+[SSL][Epoch 11/30] total=19.8241 align=0.0039 var=0.6686 cov=2.1662 slice=0.9382 proxy_eval=20.0678 lr=3.99e-04
+[SSL][Epoch 12/30] total=19.9004 align=0.0038 var=0.6709 cov=2.1746 slice=0.9497 proxy_eval=19.7601 lr=3.75e-04
+[SSL][Epoch 13/30] total=19.6772 align=0.0039 var=0.6612 cov=2.2063 slice=0.9367 proxy_eval=19.4845 lr=3.49e-04
+[INFO] Saved best checkpoint: proxy_loss=19.484526
+[SSL][Epoch 14/30] total=19.4310 align=0.0039 var=0.6522 cov=2.1939 slice=0.9279 proxy_eval=19.7690 lr=3.22e-04
+[SSL][Epoch 15/30] total=19.5155 align=0.0039 var=0.6556 cov=2.1909 slice=0.9309 proxy_eval=19.5481 lr=2.94e-04

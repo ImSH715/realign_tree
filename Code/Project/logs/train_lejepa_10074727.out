@@ -105,3 +105,63 @@ Extraction samples    : 3560
 [SSL][Epoch 59/100] total=19.3064 align=0.0038 var=0.6456 cov=2.2359 slice=0.9262 proxy_eval=19.3102 lr=1.90e-04
 [INFO] Saved best checkpoint: proxy_loss=19.310183
 [SSL][Epoch 60/100] total=19.2785 align=0.0038 var=0.6435 cov=2.2616 slice=0.9260 proxy_eval=19.3392 lr=1.82e-04
+[SSL][Epoch 61/100] total=19.2323 align=0.0038 var=0.6416 cov=2.2616 slice=0.9257 proxy_eval=19.2965 lr=1.75e-04
+[INFO] Saved best checkpoint: proxy_loss=19.296538
+[SSL][Epoch 62/100] total=19.2320 align=0.0038 var=0.6415 cov=2.2646 slice=0.9259 proxy_eval=19.2439 lr=1.67e-04
+[INFO] Saved best checkpoint: proxy_loss=19.243864
+[SSL][Epoch 63/100] total=19.3001 align=0.0038 var=0.6474 cov=2.1857 slice=0.9264 proxy_eval=19.2961 lr=1.59e-04
+[SSL][Epoch 64/100] total=19.2446 align=0.0038 var=0.6424 cov=2.2550 slice=0.9262 proxy_eval=19.2545 lr=1.52e-04
+[SSL][Epoch 65/100] total=19.1627 align=0.0038 var=0.6393 cov=2.2501 slice=0.9253 proxy_eval=19.1836 lr=1.44e-04
+[INFO] Saved best checkpoint: proxy_loss=19.183574
+[SSL][Epoch 66/100] total=19.2251 align=0.0038 var=0.6416 cov=2.2551 slice=0.9259 proxy_eval=19.1503 lr=1.37e-04
+[INFO] Saved best checkpoint: proxy_loss=19.150334
+[SSL][Epoch 67/100] total=19.1607 align=0.0038 var=0.6386 cov=2.2677 slice=0.9251 proxy_eval=19.1787 lr=1.30e-04
+[SSL][Epoch 68/100] total=19.1204 align=0.0039 var=0.6365 cov=2.2799 slice=0.9248 proxy_eval=19.2232 lr=1.23e-04
+[SSL][Epoch 69/100] total=19.1783 align=0.0039 var=0.6403 cov=2.2422 slice=0.9251 proxy_eval=19.2091 lr=1.16e-04
+[SSL][Epoch 70/100] total=19.2091 align=0.0039 var=0.6411 cov=2.2521 slice=0.9255 proxy_eval=19.2544 lr=1.09e-04
+[SSL][Epoch 71/100] total=19.1361 align=0.0039 var=0.6366 cov=2.2910 slice=0.9249 proxy_eval=19.2014 lr=1.03e-04
+[SSL][Epoch 72/100] total=19.1420 align=0.0039 var=0.6373 cov=2.2793 slice=0.9249 proxy_eval=19.2235 lr=9.63e-05
+[SSL][Epoch 73/100] total=19.1456 align=0.0038 var=0.6389 cov=2.2435 slice=0.9251 proxy_eval=19.2278 lr=9.01e-05
+[SSL][Epoch 74/100] total=19.1629 align=0.0039 var=0.6386 cov=2.2700 slice=0.9251 proxy_eval=19.1437 lr=8.39e-05
+[INFO] Saved best checkpoint: proxy_loss=19.143743
+[SSL][Epoch 75/100] total=19.1526 align=0.0039 var=0.6385 cov=2.2615 slice=0.9249 proxy_eval=19.2239 lr=7.80e-05
+[SSL][Epoch 76/100] total=19.1466 align=0.0039 var=0.6373 cov=2.2849 slice=0.9250 proxy_eval=19.1457 lr=7.22e-05
+[SSL][Epoch 77/100] total=19.1410 align=0.0038 var=0.6370 cov=2.2873 slice=0.9250 proxy_eval=19.1342 lr=6.66e-05
+[INFO] Saved best checkpoint: proxy_loss=19.134155
+[SSL][Epoch 78/100] total=19.1452 align=0.0038 var=0.6371 cov=2.2886 slice=0.9252 proxy_eval=19.2412 lr=6.13e-05
+[SSL][Epoch 79/100] total=19.1259 align=0.0038 var=0.6365 cov=2.2856 slice=0.9248 proxy_eval=19.1318 lr=5.61e-05
+[INFO] Saved best checkpoint: proxy_loss=19.131821
+[SSL][Epoch 80/100] total=19.1133 align=0.0038 var=0.6357 cov=2.2914 slice=0.9247 proxy_eval=19.1864 lr=5.11e-05
+[SSL][Epoch 81/100] total=19.0977 align=0.0038 var=0.6345 cov=2.3080 slice=0.9245 proxy_eval=19.0091 lr=4.63e-05
+[INFO] Saved best checkpoint: proxy_loss=19.009083
+[SSL][Epoch 82/100] total=19.1036 align=0.0038 var=0.6349 cov=2.3029 slice=0.9244 proxy_eval=19.1949 lr=4.18e-05
+[SSL][Epoch 83/100] total=19.0656 align=0.0039 var=0.6337 cov=2.2954 slice=0.9243 proxy_eval=19.1853 lr=3.74e-05
+[SSL][Epoch 84/100] total=19.0853 align=0.0038 var=0.6348 cov=2.2863 slice=0.9244 proxy_eval=19.2340 lr=3.33e-05
+[SSL][Epoch 85/100] total=19.0861 align=0.0038 var=0.6329 cov=2.3359 slice=0.9244 proxy_eval=19.1110 lr=2.94e-05
+[SSL][Epoch 86/100] total=19.0672 align=0.0039 var=0.6333 cov=2.3063 slice=0.9242 proxy_eval=19.1134 lr=2.57e-05
+[SSL][Epoch 87/100] total=19.0625 align=0.0039 var=0.6336 cov=2.2932 slice=0.9242 proxy_eval=19.1875 lr=2.23e-05
+[SSL][Epoch 88/100] total=19.0679 align=0.0038 var=0.6331 cov=2.3124 slice=0.9242 proxy_eval=19.0363 lr=1.91e-05
+[SSL][Epoch 89/100] total=19.0545 align=0.0039 var=0.6329 cov=2.3051 slice=0.9242 proxy_eval=19.1659 lr=1.62e-05
+[SSL][Epoch 90/100] total=19.0585 align=0.0039 var=0.6331 cov=2.3025 slice=0.9242 proxy_eval=19.0703 lr=1.35e-05
+[SSL][Epoch 91/100] total=19.0440 align=0.0038 var=0.6321 cov=2.3132 slice=0.9241 proxy_eval=19.0948 lr=1.10e-05
+[SSL][Epoch 92/100] total=19.0452 align=0.0039 var=0.6325 cov=2.3042 slice=0.9241 proxy_eval=19.1669 lr=8.84e-06
+[SSL][Epoch 93/100] total=19.0391 align=0.0039 var=0.6321 cov=2.3098 slice=0.9241 proxy_eval=19.0527 lr=6.89e-06
+[SSL][Epoch 94/100] total=19.0380 align=0.0038 var=0.6319 cov=2.3114 slice=0.9240 proxy_eval=19.1760 lr=5.20e-06
+[SSL][Epoch 95/100] total=19.0393 align=0.0039 var=0.6318 cov=2.3166 slice=0.9241 proxy_eval=19.2011 lr=3.77e-06
+[SSL][Epoch 96/100] total=19.0332 align=0.0039 var=0.6323 cov=2.2967 slice=0.9240 proxy_eval=19.2506 lr=2.59e-06
+[SSL][Epoch 97/100] total=19.0481 align=0.0039 var=0.6323 cov=2.3118 slice=0.9242 proxy_eval=19.1080 lr=1.68e-06
+[SSL][Epoch 98/100] total=19.0395 align=0.0039 var=0.6322 cov=2.3063 slice=0.9240 proxy_eval=19.1547 lr=1.02e-06
+[SSL][Epoch 99/100] total=19.0224 align=0.0039 var=0.6314 cov=2.3088 slice=0.9240 proxy_eval=19.0709 lr=6.31e-07
+[SSL][Epoch 100/100] total=19.0329 align=0.0039 var=0.6319 cov=2.3063 slice=0.9241 proxy_eval=19.0636 lr=5.00e-07
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_lejepa/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_lejepa/phase1_encoder_last.pth
+Embedding CSV        : ./outputs/phase1_lejepa/phase1_embeddings.csv
+Best proxy loss      : 19.0091
+Total elapsed        : 05:49:58
+====================================================================================================
+Job finished at Wed 29 Apr 19:25:54 BST 2026
