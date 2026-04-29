@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=dino_train
+#SBATCH --job-name=cpu_dino_train
 #SBATCH --partition=gpu       # Partition: gpu
 #SBATCH --qos=gpu                      # QOS: gpu
 #SBATCH --gres=gpu:1                   # Request 1 GPU
@@ -30,7 +30,7 @@ conda activate lejepa
 
 python train_encoder.py \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_dino" \
+  --output_dir "./outputs/phase1_dino_cpu" \
   --backbone_name "vit_small_patch14_dinov2.lvd142m" \
   --pretrained_backbone \
   --ssl_epochs 100 \
