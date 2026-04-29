@@ -38,7 +38,7 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 20 \
+  --epochs 50 \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --freeze_encoder_epochs 10 \
