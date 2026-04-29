@@ -1,16 +1,5 @@
 """
-Phase 1.5: supervised fine-tuning of a Phase 1 encoder using GT tree labels.
-
-This script:
-- loads a Phase 1 encoder checkpoint,
-- reads GT points from SHP,
-- resolves matching TIFF files,
-- crops patches using fx/fy or world coordinates,
-- trains a classifier head with CrossEntropy,
-- fine-tunes the encoder,
-- saves best/last encoder checkpoints for Phase 2.
-
-This is NOT Phase 1 SSL training.
+Phase 1.5: supervised fine-tuning of Phase 1 encoder using GT tree labels.
 """
 
 import argparse
@@ -19,6 +8,7 @@ import json
 import time
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Tuple
+from collections import Counter
 
 import geopandas as gpd
 import numpy as np
@@ -58,7 +48,6 @@ class Config:
     lr_encoder: float = 1e-6
     lr_head: float = 1e-4
     weight_decay: float = 1e-4
-
     freeze_encoder_epochs: int = 3
     patience: int = 10
 
@@ -113,7 +102,6 @@ def build_tif_index(imagery_root: str) -> Dict[str, List[str]]:
             folder_key = parts[0] if parts and parts[0] != "." else ""
 
         folder_to_paths.setdefault(folder_key, [])
-
         for f in tif_files:
             folder_to_paths[folder_key].append(os.path.join(root, f))
 
@@ -138,10 +126,7 @@ def resolve_tif_path_fast(folder_to_paths: Dict[str, List[str]], folder, filenam
         )
 
     paths = folder_to_paths[folder]
-
-    exact = []
-    contains = []
-    reverse_contains = []
+    exact, contains, reverse_contains = [], [], []
 
     for p in paths:
         tif_stem = normalize_stem(p)
@@ -280,12 +265,13 @@ class GTPointDataset(Dataset):
         else:
             self.class_to_idx = class_to_idx
 
+        self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
         self.classes = [c for c, _ in sorted(self.class_to_idx.items(), key=lambda x: x[1])]
 
         if folder_to_paths is None:
             folder_to_paths = build_tif_index(imagery_root)
-        self.folder_to_paths = folder_to_paths
 
+        self.folder_to_paths = folder_to_paths
         self.rows = []
         self.failed_rows = []
 
@@ -385,10 +371,9 @@ class GTPointDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.rows[idx]
-        image_path = row["_image_path"]
 
         patch = read_patch(
-            image_path=image_path,
+            image_path=row["_image_path"],
             x=float(row[self.fx_field]),
             y=float(row[self.fy_field]),
             patch_size=self.patch_size_px,
@@ -477,7 +462,6 @@ def save_compatible_checkpoint(init_ckpt, model, output_path, extra):
 
         updated["supervised_finetune"] = extra
         torch.save(updated, output_path)
-
     else:
         torch.save({"model_state": state, "supervised_finetune": extra}, output_path)
 
@@ -548,7 +532,38 @@ def set_encoder_trainable(model, trainable: bool):
         p.requires_grad = trainable
 
 
-def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp, train=True, epoch=0):
+def print_prediction_distribution(y_true, y_pred, classes, prefix):
+    true_counts = Counter(y_true)
+    pred_counts = Counter(y_pred)
+
+    print(f"[{prefix}] True counts by index:", dict(true_counts))
+    print(f"[{prefix}] Pred counts by index:", dict(pred_counts))
+
+    print(f"[{prefix}] True counts by class:")
+    for idx, count in sorted(true_counts.items()):
+        cls = classes[idx] if idx < len(classes) else str(idx)
+        print(f"  {idx:02d} {cls}: {count}")
+
+    print(f"[{prefix}] Pred counts by class:")
+    for idx, count in sorted(pred_counts.items()):
+        cls = classes[idx] if idx < len(classes) else str(idx)
+        print(f"  {idx:02d} {cls}: {count}")
+
+
+def run_epoch(
+    model,
+    head,
+    loader,
+    criterion,
+    optimizer,
+    scaler,
+    device,
+    use_amp,
+    classes,
+    train=True,
+    epoch=0,
+    print_dist=False,
+):
     model.train(train)
     head.train(train)
 
@@ -589,6 +604,10 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp
 
         running_acc = accuracy_score(y_true, y_pred)
         iterator.set_postfix(loss=f"{np.mean(losses):.4f}", acc=f"{running_acc:.4f}")
+
+    if print_dist:
+        prefix = "TRAIN" if train else "VAL"
+        print_prediction_distribution(y_true, y_pred, classes, prefix=f"{prefix} epoch {epoch}")
 
     return {
         "loss": float(np.mean(losses)),
@@ -645,6 +664,9 @@ def parse_args():
     parser.add_argument("--no_class_weights", action="store_true")
     parser.add_argument("--balanced_sampler", action="store_true")
 
+    parser.add_argument("--print_train_dist", action="store_true")
+    parser.add_argument("--print_val_dist", action="store_true")
+
     return parser.parse_args()
 
 
@@ -696,7 +718,6 @@ def main():
     use_amp = cfg.use_amp and device.type == "cuda"
 
     folder_to_paths = build_tif_index(cfg.imagery_root)
-
     model, _ = load_encoder_from_checkpoint(cfg.init_ckpt, device)
 
     debug_root = os.path.join(cfg.output_dir, "debug_patches")
@@ -830,8 +851,10 @@ def main():
             scaler=scaler,
             device=device,
             use_amp=use_amp,
+            classes=train_ds.classes,
             train=True,
             epoch=epoch,
+            print_dist=args.print_train_dist,
         )
 
         val_metrics = run_epoch(
@@ -843,8 +866,10 @@ def main():
             scaler=None,
             device=device,
             use_amp=False,
+            classes=train_ds.classes,
             train=False,
             epoch=epoch,
+            print_dist=args.print_val_dist,
         )
 
         row = {
@@ -943,8 +968,10 @@ def main():
         scaler=None,
         device=device,
         use_amp=False,
+        classes=train_ds.classes,
         train=False,
         epoch=history[-1]["epoch"],
+        print_dist=True,
     )
 
     report = classification_report(
