@@ -30,6 +30,7 @@ from sklearn.metrics import accuracy_score, f1_score, classification_report
 from tqdm import tqdm
 
 from src.models.checkpoint import load_encoder_from_checkpoint
+from src.data.preprocess import preprocess
 
 
 @dataclass
@@ -115,7 +116,8 @@ def build_tif_index(imagery_root: str) -> Dict[str, List[str]]:
     print(f"[INFO] Indexed TIFF files  : {total}")
 
     if total == 0:
-        raise RuntimeError(f"No TIFF files found under imagery_root: {imagery_root}")
+        raise RuntimeError(
+            f"No TIFF files found under imagery_root: {imagery_root}")
 
     return folder_to_paths
 
@@ -206,8 +208,8 @@ def read_patch(image_path, cx, cy, patch_size, coord_mode="auto"):
         lo, hi = np.nanpercentile(arr, [1, 99])
         arr = np.clip((arr - lo) / (hi - lo + 1e-6), 0, 1)
         arr = (arr * 255).astype(np.uint8)
-
-    return Image.fromarray(arr)
+    img = Image.fromarray(arr)
+    return preprocess(img)
 
 
 class GTPointDataset(Dataset):
@@ -243,7 +245,8 @@ class GTPointDataset(Dataset):
         required = [label_field, folder_field, file_field, fx_field, fy_field]
         for c in required:
             if c not in self.gdf.columns:
-                raise ValueError(f"Missing required field '{c}'. Available: {self.gdf.columns.tolist()}")
+                raise ValueError(
+                    f"Missing required field '{c}'. Available: {self.gdf.columns.tolist()}")
 
         if class_to_idx is None:
             classes = sorted(self.gdf[label_field].unique().tolist())
@@ -251,7 +254,8 @@ class GTPointDataset(Dataset):
         else:
             self.class_to_idx = class_to_idx
 
-        self.classes = [c for c, _ in sorted(self.class_to_idx.items(), key=lambda x: x[1])]
+        self.classes = [c for c, _ in sorted(
+            self.class_to_idx.items(), key=lambda x: x[1])]
 
         if folder_to_paths is None:
             folder_to_paths = build_tif_index(imagery_root)
@@ -260,8 +264,10 @@ class GTPointDataset(Dataset):
         self.rows = []
         self.failed_rows = []
 
-        print(f"[INFO] Resolving TIFF paths for {os.path.basename(shp_path)}...")
-        iterator = tqdm(self.gdf.iterrows(), total=len(self.gdf), dynamic_ncols=True, desc="Resolving")
+        print(
+            f"[INFO] Resolving TIFF paths for {os.path.basename(shp_path)}...")
+        iterator = tqdm(self.gdf.iterrows(), total=len(
+            self.gdf), dynamic_ncols=True, desc="Resolving")
         for i, (_, row) in enumerate(iterator):
             label = str(row[label_field]).strip()
             if label not in self.class_to_idx:
@@ -324,10 +330,12 @@ class GTPointDataset(Dataset):
 
 def build_train_transform(image_size):
     return transforms.Compose([
-        transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
+        transforms.Resize((image_size, image_size),
+                          interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
+        transforms.ColorJitter(
+            brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
@@ -336,7 +344,8 @@ def build_train_transform(image_size):
 
 def build_eval_transform(image_size):
     return transforms.Compose([
-        transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
+        transforms.Resize((image_size, image_size),
+                          interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
@@ -395,7 +404,8 @@ def save_compatible_checkpoint(init_ckpt, model, output_path, extra):
         updated["supervised_finetune"] = extra
         torch.save(updated, output_path)
     else:
-        torch.save({"model_state": state, "supervised_finetune": extra}, output_path)
+        torch.save(
+            {"model_state": state, "supervised_finetune": extra}, output_path)
 
 
 def save_checkpoint_bundle(cfg, model, head, feat_dim, epoch, metric_value, classes, class_to_idx, name):
@@ -485,7 +495,8 @@ def run_epoch(model, head, loader, criterion, optimizer, scaler, device, use_amp
 
         if len(y_true) > 0:
             running_acc = accuracy_score(y_true, y_pred)
-            iterator.set_postfix(loss=f"{np.mean(losses):.4f}", acc=f"{running_acc:.4f}")
+            iterator.set_postfix(
+                loss=f"{np.mean(losses):.4f}", acc=f"{running_acc:.4f}")
 
     acc = accuracy_score(y_true, y_pred)
     macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
@@ -515,7 +526,8 @@ def parse_args():
     parser.add_argument("--file_field", default="File")
     parser.add_argument("--fx_field", default="fx")
     parser.add_argument("--fy_field", default="fy")
-    parser.add_argument("--coord_mode", default="auto", choices=["auto", "pixel", "normalized"])
+    parser.add_argument("--coord_mode", default="auto",
+                        choices=["auto", "pixel", "normalized"])
 
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--patch_size_px", type=int, default=224)
@@ -532,7 +544,8 @@ def parse_args():
     parser.add_argument(
         "--monitor_metric",
         default="val_macro_f1",
-        choices=["val_macro_f1", "val_weighted_f1", "val_accuracy", "neg_val_loss"],
+        choices=["val_macro_f1", "val_weighted_f1",
+                 "val_accuracy", "neg_val_loss"],
     )
 
     parser.add_argument("--no_amp", action="store_true")
@@ -660,7 +673,8 @@ def main():
     head = nn.Linear(feat_dim, len(train_ds.classes)).to(device)
 
     if cfg.use_class_weights:
-        class_weights = compute_class_weights(train_ds, len(train_ds.classes), device)
+        class_weights = compute_class_weights(
+            train_ds, len(train_ds.classes), device)
         print("Class weights:", class_weights.detach().cpu().numpy().tolist())
     else:
         class_weights = None
@@ -675,7 +689,8 @@ def main():
         weight_decay=cfg.weight_decay,
     )
 
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if device.type == "cuda" else None
+    scaler = torch.amp.GradScaler(
+        "cuda", enabled=use_amp) if device.type == "cuda" else None
 
     best_metric = -float("inf")
     history = []
@@ -747,7 +762,8 @@ def main():
                 class_to_idx=train_ds.class_to_idx,
                 name="best",
             )
-            print(f"[INFO] Saved best checkpoint: {cfg.monitor_metric}={current_metric:.6f}")
+            print(
+                f"[INFO] Saved best checkpoint: {cfg.monitor_metric}={current_metric:.6f}")
 
         if cfg.save_every > 0 and epoch % cfg.save_every == 0:
             save_checkpoint_bundle(
@@ -767,7 +783,8 @@ def main():
             index=False,
         )
 
-    final_metric = history[-1][cfg.monitor_metric] if cfg.monitor_metric != "neg_val_loss" else -history[-1]["val_loss"]
+    final_metric = history[-1][cfg.monitor_metric] if cfg.monitor_metric != "neg_val_loss" else - \
+        history[-1]["val_loss"]
 
     save_checkpoint_bundle(
         cfg=cfg,
@@ -809,8 +826,10 @@ def main():
     print("=" * 80)
     print("Supervised fine-tuning completed")
     print(f"Best monitored metric: {cfg.monitor_metric} = {best_metric:.6f}")
-    print(f"Saved best encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_best.pth')}")
-    print(f"Saved last encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_last.pth')}")
+    print(
+        f"Saved best encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_best.pth')}")
+    print(
+        f"Saved last encoder: {os.path.join(cfg.output_dir, 'phase1_encoder_last.pth')}")
     print(f"Elapsed: {time.time() - start:.1f}s")
     print("=" * 80)
 

@@ -56,7 +56,7 @@ python train_supervised_encoder.py \
   --device cuda
 
 # Lejepa
-: << 'COMMENT'
+
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
@@ -77,7 +77,7 @@ python train_supervised_encoder.py \
   --weight_decay 1e-4 \
   --num_workers 4 \
   --device cuda
-COMMENT
+
 
 # Resnet50
 : << 'COMMENT'

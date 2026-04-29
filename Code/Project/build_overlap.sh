@@ -29,11 +29,11 @@ python --version
 conda activate lejepa
 
 python build_overlap.py \
-  --input_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal.csv" \
-  --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "/mnt/parscratch/users/acb20si/realign_tree/Code/Project/data/Censo_Forestal_overlap_all.csv" \
+  --input_csv "/mnt/parscratch/users/acc21pf/realign_tree/Code/Project/data/Censo_Forestal.csv" \
+  --imagery_root "/mnt/parscratch/users/acc21pf/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
+  --output_csv "/mnt/parscratch/users/acc21pf/realign_tree/Code/Project/data/Censo_Forestal_overlap_all.csv" \
   --x_column "COORDENADA_ESTE" \
   --y_column "COORDENADA_NORTE" \
   --tolerance_m 10
-  
+
 echo "Job finished at $(date)"
