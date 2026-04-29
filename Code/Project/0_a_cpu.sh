@@ -23,48 +23,31 @@ python --version
 echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 
-python make_gt_splits.py \
-  --input_shp "./data/valid_points.shp" \
-  --output_dir "./outputs/splits_gt" \
-  --label_field "Tree" \
-  --group_field "File" \
-  --train_ratio 0.70 \
-  --val_ratio 0.15 \
-  --test_ratio 0.15 \
-  --seed 42
-
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_gt/valid_points_train.shp" \
   --val_shp "./outputs/splits_gt/valid_points_val.shp" \
-  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_lejepa_cpu" \
-  --backbone_name "vit_base_patch16_224" \
-  --ssl_epochs 20 \
-  --batch_size_ssl 8 \
-  --ssl_lr 5e-4 \
-  --weight_decay 5e-2 \
-  --warmup_epochs_ssl 3 \
-  --min_lr_ratio 1e-3 \
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --output_dir "./outputs/phase1_lejepa_supervised_cpu" \
+  --label_field "Tree" \
+  --folder_field "Folder" \
+  --file_field "File" \
+  --fx_field "fx" \
+  --fy_field "fy" \
+  --coord_mode auto \
+  --image_size 224 \
   --patch_size_px 224 \
-  --patches_per_image 10 \
-  --num_global_views 2 \
-  --num_local_views 4 \
-  --image_size_global 224 \
-  --image_size_local 224 \
-  --projector_hidden_dim 2048 \
-  --projector_out_dim 512 \
-  --align_weight 1.0 \
-  --var_weight 25.0 \
-  --cov_weight 1.0 \
-  --slice_weight 1.0 \
-  --num_slices 256 \
-  --extract_stride_px 1024 \
-  --extract_batch_size 16 \
-  --max_extract_patches_per_image 20 \
-  --num_workers 8 \
-  --tile_cache_size 0 \
+  --batch_size 8 \
+  --epochs 50 \
+  --lr_encoder 1e-6 \
+  --lr_head 1e-4 \
+  --weight_decay 1e-4 \
+  --freeze_encoder_epochs 3 \
+  --patience 10 \
+  --debug_patches 64 \
   --save_every 1 \
+  --monitor_metric val_macro_f1 \
+  --num_workers 8 \
   --device cpu \
   --no_amp
 
