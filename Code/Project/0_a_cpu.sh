@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
 #SBATCH --output=logs/multi_lejepa_%j.out
-#SBATCH --error=logs/multi_cpu_lejepa_%j.err
+#SBATCH --error=logs/multi_lejepa_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
