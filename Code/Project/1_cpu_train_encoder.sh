@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=LeJEPA_train_cpu
+#SBATCH --job-name=resnet_train_cpu
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/cpu_phase1_%j.out
-#SBATCH --error=logs/cpu_phase1_%j.err
+#SBATCH --output=logs/cpu_resnet_phase1_%j.out
+#SBATCH --error=logs/cpu_resnet_phase1_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -25,10 +25,10 @@ echo "Running on node: $(hostname)"
 
 python train_encoder.py \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_dino_cpu" \
-  --backbone_name "vit_small_patch14_dinov2.lvd142m" \
+  --output_dir "./outputs/phase1_resnet50_cpu" \
+  --backbone_name "resnet50" \
   --pretrained_backbone \
-  --ssl_epochs 20 \
+  --ssl_epochs 100 \
   --batch_size_ssl 8 \
   --patches_per_image 10 \
   --num_workers 8 \
