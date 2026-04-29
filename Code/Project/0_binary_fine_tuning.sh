@@ -30,6 +30,8 @@ python train_supervised_encoder.py \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/binary_shihuahuaco_v2" \
   --label_field BinaryTree \
+  --print_val_dist \
+  --print_train_dist \
   --folder_field Folder \
   --file_field File \
   --fx_field fx \
@@ -51,5 +53,5 @@ python train_supervised_encoder.py \
   --num_workers 0 \
   --device cpu \
   --no_amp
-  
+
 echo "Job finished at $(date)"
