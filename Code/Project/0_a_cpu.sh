@@ -53,6 +53,6 @@ python train_supervised_encoder.py \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
   --num_workers 0 \
-  --device cuda
+  --device cpu
 
 echo "Job finished at $(date)"
