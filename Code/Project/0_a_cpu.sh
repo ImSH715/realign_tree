@@ -33,7 +33,10 @@ python make_gt_splits.py \
   --test_ratio 0.15 \
   --seed 42
 
-python train_encoder.py \
+python train_supervised_encoder.py \
+  --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
+  --train_shp "./outputs/splits_gt/valid_points_train.shp" \
+  --val_shp "./outputs/splits_gt/valid_points_val.shp" \
   --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --output_dir "./outputs/phase1_lejepa_cpu" \
   --backbone_name "vit_base_patch16_224" \
