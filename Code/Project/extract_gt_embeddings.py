@@ -1,11 +1,6 @@
 """
 Extract embeddings from GT point SHP using a trained/fine-tuned encoder.
 
-Input:
-- encoder checkpoint
-- GT train/val/test SHP
-- imagery root
-
 Output:
 - CSV with image_path, point_id, label, x, y, emb_0...
 """
@@ -17,7 +12,6 @@ from typing import Dict, List, Tuple
 
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 import rasterio
 import torch
 from PIL import Image
@@ -54,6 +48,7 @@ def build_tif_index(imagery_root: str) -> Dict[str, List[str]]:
             folder_key = parts[0] if parts and parts[0] != "." else ""
 
         folder_to_paths.setdefault(folder_key, [])
+
         for f in tif_files:
             folder_to_paths[folder_key].append(os.path.join(root, f))
 
@@ -165,8 +160,10 @@ def build_eval_transform(image_size):
     return transforms.Compose([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        ),
     ])
 
 
@@ -270,6 +267,13 @@ class GTEmbeddingDataset(Dataset):
         }
 
         return x, meta
+
+
+def collate_patch_with_meta(batch):
+    xs, metas = zip(*batch)
+    xs = torch.stack(xs, dim=0)
+    metas = list(metas)
+    return xs, metas
 
 
 def forward_encode(model, x):
@@ -417,6 +421,7 @@ def main():
         num_workers=args.num_workers,
         pin_memory=(device.type == "cuda"),
         persistent_workers=(args.num_workers > 0),
+        collate_fn=collate_patch_with_meta,
     )
 
     extract_embeddings(
