@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=multi_lejepa
+#SBATCH --job-name=23_lejepa
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
@@ -43,7 +43,7 @@ python train_supervised_encoder.py \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
   --freeze_encoder_epochs 12 \
-  --patience 10 \
+  --patience 23 \
   --debug_patches 64 \
   --print_val_dist \
   --num_workers 0 \
