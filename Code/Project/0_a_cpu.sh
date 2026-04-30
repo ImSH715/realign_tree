@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=21_dino
+#SBATCH --job-name=11_dino
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/21_dino_%j.out
-#SBATCH --error=logs/21_dino_%j.err
+#SBATCH --output=logs/11_dino_%j.out
+#SBATCH --error=logs/11_dino_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -25,10 +25,10 @@ echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_dino_cpu/phase1_encoder_best.pth" \
-  --train_shp "./outputs/splits_gt_multi_23/valid_points_train.shp" \
-  --val_shp "./outputs/splits_gt_multi_23/valid_points_val.shp" \
+  --train_shp "./outputs/splits_gt_multi_reduced40/valid_points_train.shp" \
+  --val_shp "./outputs/splits_gt_multi_reduced40/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/phase1_5_dino_21" \
+  --output_dir "./outputs/phase1_5_dino_11" \
   --label_field Tree \
   --folder_field Folder \
   --file_field File \
