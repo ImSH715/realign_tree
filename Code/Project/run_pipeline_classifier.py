@@ -439,7 +439,7 @@ def main():
             "refined_north": refined_north,
 
             "is_positive_original": int(original_prob >= args.decision_threshold),
-            "is_positive_refined": int(best_refine["target_prob"] >= args.deicision_threshold),
+            "is_positive_refined": int(best_refine["target_prob"] >= args.decision_threshold),
             "decision_threshold": args.decision_threshold,
 
             "score_gain": best_refine["score"] - original_score,
