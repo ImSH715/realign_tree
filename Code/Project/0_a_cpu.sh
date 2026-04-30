@@ -6,8 +6,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/multi_lejepa_%j.out
-#SBATCH --error=logs/multi_lejepa_%j.err
+#SBATCH --output=logs/23_lejepa_%j.out
+#SBATCH --error=logs/23_lejepa_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -43,7 +43,7 @@ python train_supervised_encoder.py \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
   --freeze_encoder_epochs 12 \
-  --patience 23 \
+  --patience 10 \
   --debug_patches 64 \
   --print_val_dist \
   --num_workers 0 \
