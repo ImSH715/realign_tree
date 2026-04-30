@@ -18,13 +18,12 @@ echo "Using Python from: $(which python)"
 python --version
 echo "Job started at $(date)"
 
-
 python run_pipeline_classifier.py \
   --encoder_ckpt "./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth" \
   --head_ckpt "./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth" \
   --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_csv "./outputs/evaluation/refined_classifier_binary_20m.csv" \
+  --output_csv "./outputs/evaluation/refined_classifier_20m.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -39,3 +38,5 @@ python run_pipeline_classifier.py \
   --beta 0.002 \
   --batch_size 32 \
   --device cpu
+
+echo "Job finished at $(date)"
