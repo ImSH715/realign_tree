@@ -49,6 +49,6 @@ python run_pipeline_classifier.py \
   --refine_step_px 8 \
   --beta 0.002 \
   --batch_size 32 \
-  --device cuda
+  --device cpu
 
 echo "Done"
