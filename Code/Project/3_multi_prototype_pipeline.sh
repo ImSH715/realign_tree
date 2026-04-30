@@ -1,22 +1,19 @@
 #!/bin/bash
-
-#SBATCH --job-name=run_multi_prototype_pipeline
+#SBATCH --job-name=phase3_cls_20m
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --time=90:00:00
-#SBATCH --output=logs/run_multi_prototype_pipeline_%j.out
-#SBATCH --error=logs/run_multi_prototype_pipeline_%j.err
-#SBATCH --mail-type=END,FAIL
+#SBATCH --time=48:00:00
+#SBATCH --output=cls_%j.out
+#SBATCH --error=cls_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
 conda activate lejepa
 
-echo "Using Python from: $(which python)"
-python --version
-echo "Job started at $(date)"
+echo "=== Classifier Phase3 ==="
 
 python run_pipeline_classifier.py \
   --encoder_ckpt "./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth" \
@@ -37,6 +34,6 @@ python run_pipeline_classifier.py \
   --refine_step_px 8 \
   --beta 0.002 \
   --batch_size 32 \
-  --device cpu
+  --device cuda
 
-echo "Job finished at $(date)"
+echo "Done"
