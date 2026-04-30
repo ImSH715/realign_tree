@@ -32,6 +32,11 @@ python build_prototypes.py \
   --gt_file_field File \
   --gt_fx_field fx \
   --gt_fy_field fy \
-  --output_dir "./outputs/phase2_binary_shihuahuaco"
+  --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --output_dir "./outputs/phase2_binary_shihuahuaco" \
+  --batch_size 16 \
+  --num_workers 0 \
+  --device cpu \
+  --no_amp
 
 echo "Job finished at $(date)"
