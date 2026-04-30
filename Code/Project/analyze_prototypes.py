@@ -14,7 +14,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # -------------------------
 # Load prototypes
 # -------------------------
-proto_path = "./outputs/phase2_dino_supervised/class_prototypes.csv"
+proto_path = "./outputs/phase2_binary_shihuahuaco/class_prototypes.csv"
 df = pd.read_csv(proto_path)
 
 labels = df.iloc[:, 0].astype(str).str.strip()
