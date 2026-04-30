@@ -38,11 +38,10 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 80 \
+  --epochs 40 \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
-  --freeze_encoder_epochs 12 \
   --patience 10 \
   --debug_patches 64 \
   --print_val_dist \
