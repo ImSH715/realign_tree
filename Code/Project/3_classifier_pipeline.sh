@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=phase3_cls_20m
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
+
+#SBATCH --job-name=classifier_phase3
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
-#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=90:00:00
 #SBATCH --output=logs/phase_3/cls_%j.out
 #SBATCH --error=logs/phase_3/cls_%j.err
 
