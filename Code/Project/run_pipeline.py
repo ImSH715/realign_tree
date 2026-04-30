@@ -20,7 +20,7 @@ from src.models.checkpoint import load_encoder_from_checkpoint
 from src.data.points import InputPoint
 from src.data.tif_io import recursive_find_tif_files
 from src.data.patches import PatchExtractor, EncoderWrapper
-from Code.Project.pipeline import FeatureGuidedBoundedSearchPipeline
+from Project.pipeline import FeatureGuidedBoundedSearchPipeline
 from src.outputs.export_csv import save_refinement_results_csv
 
 
