@@ -1,22 +1,10 @@
 """
 Phase 3: feature-guided bounded search for coordinate refinement.
 
-This script supports two kinds of Phase 3 inputs:
-
-1. Original pipeline input format
-   - tile path already provided in a CSV column
-   - coordinates are pixel coordinates
-   - typical for corrected_labels.csv or old phase2 outputs
-
-2. Evaluation input format
-   - tile path stored in a matched TIFF column
-   - coordinates are world coordinates (easting/northing)
-   - typical for valid_points_direct.csv and recovery CSVs
-
-The script keeps the refinement logic unchanged, and only adds:
-- coordinate type handling (pixel or world)
-- flexible tile column naming
-- output augmentation with refined world coordinates
+Supports:
+1. normal class_prototypes.csv
+2. multi_class_prototypes.csv with columns:
+   prototype_id,label,cluster_id,n_source,emb_0...
 """
 
 import argparse
@@ -29,11 +17,10 @@ import rasterio
 import torch
 
 from src.models.checkpoint import load_encoder_from_checkpoint
-from src.data.points import InputPoint, load_points_csv
+from src.data.points import InputPoint
 from src.data.tif_io import recursive_find_tif_files
 from src.data.patches import PatchExtractor, EncoderWrapper
-from src.scoring.prototypes import load_prototypes_csv
-from src.pipeline import FeatureGuidedBoundedSearchPipeline
+from Code.Project.pipeline import FeatureGuidedBoundedSearchPipeline
 from src.outputs.export_csv import save_refinement_results_csv
 
 
@@ -42,9 +29,7 @@ def format_seconds(seconds: float) -> str:
     h = seconds // 3600
     m = (seconds % 3600) // 60
     s = seconds % 60
-    if h > 0:
-        return f"{h:02d}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
+    return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
 
 def world_to_pixel(image_path: str, east: float, north: float):
@@ -59,42 +44,57 @@ def pixel_to_world(image_path: str, x_col: float, y_row: float):
     return float(east), float(north)
 
 
-@dataclass
-class Phase3Config:
-    encoder_ckpt: str
-    prototypes_csv: str
-    points_csv: str
-    imagery_root: str
-    output_csv: str
+def load_prototypes_flexible(prototypes_csv: str):
+    """
+    Supports both:
+    A) class_prototypes.csv:
+       class, emb_0, emb_1, ...
 
-    tile_column: str = "image_path"
-    point_id_column: str = "point_id"
-    x_column: str = "x"
-    y_column: str = "y"
-    target_label_column: str = "target_label"
-    coord_type: str = "pixel"   # pixel or world
+    B) multi_class_prototypes.csv:
+       prototype_id, label, cluster_id, n_source, emb_0, emb_1, ...
 
-    image_size: int = 224
-    patch_size_px: int = 224
+    Output format:
+       dict[label_or_proto_id] = tensor/list embedding
+    """
+    df = pd.read_csv(prototypes_csv)
 
-    search_radius_px: int = 128
-    coarse_step_px: int = 16
-    refine_radius_px: int = 32
-    refine_step_px: int = 8
+    emb_cols = [c for c in df.columns if c.startswith("emb_")]
+    if not emb_cols:
+        raise ValueError(
+            f"No embedding columns found in {prototypes_csv}. "
+            f"Expected columns like emb_0, emb_1, ..."
+        )
 
-    similarity: str = "cosine"
-    alpha: float = 1.0
-    beta: float = 0.002
+    prototypes = {}
 
-    batch_size: int = 64
-    device: str = "cuda"
-    mixed_precision: bool = True
+    if "prototype_id" in df.columns and "label" in df.columns:
+        print("[INFO] Loading multi-prototype CSV")
+        for _, row in df.iterrows():
+            proto_id = str(row["prototype_id"])
+            label = str(row["label"])
+            key = proto_id
+
+            prototypes[key] = {
+                "label": label,
+                "embedding": row[emb_cols].values.astype("float32"),
+            }
+
+    else:
+        print("[INFO] Loading standard class prototype CSV")
+        label_col = df.columns[0]
+        for _, row in df.iterrows():
+            label = str(row[label_col]).strip()
+            prototypes[label] = row[emb_cols].values.astype("float32")
+
+    print(f"[INFO] Loaded prototypes: {len(prototypes)}")
+    return prototypes
 
 
 class TileResolver:
     def __init__(self, imagery_root: str):
         self.lookup = {}
         tif_paths = recursive_find_tif_files(imagery_root)
+
         for p in tif_paths:
             ap = os.path.abspath(p)
             self.lookup[ap] = ap
@@ -115,14 +115,45 @@ class TileResolver:
         raise FileNotFoundError(f"Could not resolve imagery path: {value}")
 
 
+@dataclass
+class Phase3Config:
+    encoder_ckpt: str
+    prototypes_csv: str
+    points_csv: str
+    imagery_root: str
+    output_csv: str
+
+    tile_column: str = "image_path"
+    point_id_column: str = "point_id"
+    x_column: str = "x"
+    y_column: str = "y"
+    target_label_column: str = "target_label"
+    coord_type: str = "pixel"
+
+    image_size: int = 224
+    patch_size_px: int = 224
+
+    search_radius_px: int = 128
+    coarse_step_px: int = 16
+    refine_radius_px: int = 32
+    refine_step_px: int = 8
+
+    similarity: str = "cosine"
+    alpha: float = 1.0
+    beta: float = 0.002
+
+    batch_size: int = 64
+    device: str = "cuda"
+    mixed_precision: bool = True
+
+
 def load_points_csv_flexible(
-    csv_path: str,
-    tile_column: str,
-    point_id_column: str,
-    x_column: str,
-    y_column: str,
-    target_label_column: str,
-    coord_type: str,
+    csv_path,
+    tile_column,
+    point_id_column,
+    x_column,
+    y_column,
+    target_label_column,
 ):
     df = pd.read_csv(csv_path)
 
@@ -132,6 +163,7 @@ def load_points_csv_flexible(
             raise ValueError(f"Missing required column '{c}' in {csv_path}")
 
     points = []
+
     for _, row in df.iterrows():
         points.append(
             InputPoint(
@@ -148,6 +180,7 @@ def load_points_csv_flexible(
 
 def convert_points_world_to_pixel(points):
     converted = []
+
     for p in points:
         x_px, y_px = world_to_pixel(p.image_path, p.x, p.y)
         converted.append(
@@ -159,16 +192,15 @@ def convert_points_world_to_pixel(points):
                 target_label=p.target_label,
             )
         )
+
     return converted
 
 
-def augment_output_with_world_coords(output_csv: str):
+def augment_output_with_world_coords(output_csv):
     df = pd.read_csv(output_csv)
 
-    refined_east = []
-    refined_north = []
-    coarse_east = []
-    coarse_north = []
+    refined_east, refined_north = [], []
+    coarse_east, coarse_north = [], []
 
     for _, row in df.iterrows():
         try:
@@ -195,46 +227,44 @@ def augment_output_with_world_coords(output_csv: str):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Phase 3: feature-guided bounded search for coordinate refinement"
-    )
+    p = argparse.ArgumentParser()
 
-    parser.add_argument("--encoder_ckpt", type=str, required=True)
-    parser.add_argument("--prototypes_csv", type=str, required=True)
-    parser.add_argument("--points_csv", type=str, required=True)
-    parser.add_argument("--imagery_root", type=str, required=True)
-    parser.add_argument("--output_csv", type=str, required=True)
+    p.add_argument("--encoder_ckpt", required=True)
+    p.add_argument("--prototypes_csv", required=True)
+    p.add_argument("--points_csv", required=True)
+    p.add_argument("--imagery_root", required=True)
+    p.add_argument("--output_csv", required=True)
 
-    parser.add_argument("--tile_column", type=str, default="image_path")
-    parser.add_argument("--point_id_column", type=str, default="point_id")
-    parser.add_argument("--x_column", type=str, default="x")
-    parser.add_argument("--y_column", type=str, default="y")
-    parser.add_argument("--target_label_column", type=str, default="corrected_label")
-    parser.add_argument("--coord_type", type=str, default="pixel", choices=["pixel", "world"])
+    p.add_argument("--tile_column", default="image_path")
+    p.add_argument("--point_id_column", default="point_id")
+    p.add_argument("--x_column", default="x")
+    p.add_argument("--y_column", default="y")
+    p.add_argument("--target_label_column", default="corrected_label")
+    p.add_argument("--coord_type", default="pixel", choices=["pixel", "world"])
 
-    parser.add_argument("--image_size", type=int, default=224)
-    parser.add_argument("--patch_size_px", type=int, default=224)
+    p.add_argument("--image_size", type=int, default=224)
+    p.add_argument("--patch_size_px", type=int, default=224)
 
-    parser.add_argument("--search_radius_px", type=int, default=128)
-    parser.add_argument("--coarse_step_px", type=int, default=16)
-    parser.add_argument("--refine_radius_px", type=int, default=32)
-    parser.add_argument("--refine_step_px", type=int, default=8)
+    p.add_argument("--search_radius_px", type=int, default=128)
+    p.add_argument("--coarse_step_px", type=int, default=16)
+    p.add_argument("--refine_radius_px", type=int, default=32)
+    p.add_argument("--refine_step_px", type=int, default=8)
 
-    parser.add_argument("--similarity", type=str, default="cosine", choices=["cosine", "euclidean"])
-    parser.add_argument("--alpha", type=float, default=1.0)
-    parser.add_argument("--beta", type=float, default=0.002)
+    p.add_argument("--similarity", default="cosine", choices=["cosine", "euclidean"])
+    p.add_argument("--alpha", type=float, default=1.0)
+    p.add_argument("--beta", type=float, default=0.002)
 
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--no_amp", action="store_true")
+    p.add_argument("--batch_size", type=int, default=64)
+    p.add_argument("--device", default="cuda")
+    p.add_argument("--no_amp", action="store_true")
 
-    return parser.parse_args()
+    return p.parse_args()
 
 
 def main():
     args = parse_args()
 
-    config = Phase3Config(
+    cfg = Phase3Config(
         encoder_ckpt=args.encoder_ckpt,
         prototypes_csv=args.prototypes_csv,
         points_csv=args.points_csv,
@@ -260,88 +290,95 @@ def main():
         mixed_precision=not args.no_amp,
     )
 
-    if config.device == "cuda" and not torch.cuda.is_available():
+    if cfg.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is not available.")
 
-    device = torch.device(config.device if torch.cuda.is_available() else "cpu")
-    use_amp = config.mixed_precision and device.type == "cuda"
+    os.makedirs(os.path.dirname(cfg.output_csv), exist_ok=True)
 
-    start_time = time.time()
+    device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
+    use_amp = cfg.mixed_precision and device.type == "cuda"
 
-    model, _ = load_encoder_from_checkpoint(config.encoder_ckpt, device)
+    start = time.time()
+
+    model, _ = load_encoder_from_checkpoint(cfg.encoder_ckpt, device)
+
     encoder = EncoderWrapper(
         model=model,
         device=device,
-        image_size=config.image_size,
+        image_size=cfg.image_size,
         use_amp=use_amp,
     )
 
-    prototypes = load_prototypes_csv(config.prototypes_csv)
-    tile_resolver = TileResolver(config.imagery_root)
+    prototypes = load_prototypes_flexible(cfg.prototypes_csv)
 
-    # Flexible CSV loading
+    tile_resolver = TileResolver(cfg.imagery_root)
+
     points, raw_df = load_points_csv_flexible(
-        csv_path=config.points_csv,
-        tile_column=config.tile_column,
-        point_id_column=config.point_id_column,
-        x_column=config.x_column,
-        y_column=config.y_column,
-        target_label_column=config.target_label_column,
-        coord_type=config.coord_type,
+        csv_path=cfg.points_csv,
+        tile_column=cfg.tile_column,
+        point_id_column=cfg.point_id_column,
+        x_column=cfg.x_column,
+        y_column=cfg.y_column,
+        target_label_column=cfg.target_label_column,
     )
 
     for p in points:
         p.image_path = tile_resolver.resolve(p.image_path)
 
-    # If input coordinates are in world CRS, convert them to pixel before refinement
-    if config.coord_type == "world":
+    if cfg.coord_type == "world":
         points = convert_points_world_to_pixel(points)
 
-    patch_extractor = PatchExtractor(patch_size_px=config.patch_size_px)
+    patch_extractor = PatchExtractor(patch_size_px=cfg.patch_size_px)
 
     pipeline = FeatureGuidedBoundedSearchPipeline(
         encoder=encoder,
         prototypes=prototypes,
         patch_extractor=patch_extractor,
-        similarity_mode=config.similarity,
-        search_radius_px=config.search_radius_px,
-        coarse_step_px=config.coarse_step_px,
-        refine_radius_px=config.refine_radius_px,
-        refine_step_px=config.refine_step_px,
-        alpha=config.alpha,
-        beta=config.beta,
-        batch_size=config.batch_size,
+        similarity_mode=cfg.similarity,
+        search_radius_px=cfg.search_radius_px,
+        coarse_step_px=cfg.coarse_step_px,
+        refine_radius_px=cfg.refine_radius_px,
+        refine_step_px=cfg.refine_step_px,
+        alpha=cfg.alpha,
+        beta=cfg.beta,
+        batch_size=cfg.batch_size,
     )
 
     print("=" * 100)
     print("Phase 3 started")
-    print(f"Encoder checkpoint : {config.encoder_ckpt}")
-    print(f"Prototypes CSV     : {config.prototypes_csv}")
-    print(f"Points CSV         : {config.points_csv}")
-    print(f"Imagery root       : {config.imagery_root}")
-    print(f"Output CSV         : {config.output_csv}")
-    print(f"Coordinate type    : {config.coord_type}")
+    print(f"Encoder checkpoint : {cfg.encoder_ckpt}")
+    print(f"Prototypes CSV     : {cfg.prototypes_csv}")
+    print(f"Points CSV         : {cfg.points_csv}")
+    print(f"Output CSV         : {cfg.output_csv}")
+    print(f"Coordinate type    : {cfg.coord_type}")
     print(f"Points loaded      : {len(points)}")
     print("=" * 100)
 
     results = pipeline.run(points)
 
-    save_refinement_results_csv(results, config.output_csv)
-    augment_output_with_world_coords(config.output_csv)
+    save_refinement_results_csv(results, cfg.output_csv)
+    augment_output_with_world_coords(cfg.output_csv)
 
-    # Merge original input columns back in if useful
-    out_df = pd.read_csv(config.output_csv)
+    out_df = pd.read_csv(cfg.output_csv)
+
     if "point_id" in raw_df.columns:
         raw_df["point_id"] = raw_df["point_id"].astype(str)
         out_df["point_id"] = out_df["point_id"].astype(str)
-        merged = out_df.merge(raw_df, on="point_id", how="left", suffixes=("", "_input"))
-        merged.to_csv(config.output_csv, index=False)
 
-    elapsed = time.time() - start_time
+        merged = out_df.merge(
+            raw_df,
+            on="point_id",
+            how="left",
+            suffixes=("", "_input"),
+        )
+        merged.to_csv(cfg.output_csv, index=False)
+
+    elapsed = time.time() - start
+
     print("=" * 100)
     print("Phase 3 completed")
-    print(f"Saved results to   : {config.output_csv}")
-    print(f"Elapsed            : {format_seconds(elapsed)}")
+    print(f"Saved results to: {cfg.output_csv}")
+    print(f"Elapsed         : {format_seconds(elapsed)}")
     print("=" * 100)
 
 
