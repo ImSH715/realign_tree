@@ -6,8 +6,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/11_dino_%j.out
-#SBATCH --error=logs/11_dino_%j.err
+#SBATCH --output=logs/phase_1_5/11_dino_%j.out
+#SBATCH --error=logs/phase_1_5/11_dino_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs

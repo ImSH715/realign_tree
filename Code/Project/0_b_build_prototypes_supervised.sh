@@ -9,8 +9,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/0_b_dino_ft_%j.out
-#SBATCH --error=logs/0_b_dino_ft_%j.err
+#SBATCH --output=logs/phase_2/0_b_dino_ft_%j.out
+#SBATCH --error=logs/phase_2/0_b_dino_ft_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs

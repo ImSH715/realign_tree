@@ -6,8 +6,8 @@
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --time=48:00:00
-#SBATCH --output=cls_%j.out
-#SBATCH --error=cls_%j.err
+#SBATCH --output=logs/phase_3/cls_%j.out
+#SBATCH --error=logs/phase_3/cls_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
