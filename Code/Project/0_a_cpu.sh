@@ -25,10 +25,10 @@ echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
   --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
-  --train_shp "./outputs/splits_gt_random/valid_points_train.shp" \
-  --val_shp "./outputs/splits_gt_random/valid_points_val.shp" \
+  --train_shp "./outputs/splits_gt_multi_reduced/valid_points_train.shp" \
+  --val_shp "./outputs/splits_gt_multi_reduced/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/multiclass_lejepa_random_classweights" \
+  --output_dir "./outputs/phase1_5_multiclass_reduced" \
   --label_field Tree \
   --folder_field Folder \
   --file_field File \
@@ -38,16 +38,15 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 30 \
+  --epochs 40 \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
-  --freeze_encoder_epochs 10 \
-  --patience 8 \
+  --freeze_encoder_epochs 12 \
+  --patience 10 \
   --debug_patches 64 \
   --print_val_dist \
   --num_workers 0 \
   --device cpu \
   --no_amp
-
 echo "Job finished at $(date)"
