@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=cpu_binary_lejepa
+#SBATCH --job-name=binary_dino
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/0_binary_lejepa_%j.out
-#SBATCH --error=logs/0_binary_lejepa_%j.err
+#SBATCH --output=logs/dino_binary_%j.out
+#SBATCH --error=logs/dino_binary_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -24,11 +24,11 @@ echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
-  --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
+  --init_ckpt "./outputs/phase1_dino_cpu/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_binary/valid_points_train.shp" \
   --val_shp "./outputs/splits_binary/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/binary_lejepa_shihuahuaco_v3" \
+  --output_dir "./outputs/binary_dino" \
   --label_field BinaryTree \
   --folder_field Folder \
   --file_field File \
