@@ -1,13 +1,16 @@
 #!/bin/bash
 
-#SBATCH --job-name=run_multi_prototype_pipeline
+#SBATCH --job-name=gpu_run_multi_prototype_pipeline
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=run_multi_prototype_pipeline_%j.out
-#SBATCH --error=run_multi_prototype_pipeline_%j.err
+#SBATCH --output=gpu_run_multi_prototype_pipeline_%j.out
+#SBATCH --error=gpu_run_multi_prototype_pipeline_%j.err
 #SBATCH --mail-type=END,FAIL
 
 module load Anaconda3
@@ -39,4 +42,4 @@ python run_pipeline.py \
   --alpha 1.0 \
   --beta 0.002 \
   --batch_size 32 \
-  --device cpu
+  --device cuda
