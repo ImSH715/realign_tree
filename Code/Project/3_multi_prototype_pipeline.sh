@@ -1,9 +1,6 @@
 #!/bin/bash
 
 #SBATCH --job-name=run_multi_prototype_pipeline
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
