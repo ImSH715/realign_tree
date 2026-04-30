@@ -259,6 +259,8 @@ def parse_args():
     p.add_argument("--device", default="cuda")
     p.add_argument("--no_amp", action="store_true")
 
+    p.add_argument("--decision_threshold", type=float, default=0.5)
+
     return p.parse_args()
 
 
@@ -428,6 +430,10 @@ def main():
             "coarse_east": coarse_east,
             "coarse_north": coarse_north,
 
+            "is_positive_original": int(original_prob >= args.decision_threshold),
+            "is_positive_refined": int(best_refine["target_prob"] >= args.decision_threshold),
+            "decision_threshold": args.decision_threshold,
+
             "refined_x": best_refine["x"],
             "refined_y": best_refine["y"],
             "refined_prob": best_refine["target_prob"],
@@ -437,7 +443,7 @@ def main():
             "refined_north": refined_north,
 
             "score_gain": best_refine["score"] - original_score,
-            "prob_gain": best_refine["target_prob"] - original_prob,
+            "prob_gain": best_refine["target_prob"] - original_prob
         })
 
         results.append(out)
