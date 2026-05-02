@@ -42,10 +42,11 @@ python train_supervised_encoder.py \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
-  --patience 10 \
+  --patience 0 \
   --debug_patches 64 \
   --print_val_dist \
   --num_workers 0 \
   --device cpu \
   --no_amp
+
 echo "Job finished at $(date)"
