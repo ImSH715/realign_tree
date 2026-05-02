@@ -41,7 +41,7 @@ python run_slide_grid_classifier.py \
   --x_column "original_east" \
   --y_column "original_north" \
   --grid_sizes "30,20,10" \
-  --threshold 0.18 \
+  --threshold 0.4 \
   --min_realigned_boxes 3 \
   --final_refine_radius_m 5 \
   --final_refine_step_m 1 \
