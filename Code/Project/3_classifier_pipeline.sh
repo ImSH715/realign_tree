@@ -29,23 +29,26 @@ python tune_binary_threshold.py \
   --positive_label 1 \
   --output_csv "./outputs/phase2_classifier_binary/threshold_tuning.csv"
 
-python run_slide_grid_classifier.py \
-  --input_csv "./outputs/evaluation/valid_points_direct.csv" \
-  --output_shp "./outputs/evaluation/slide_grid_classifier_binary_th018.shp" \
+python run_pipeline_classifier.py \
   --encoder_ckpt "./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth" \
   --head_ckpt "./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth" \
+  --points_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --output_csv "./outputs/evaluation/refined_classifier_binary_20m.csv" \
   --tile_column "matched_tif" \
-  --label_column "label" \
-  --target_label "Shihuahuaco" \
-  --x_column "gt_east" \
-  --y_column "gt_north" \
-  --grid_sizes "30,20,10" \
-  --threshold 0.18 \
-  --min_realigned_boxes 3 \
-  --max_iterations 10 \
-  --positive_class 1 \
-  --device cpu \
-  --no_amp
+  --point_id_column "point_id" \
+  --x_column "original_east" \
+  --y_column "original_north" \
+  --target_label_column "label" \
+  --coord_type world \
+  --binary_positive_name "Shihuahuaco" \
+  --decision_threshold 0.42 \
+  --search_radius_px 128 \
+  --coarse_step_px 16 \
+  --refine_radius_px 32 \
+  --refine_step_px 8 \
+  --beta 0.002 \
+  --batch_size 32 \
+  --device cpu
 
 echo "Done"

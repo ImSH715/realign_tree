@@ -30,20 +30,22 @@ python tune_binary_threshold.py \
   --output_csv "./outputs/phase2_classifier_binary/threshold_tuning.csv"
 
 python run_slide_grid_classifier.py \
-  --input_csv "./outputs/evaluation/valid_points_direct.csv" \
-  --output_shp "./outputs/evaluation/slide_grid_classifier_binary.shp" \
+  --input_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
+  --output_shp "./outputs/evaluation/slide_grid_classifier_binary_20m_th018.shp" \
   --encoder_ckpt "./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth" \
   --head_ckpt "./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --tile_column "matched_tif" \
   --label_column "label" \
   --target_label "Shihuahuaco" \
-  --x_column "gt_east" \
-  --y_column "gt_north" \
+  --x_column "original_east" \
+  --y_column "original_north" \
   --grid_sizes "30,20,10" \
   --threshold 0.18 \
+  --min_realigned_boxes 3 \
   --max_iterations 10 \
   --positive_class 1 \
-  --device cpu
+  --device cpu \
+  --no_amp
 
 echo "Done"
