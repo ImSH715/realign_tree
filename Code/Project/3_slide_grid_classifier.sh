@@ -41,7 +41,7 @@ python run_slide_grid_classifier.py \
   --x_column "gt_east" \
   --y_column "gt_north" \
   --grid_sizes "30,20,10" \
-  --threshold 0.5 \
+  --threshold 0.18 \
   --max_iterations 10 \
   --positive_class 1 \
   --device cpu
