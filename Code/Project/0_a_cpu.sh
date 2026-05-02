@@ -42,6 +42,7 @@ python train_supervised_encoder.py \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
+  --freeze_encoder_epochs 0 \
   --patience 0 \
   --debug_patches 64 \
   --print_val_dist \
