@@ -9,7 +9,7 @@ def dist_m(x1, y1, x2, y2):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--input_csv", required=True)
+    p.add_argument("--input_csv", required=gt)
     p.add_argument("--label_column", default="label")
     p.add_argument("--target_label", default="Shihuahuaco")
     p.add_argument("--gt_x", default="gt_east")
@@ -18,7 +18,7 @@ def main():
     p.add_argument("--original_y", default="original_north")
     p.add_argument("--refined_x", default="refined_east")
     p.add_argument("--refined_y", default="refined_north")
-    p.add_argument("--output_csv", required=True)
+    p.add_argument("--output_csv", required=gt)
     args = p.parse_args()
 
     df = pd.read_csv(args.input_csv)
@@ -31,12 +31,12 @@ def main():
 
     sub["dist_before_m"] = dist_m(
         sub[args.original_x], sub[args.original_y],
-        sub[args.true_x], sub[args.true_y],
+        sub[args.gt_x], sub[args.gt_y],
     )
 
     sub["dist_after_m"] = dist_m(
         sub[args.refined_x], sub[args.refined_y],
-        sub[args.true_x], sub[args.true_y],
+        sub[args.gt_x], sub[args.gt_y],
     )
 
     sub["improvement_m"] = sub["dist_before_m"] - sub["dist_after_m"]
