@@ -35,6 +35,9 @@ def parse_args():
     p.add_argument("--min_realigned_boxes", type=int, default=3)
     p.add_argument("--max_iterations", type=int, default=10)
 
+    p.add_argument("--final_refine_radius_m", type=float, default=5.0)
+    p.add_argument("--final_refine_step_m", type=float, default=1.0)
+
     p.add_argument("--positive_class", default="1")
     p.add_argument("--image_size", type=int, default=224)
     p.add_argument("--patch_size_px", type=int, default=224)
@@ -173,6 +176,48 @@ def create_3x3_grid(center_point, cell_size):
     return boxes
 
 
+def final_local_refine(
+    point,
+    image_path,
+    model,
+    head,
+    transform,
+    target_idx,
+    patch_size,
+    radius_m,
+    step_m,
+    device,
+    use_amp,
+):
+    best_east = point.x
+    best_north = point.y
+    best_prob = get_prob(
+        model, head, transform, image_path,
+        best_east, best_north,
+        target_idx, patch_size, device, use_amp
+    )
+
+    offsets = np.arange(-radius_m, radius_m + 1e-6, step_m)
+
+    for dx in offsets:
+        for dy in offsets:
+            east = point.x + dx
+            north = point.y + dy
+
+            prob = get_prob(
+                model, head, transform, image_path,
+                east, north,
+                target_idx, patch_size, device, use_amp
+            )
+
+            if prob > best_prob:
+                best_prob = prob
+                best_east = east
+                best_north = north
+
+    return Point(best_east, best_north), best_prob
+
+
 def process_one_stage(
     points,
     model,
@@ -183,6 +228,8 @@ def process_one_stage(
     threshold,
     min_realigned_boxes,
     patch_size,
+    final_refine_radius_m,
+    final_refine_step_m,
     device,
     use_amp,
 ):
@@ -240,21 +287,56 @@ def process_one_stage(
         if detected_count == 0:
             row_dict["status"] = "research"
             row_dict["final_reason"] = "no_detected_boxes"
-            new_centers.append({**row_dict, "geometry": point})
+
+            refined_point, refined_prob = final_local_refine(
+                point=point,
+                image_path=image_path,
+                model=model,
+                head=head,
+                transform=transform,
+                target_idx=target_idx,
+                patch_size=patch_size,
+                radius_m=final_refine_radius_m,
+                step_m=final_refine_step_m,
+                device=device,
+                use_amp=use_amp,
+            )
+
+            row_dict["coarse_final_east"] = point.x
+            row_dict["coarse_final_north"] = point.y
+            row_dict["final_refined_prob"] = refined_prob
+
+            new_centers.append({**row_dict, "geometry": refined_point})
             continue
 
         avg_x = float(np.mean([b.centroid.x for b, _, _ in scored]))
         avg_y = float(np.mean([b.centroid.y for b, _, _ in scored]))
         new_point = Point(avg_x, avg_y)
 
-        # If enough boxes detected, finalize immediately as realigned.
         if detected_count >= min_realigned_boxes:
             row_dict["status"] = "realigned"
             row_dict["final_reason"] = f"{detected_count}_boxes_above_threshold"
-            new_centers.append({**row_dict, "geometry": new_point})
+            row_dict["coarse_final_east"] = new_point.x
+            row_dict["coarse_final_north"] = new_point.y
+
+            refined_point, refined_prob = final_local_refine(
+                point=new_point,
+                image_path=image_path,
+                model=model,
+                head=head,
+                transform=transform,
+                target_idx=target_idx,
+                patch_size=patch_size,
+                radius_m=final_refine_radius_m,
+                step_m=final_refine_step_m,
+                device=device,
+                use_amp=use_amp,
+            )
+
+            row_dict["final_refined_prob"] = refined_prob
+            new_centers.append({**row_dict, "geometry": refined_point})
             continue
 
-        # If 1-2 boxes detected and not at final stage, slide to next stage.
         if stage_idx < len(grid_sizes) - 1:
             row_dict["status"] = "slide"
             row_dict["final_reason"] = f"{detected_count}_boxes_slide_to_next_stage"
@@ -262,10 +344,27 @@ def process_one_stage(
             new_slides.append({**row_dict, "geometry": new_point})
             continue
 
-        # At smallest grid, 1-2 detections: finalize as slide_final.
         row_dict["status"] = "slide_final"
         row_dict["final_reason"] = f"{detected_count}_boxes_at_final_stage"
-        new_centers.append({**row_dict, "geometry": new_point})
+        row_dict["coarse_final_east"] = new_point.x
+        row_dict["coarse_final_north"] = new_point.y
+
+        refined_point, refined_prob = final_local_refine(
+            point=new_point,
+            image_path=image_path,
+            model=model,
+            head=head,
+            transform=transform,
+            target_idx=target_idx,
+            patch_size=patch_size,
+            radius_m=final_refine_radius_m,
+            step_m=final_refine_step_m,
+            device=device,
+            use_amp=use_amp,
+        )
+
+        row_dict["final_refined_prob"] = refined_prob
+        new_centers.append({**row_dict, "geometry": refined_point})
 
     crs = points.crs
 
@@ -334,7 +433,7 @@ def main():
     final = []
 
     print("=" * 80)
-    print("Slide-grid classifier Phase 3")
+    print("Slide-grid classifier Phase 3 + final local refine")
     print("Input:", args.input_csv)
     print("Output:", args.output_shp)
     print("Target:", args.target_label)
@@ -342,6 +441,8 @@ def main():
     print("Grid sizes:", grid_sizes)
     print("Threshold:", args.threshold)
     print("Min realigned boxes:", args.min_realigned_boxes)
+    print("Final refine radius:", args.final_refine_radius_m)
+    print("Final refine step:", args.final_refine_step_m)
     print("Max iterations:", args.max_iterations)
     print("Device:", device)
     print("=" * 80)
@@ -363,6 +464,8 @@ def main():
             threshold=args.threshold,
             min_realigned_boxes=args.min_realigned_boxes,
             patch_size=args.patch_size_px,
+            final_refine_radius_m=args.final_refine_radius_m,
+            final_refine_step_m=args.final_refine_step_m,
             device=device,
             use_amp=use_amp,
         )
@@ -379,7 +482,30 @@ def main():
         current["status"] = "forced_final"
         current["final_reason"] = "max_iterations_reached"
         current["final_iteration"] = args.max_iterations
-        final.append(current)
+
+        refined_rows = []
+
+        for _, row in current.iterrows():
+            refined_point, refined_prob = final_local_refine(
+                point=row.geometry,
+                image_path=row["resolved_tif"],
+                model=model,
+                head=head,
+                transform=transform,
+                target_idx=target_idx,
+                patch_size=args.patch_size_px,
+                radius_m=args.final_refine_radius_m,
+                step_m=args.final_refine_step_m,
+                device=device,
+                use_amp=use_amp,
+            )
+            row_dict = row.drop(labels="geometry").to_dict()
+            row_dict["coarse_final_east"] = row.geometry.x
+            row_dict["coarse_final_north"] = row.geometry.y
+            row_dict["final_refined_prob"] = refined_prob
+            refined_rows.append({**row_dict, "geometry": refined_point})
+
+        final.append(gpd.GeoDataFrame(refined_rows, crs=current.crs))
 
     final_gdf = pd.concat(final, ignore_index=True)
     final_gdf = gpd.GeoDataFrame(final_gdf, geometry="geometry", crs=args.crs)
