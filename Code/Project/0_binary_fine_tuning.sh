@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=binary_resnet
+#SBATCH --job-name=binary_lejepa
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/resnet_binary_%j.out
-#SBATCH --error=logs/resnet_binary_%j.err
+#SBATCH --output=logs/phase1/lejepa_binary_%j.out
+#SBATCH --error=logs/phase1/lejepa_binary_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -24,11 +24,11 @@ echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 
 python train_supervised_encoder.py \
-  --init_ckpt "./outputs/phase1_resnet50_cpu/phase1_encoder_best.pth" \
+  --init_ckpt "./outputs/phase1_lejepa/phase1_encoder_best.pth" \
   --train_shp "./outputs/splits_binary/valid_points_train.shp" \
   --val_shp "./outputs/splits_binary/valid_points_val.shp" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_dir "./outputs/binary_resnet50" \
+  --output_dir "./outputs/binary_lejepa" \
   --label_field BinaryTree \
   --folder_field Folder \
   --file_field File \
@@ -42,8 +42,8 @@ python train_supervised_encoder.py \
   --lr_encoder 1e-5 \
   --lr_head 1e-4 \
   --weight_decay 1e-4 \
-  --freeze_encoder_epochs 3 \
-  --patience 5 \
+  --freeze_encoder_epochs 0 \
+  --patience 0 \
   --debug_patches 64 \
   --print_val_dist \
   --num_workers 0 \
