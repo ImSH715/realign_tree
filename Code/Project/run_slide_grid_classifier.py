@@ -23,16 +23,17 @@ def parse_args():
     p.add_argument("--head_ckpt", required=True)
     p.add_argument("--imagery_root", required=True)
 
+    p.add_argument("--tile_column", default="matched_tif")
     p.add_argument("--label_column", default="label")
     p.add_argument("--target_label", default="Shihuahuaco")
-    p.add_argument("--tile_column", default="matched_tif")
     p.add_argument("--x_column", default="gt_east")
     p.add_argument("--y_column", default="gt_north")
     p.add_argument("--crs", default="EPSG:32718")
 
     p.add_argument("--grid_sizes", default="30,20,10")
+    p.add_argument("--threshold", type=float, default=0.18)
+    p.add_argument("--min_realigned_boxes", type=int, default=3)
     p.add_argument("--max_iterations", type=int, default=10)
-    p.add_argument("--threshold", type=float, default=0.5)
 
     p.add_argument("--positive_class", default="1")
     p.add_argument("--image_size", type=int, default=224)
@@ -47,7 +48,8 @@ def build_transform(image_size):
     return transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225]),
     ])
 
 
@@ -171,7 +173,19 @@ def create_3x3_grid(center_point, cell_size):
     return boxes
 
 
-def process(points, model, head, transform, target_idx, grid_sizes, threshold, patch_size, device, use_amp):
+def process_one_stage(
+    points,
+    model,
+    head,
+    transform,
+    target_idx,
+    grid_sizes,
+    threshold,
+    min_realigned_boxes,
+    patch_size,
+    device,
+    use_amp,
+):
     new_centers = []
     new_slides = []
 
@@ -179,73 +193,92 @@ def process(points, model, head, transform, target_idx, grid_sizes, threshold, p
         point = row.geometry
         image_path = row["resolved_tif"]
 
-        moved = False
         row_dict = row.drop(labels="geometry").to_dict()
 
-        for size in grid_sizes:
-            boxes = create_3x3_grid(point, size)
+        stage_idx = int(row_dict.get("stage_idx", 0))
+        stage_idx = min(stage_idx, len(grid_sizes) - 1)
+        cell_size = grid_sizes[stage_idx]
 
-            scored = []
-            all_probs = []
+        boxes = create_3x3_grid(point, cell_size)
 
-            for cell_id, box in enumerate(boxes):
-                prob = get_prob(
-                    model=model,
-                    head=head,
-                    transform=transform,
-                    image_path=image_path,
-                    east=box.centroid.x,
-                    north=box.centroid.y,
-                    target_idx=target_idx,
-                    patch_size=patch_size,
-                    device=device,
-                    use_amp=use_amp,
-                )
-                all_probs.append(prob)
+        scored = []
+        all_probs = []
 
-                if prob >= threshold:
-                    scored.append((box, prob, cell_id))
+        for cell_id, box in enumerate(boxes):
+            prob = get_prob(
+                model=model,
+                head=head,
+                transform=transform,
+                image_path=image_path,
+                east=box.centroid.x,
+                north=box.centroid.y,
+                target_idx=target_idx,
+                patch_size=patch_size,
+                device=device,
+                use_amp=use_amp,
+            )
+            all_probs.append(prob)
 
-            row_dict[f"grid_{int(size)}m_max_prob"] = float(np.max(all_probs))
-            row_dict[f"grid_{int(size)}m_mean_prob"] = float(np.mean(all_probs))
-            row_dict[f"grid_{int(size)}m_detected_boxes"] = len(scored)
+            if prob >= threshold:
+                scored.append((box, prob, cell_id))
 
-            if len(scored) > 0:
-                avg_x = np.mean([b.centroid.x for b, _, _ in scored])
-                avg_y = np.mean([b.centroid.y for b, _, _ in scored])
-                new_point = Point(avg_x, avg_y)
+        detected_count = len(scored)
+        max_prob = float(np.max(all_probs))
+        mean_prob = float(np.mean(all_probs))
 
-                row_dict["last_grid_size"] = size
-                row_dict["last_detected_boxes"] = len(scored)
-                row_dict["last_max_prob"] = float(np.max(all_probs))
+        row_dict[f"stage_{stage_idx}_grid_size_m"] = cell_size
+        row_dict[f"stage_{stage_idx}_max_prob"] = max_prob
+        row_dict[f"stage_{stage_idx}_mean_prob"] = mean_prob
+        row_dict[f"stage_{stage_idx}_detected_boxes"] = detected_count
 
-                if size == min(grid_sizes) and len(scored) >= 3:
-                    row_dict["status"] = "realigned"
-                    new_centers.append({**row_dict, "geometry": new_point})
-                    moved = True
-                    break
+        row_dict["last_stage_idx"] = stage_idx
+        row_dict["last_grid_size_m"] = cell_size
+        row_dict["last_max_prob"] = max_prob
+        row_dict["last_mean_prob"] = mean_prob
+        row_dict["last_detected_boxes"] = detected_count
 
-                row_dict["status"] = "slide"
-                new_slides.append({**row_dict, "geometry": new_point})
-                moved = True
-                break
-
-        if not moved:
+        if detected_count == 0:
             row_dict["status"] = "research"
-            row_dict["last_grid_size"] = None
-            row_dict["last_detected_boxes"] = 0
+            row_dict["final_reason"] = "no_detected_boxes"
             new_centers.append({**row_dict, "geometry": point})
+            continue
+
+        avg_x = float(np.mean([b.centroid.x for b, _, _ in scored]))
+        avg_y = float(np.mean([b.centroid.y for b, _, _ in scored]))
+        new_point = Point(avg_x, avg_y)
+
+        # If enough boxes detected, finalize immediately as realigned.
+        if detected_count >= min_realigned_boxes:
+            row_dict["status"] = "realigned"
+            row_dict["final_reason"] = f"{detected_count}_boxes_above_threshold"
+            new_centers.append({**row_dict, "geometry": new_point})
+            continue
+
+        # If 1-2 boxes detected and not at final stage, slide to next stage.
+        if stage_idx < len(grid_sizes) - 1:
+            row_dict["status"] = "slide"
+            row_dict["final_reason"] = f"{detected_count}_boxes_slide_to_next_stage"
+            row_dict["stage_idx"] = stage_idx + 1
+            new_slides.append({**row_dict, "geometry": new_point})
+            continue
+
+        # At smallest grid, 1-2 detections: finalize as slide_final.
+        row_dict["status"] = "slide_final"
+        row_dict["final_reason"] = f"{detected_count}_boxes_at_final_stage"
+        new_centers.append({**row_dict, "geometry": new_point})
 
     crs = points.crs
 
     centers = (
         gpd.GeoDataFrame(new_centers, crs=crs)
-        if new_centers else gpd.GeoDataFrame(columns=list(points.columns), geometry="geometry", crs=crs)
+        if new_centers
+        else gpd.GeoDataFrame(columns=list(points.columns), geometry="geometry", crs=crs)
     )
 
     slides = (
         gpd.GeoDataFrame(new_slides, crs=crs)
-        if new_slides else gpd.GeoDataFrame(columns=list(points.columns), geometry="geometry", crs=crs)
+        if new_slides
+        else gpd.GeoDataFrame(columns=list(points.columns), geometry="geometry", crs=crs)
     )
 
     return centers, slides
@@ -287,6 +320,9 @@ def main():
         raise ValueError(f"No rows found for target_label={args.target_label}")
 
     df["resolved_tif"] = df[args.tile_column].apply(lambda x: resolve_tile(args.imagery_root, x))
+    df["start_east"] = df[args.x_column].astype(float)
+    df["start_north"] = df[args.y_column].astype(float)
+    df["stage_idx"] = 0
 
     gdf = gpd.GeoDataFrame(
         df,
@@ -305,6 +341,7 @@ def main():
     print("Rows:", len(gdf))
     print("Grid sizes:", grid_sizes)
     print("Threshold:", args.threshold)
+    print("Min realigned boxes:", args.min_realigned_boxes)
     print("Max iterations:", args.max_iterations)
     print("Device:", device)
     print("=" * 80)
@@ -316,7 +353,7 @@ def main():
 
         print(f"\nIteration {iteration}/{args.max_iterations} | active slides: {len(current)}")
 
-        centers, slides = process(
+        centers, slides = process_one_stage(
             points=current,
             model=model,
             head=head,
@@ -324,6 +361,7 @@ def main():
             target_idx=target_idx,
             grid_sizes=grid_sizes,
             threshold=args.threshold,
+            min_realigned_boxes=args.min_realigned_boxes,
             patch_size=args.patch_size_px,
             device=device,
             use_amp=use_amp,
@@ -339,19 +377,31 @@ def main():
 
     if not current.empty:
         current["status"] = "forced_final"
+        current["final_reason"] = "max_iterations_reached"
         current["final_iteration"] = args.max_iterations
         final.append(current)
 
     final_gdf = pd.concat(final, ignore_index=True)
     final_gdf = gpd.GeoDataFrame(final_gdf, geometry="geometry", crs=args.crs)
 
+    final_gdf["final_east"] = final_gdf.geometry.x
+    final_gdf["final_north"] = final_gdf.geometry.y
+
+    if "gt_east" in final_gdf.columns and "gt_north" in final_gdf.columns:
+        final_gdf["dist_before_m"] = np.sqrt(
+            (final_gdf["start_east"] - final_gdf["gt_east"]) ** 2
+            + (final_gdf["start_north"] - final_gdf["gt_north"]) ** 2
+        )
+        final_gdf["dist_after_m"] = np.sqrt(
+            (final_gdf["final_east"] - final_gdf["gt_east"]) ** 2
+            + (final_gdf["final_north"] - final_gdf["gt_north"]) ** 2
+        )
+        final_gdf["improvement_m"] = final_gdf["dist_before_m"] - final_gdf["dist_after_m"]
+
     final_gdf.to_file(args.output_shp)
 
     output_csv = os.path.splitext(args.output_shp)[0] + ".csv"
-    final_gdf.drop(columns="geometry").assign(
-        final_east=final_gdf.geometry.x,
-        final_north=final_gdf.geometry.y,
-    ).to_csv(output_csv, index=False)
+    final_gdf.drop(columns="geometry").to_csv(output_csv, index=False)
 
     print("=" * 80)
     print("Done")
