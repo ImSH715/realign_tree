@@ -31,7 +31,7 @@ python tune_binary_threshold.py \
 
 python run_slide_grid_classifier.py \
   --input_csv "./outputs/evaluation/valid_points_recovery_20m.csv" \
-  --output_shp "./outputs/evaluation/slide_grid_classifier_binary_20m_th018_refine5m.shp" \
+  --output_shp "./outputs/evaluation/slide_grid_classifier_binary_20m_th040_refine5m.shp" \
   --encoder_ckpt "./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth" \
   --head_ckpt "./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
@@ -41,7 +41,7 @@ python run_slide_grid_classifier.py \
   --x_column "original_east" \
   --y_column "original_north" \
   --grid_sizes "30,20,10" \
-  --threshold 0.18 \
+  --threshold 0.40 \
   --min_realigned_boxes 3 \
   --final_refine_radius_m 5 \
   --final_refine_step_m 1 \
