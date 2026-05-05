@@ -1,0 +1,15 @@
+=== Classifier Phase3 ===
+====================================================================================================
+Classifier Phase 3 started
+Encoder: ./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth
+Head   : ./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth
+Input  : ./outputs/evaluation/valid_points_recovery_20m.csv
+Output : ./outputs/evaluation/refined_classifier_20m.csv
+Classes: ['0', '1']
+====================================================================================================
+====================================================================================================
+Classifier Phase 3 completed
+Saved: ./outputs/evaluation/refined_classifier_20m.csv
+Elapsed: 14:19:00
+====================================================================================================
+Done

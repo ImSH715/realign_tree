@@ -1,0 +1,168 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Thu 30 Apr 22:29:23 BST 2026
+Running on node: gpu14.pri.stanage.alces.network
+Thu Apr 30 22:29:23 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:C1:00.0 Off |                    0 |
+| N/A   31C    P0             59W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+================================================================================
+GT split completed
+Train: 784 -> ./outputs/splits_gt/valid_points_train.shp
+Val  : 218 -> ./outputs/splits_gt/valid_points_val.shp
+Test : 124 -> ./outputs/splits_gt/valid_points_test.shp
+================================================================================
+
+Train label counts:
+Tree
+Huayruro           134
+Copaiba             85
+Ana caspi           81
+Catahua             74
+Shihuahuaco         73
+Estoraque           55
+Lupuna              53
+AzÃºcar huayo       52
+Ishpingo            35
+Mashonaste          27
+Capirona            26
+Almendro            23
+Quillobordon        18
+Catuaba             14
+Caoba                9
+Guacamayo caspi      9
+Cumala               5
+Yacushapana          5
+Pashaco              3
+Tahuari              2
+Palo baston          1
+Name: count, dtype: int64
+
+Val label counts:
+Tree
+Lupuna             61
+Shihuahuaco        55
+Cumala             43
+Ana caspi          12
+Caoba              11
+Palo baston         9
+Copaiba             9
+Capirona            8
+Ishpingo            5
+Guacamayo caspi     3
+Estoraque           2
+Name: count, dtype: int64
+
+Test label counts:
+Tree
+Yacushapana        25
+Ana caspi          22
+Shihuahuaco        13
+Copaiba            12
+Ishpingo           12
+Caoba               7
+Huimba              7
+Almendro            6
+Capirona            6
+Guacamayo caspi     6
+Cedro               5
+AzÃºcar huayo       2
+Estoraque           1
+Name: count, dtype: int64
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 784
+[INFO] Failed samples  : 0
+[INFO] Saving 32 debug patches to ./outputs/phase1_dino_supervised/debug_patches/train
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+[INFO] Saving 32 debug patches to ./outputs/phase1_dino_supervised/debug_patches/val
+================================================================================
+Phase 1.5 supervised fine-tuning setup
+Classes: ['Almendro', 'Ana caspi', 'AzÃºcar huayo', 'Caoba', 'Capirona', 'Catahua', 'Catuaba', 'Copaiba', 'Cumala', 'Estoraque', 'Guacamayo caspi', 'Huayruro', 'Ishpingo', 'Lupuna', 'Mashonaste', 'Palo baston', 'Pashaco', 'Quillobordon', 'Shihuahuaco', 'Tahuari', 'Yacushapana']
+Train samples: 784
+Val samples: 218
+Coord mode: auto
+AMP enabled: True
+Class weights: True
+Balanced sampler: False
+Debug patches: ./outputs/phase1_dino_supervised/debug_patches
+================================================================================
+Class weights: [0.32091185450553894, 0.09112311899662018, 0.14194178581237793, 0.8201080560684204, 0.28388357162475586, 0.09974287450313568, 0.5272123217582703, 0.08683497458696365, 1.4761945009231567, 0.13419950008392334, 0.8201080560684204, 0.05508188158273697, 0.2108849436044693, 0.13926362991333008, 0.27336937189102173, 7.380972385406494, 2.460324287414551, 0.4100540280342102, 0.10110921412706375, 3.690486192703247, 1.4761945009231567]
+Epoch 001 | frozen=1 | train loss 3.4633 acc 0.0791 macro_f1 0.0426 weighted_f1 0.0722 | val loss 3.5997 acc 0.0321 macro_f1 0.0219 weighted_f1 0.0339
+[INFO] Saved best checkpoint at epoch 1: val_macro_f1=0.021926
+Epoch 002 | frozen=1 | train loss 3.0240 acc 0.1173 macro_f1 0.0717 weighted_f1 0.1189 | val loss 3.4483 acc 0.0367 macro_f1 0.0260 weighted_f1 0.0299
+[INFO] Saved best checkpoint at epoch 2: val_macro_f1=0.026043
+Epoch 003 | frozen=1 | train loss 2.8864 acc 0.1416 macro_f1 0.0745 weighted_f1 0.1337 | val loss 3.3372 acc 0.0367 macro_f1 0.0179 weighted_f1 0.0454
+Epoch 004 | frozen=0 | train loss 2.8432 acc 0.1403 macro_f1 0.0914 weighted_f1 0.1387 | val loss 3.4392 acc 0.0046 macro_f1 0.0032 weighted_f1 0.0029
+Epoch 005 | frozen=0 | train loss 2.6332 acc 0.1199 macro_f1 0.0893 weighted_f1 0.1091 | val loss 3.6212 acc 0.0138 macro_f1 0.0076 weighted_f1 0.0220
+Epoch 006 | frozen=0 | train loss 2.5335 acc 0.1620 macro_f1 0.1267 weighted_f1 0.1587 | val loss 3.5152 acc 0.0413 macro_f1 0.0108 weighted_f1 0.0583
+Epoch 007 | frozen=0 | train loss 2.3623 acc 0.1824 macro_f1 0.1374 weighted_f1 0.1717 | val loss 3.5298 acc 0.0138 macro_f1 0.0065 weighted_f1 0.0198
+Epoch 008 | frozen=0 | train loss 2.3165 acc 0.1747 macro_f1 0.1479 weighted_f1 0.1645 | val loss 3.6437 acc 0.0229 macro_f1 0.0066 weighted_f1 0.0332
+Epoch 009 | frozen=0 | train loss 2.3007 acc 0.1594 macro_f1 0.1310 weighted_f1 0.1409 | val loss 3.7251 acc 0.0183 macro_f1 0.0126 weighted_f1 0.0263
+Epoch 010 | frozen=0 | train loss 2.2477 acc 0.2143 macro_f1 0.1853 weighted_f1 0.2052 | val loss 3.6647 acc 0.0229 macro_f1 0.0076 weighted_f1 0.0361
+Epoch 011 | frozen=0 | train loss 2.1915 acc 0.2143 macro_f1 0.1908 weighted_f1 0.2039 | val loss 3.6891 acc 0.0183 macro_f1 0.0063 weighted_f1 0.0298
+Epoch 012 | frozen=0 | train loss 2.1856 acc 0.2181 macro_f1 0.1879 weighted_f1 0.2078 | val loss 3.7363 acc 0.0183 macro_f1 0.0066 weighted_f1 0.0327
+[INFO] Early stopping at epoch 12. Best epoch: 2
+[VAL epoch 12] True counts by index: {8: 43, 13: 61, 18: 55, 1: 12, 4: 8, 3: 11, 15: 9, 7: 9, 12: 5, 10: 3, 9: 2}
+[VAL epoch 12] Pred counts by index: {2: 8, 8: 7, 14: 42, 11: 20, 19: 7, 0: 8, 10: 11, 4: 4, 9: 18, 17: 17, 7: 8, 5: 11, 20: 13, 1: 11, 3: 9, 18: 6, 12: 2, 16: 5, 6: 11}
+[VAL epoch 12] True counts by class:
+  01 Ana caspi: 12
+  03 Caoba: 11
+  04 Capirona: 8
+  07 Copaiba: 9
+  08 Cumala: 43
+  09 Estoraque: 2
+  10 Guacamayo caspi: 3
+  12 Ishpingo: 5
+  13 Lupuna: 61
+  15 Palo baston: 9
+  18 Shihuahuaco: 55
+[VAL epoch 12] Pred counts by class:
+  00 Almendro: 8
+  01 Ana caspi: 11
+  02 AzÃºcar huayo: 8
+  03 Caoba: 9
+  04 Capirona: 4
+  05 Catahua: 11
+  06 Catuaba: 11
+  07 Copaiba: 8
+  08 Cumala: 7
+  09 Estoraque: 18
+  10 Guacamayo caspi: 11
+  11 Huayruro: 20
+  12 Ishpingo: 2
+  14 Mashonaste: 42
+  16 Pashaco: 5
+  17 Quillobordon: 17
+  18 Shihuahuaco: 6
+  19 Tahuari: 7
+  20 Yacushapana: 13
+================================================================================
+Phase 1.5 supervised fine-tuning completed
+Best monitored metric: val_macro_f1 = 0.026043
+Best epoch: 2
+Saved best encoder: ./outputs/phase1_dino_supervised/phase1_encoder_best.pth
+Saved last encoder: ./outputs/phase1_dino_supervised/phase1_encoder_last.pth
+Elapsed: 3737.2s
+================================================================================
+Job finished at Thu 30 Apr 23:34:25 BST 2026

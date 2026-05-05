@@ -1,0 +1,170 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+====================================================================================================
+Recursive TIFF scan
+Train root        : /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Found TIFF files  : 179
+====================================================================================================
+First 10 TIFF files:
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_18032023_001_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_002_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_006_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_007_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_02042023_01_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_02_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_03_IDW_transparent_mosaic_group1.tif
+====================================================================================================
+[WARN] Skipping unreadable TIFF in training set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif
+[WARN] Skipping unreadable TIFF in extraction set: /mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif | 25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif: TIFFReadDirectory:Failed to read directory at offset 1529645938
+====================================================================================================
+Phase 1 started
+Backbone              : vit_small_patch14_dinov2.lvd142m
+Pretrained backbone   : True
+Device                : cuda
+AMP enabled           : True
+Train TIFF files      : 179
+Patches per image     : 10
+Train samples         : 1780
+SSL epochs            : 100
+Patch size            : 224
+Global image size     : 224
+Local image size      : 224
+Extraction enabled    : True
+Extraction stride     : 1024
+Extraction samples    : 3560
+====================================================================================================
+[SSL][Epoch 1/100] total=20.5948 align=0.0037 var=0.6994 cov=2.1420 slice=0.9647 proxy_eval=20.0654 lr=3.33e-04
+[INFO] Saved best checkpoint: proxy_loss=20.065426
+[SSL][Epoch 2/100] total=20.2874 align=0.0037 var=0.6836 cov=2.2469 slice=0.9475 proxy_eval=20.2357 lr=5.00e-04
+[SSL][Epoch 3/100] total=20.3501 align=0.0038 var=0.6892 cov=2.1645 slice=0.9521 proxy_eval=21.0131 lr=5.00e-04
+[SSL][Epoch 4/100] total=20.5101 align=0.0038 var=0.7001 cov=2.0476 slice=0.9573 proxy_eval=20.4252 lr=5.00e-04
+[SSL][Epoch 5/100] total=20.3010 align=0.0038 var=0.6935 cov=2.0123 slice=0.9465 proxy_eval=20.4633 lr=4.99e-04
+[SSL][Epoch 6/100] total=20.3263 align=0.0038 var=0.6943 cov=2.0205 slice=0.9441 proxy_eval=20.5388 lr=4.99e-04
+[SSL][Epoch 7/100] total=20.4044 align=0.0038 var=0.6988 cov=1.9798 slice=0.9496 proxy_eval=20.2531 lr=4.98e-04
+[SSL][Epoch 8/100] total=19.8047 align=0.0038 var=0.6682 cov=2.1555 slice=0.9399 proxy_eval=19.6975 lr=4.97e-04
+[INFO] Saved best checkpoint: proxy_loss=19.697525
+[SSL][Epoch 9/100] total=19.8299 align=0.0039 var=0.6688 cov=2.1671 slice=0.9396 proxy_eval=20.2735 lr=4.95e-04
+[SSL][Epoch 10/100] total=20.3716 align=0.0038 var=0.6926 cov=2.0870 slice=0.9651 proxy_eval=20.4516 lr=4.94e-04
+[SSL][Epoch 11/100] total=20.0670 align=0.0037 var=0.6807 cov=2.0876 slice=0.9575 proxy_eval=20.2253 lr=4.92e-04
+[SSL][Epoch 12/100] total=20.0936 align=0.0037 var=0.6801 cov=2.1283 slice=0.9597 proxy_eval=20.5114 lr=4.89e-04
+[SSL][Epoch 13/100] total=20.1725 align=0.0037 var=0.6824 cov=2.1312 slice=0.9765 proxy_eval=20.2481 lr=4.87e-04
+[SSL][Epoch 14/100] total=19.9101 align=0.0033 var=0.6709 cov=2.1600 slice=0.9748 proxy_eval=19.8704 lr=4.84e-04
+[SSL][Epoch 15/100] total=19.7463 align=0.0036 var=0.6627 cov=2.2096 slice=0.9658 proxy_eval=19.7671 lr=4.81e-04
+[SSL][Epoch 16/100] total=19.6288 align=0.0036 var=0.6579 cov=2.2175 slice=0.9606 proxy_eval=19.6374 lr=4.78e-04
+[INFO] Saved best checkpoint: proxy_loss=19.637358
+[SSL][Epoch 17/100] total=19.5374 align=0.0037 var=0.6552 cov=2.2066 slice=0.9465 proxy_eval=19.6271 lr=4.75e-04
+[INFO] Saved best checkpoint: proxy_loss=19.627123
+[SSL][Epoch 18/100] total=19.4710 align=0.0038 var=0.6514 cov=2.2414 slice=0.9411 proxy_eval=19.5372 lr=4.71e-04
+[INFO] Saved best checkpoint: proxy_loss=19.537209
+[SSL][Epoch 19/100] total=19.3840 align=0.0038 var=0.6487 cov=2.2326 slice=0.9306 proxy_eval=19.4136 lr=4.67e-04
+[INFO] Saved best checkpoint: proxy_loss=19.413563
+[SSL][Epoch 20/100] total=19.4496 align=0.0038 var=0.6524 cov=2.1958 slice=0.9392 proxy_eval=19.5546 lr=4.63e-04
+[SSL][Epoch 21/100] total=19.5004 align=0.0038 var=0.6527 cov=2.2372 slice=0.9409 proxy_eval=19.4356 lr=4.59e-04
+[SSL][Epoch 22/100] total=19.3808 align=0.0038 var=0.6467 cov=2.2729 slice=0.9362 proxy_eval=19.5161 lr=4.54e-04
+[SSL][Epoch 23/100] total=19.3747 align=0.0038 var=0.6460 cov=2.2873 slice=0.9335 proxy_eval=19.4874 lr=4.49e-04
+[SSL][Epoch 24/100] total=19.3532 align=0.0038 var=0.6456 cov=2.2765 slice=0.9319 proxy_eval=19.3741 lr=4.44e-04
+[INFO] Saved best checkpoint: proxy_loss=19.374060
+[SSL][Epoch 25/100] total=19.2387 align=0.0038 var=0.6403 cov=2.2972 slice=0.9290 proxy_eval=19.1818 lr=4.39e-04
+[INFO] Saved best checkpoint: proxy_loss=19.181792
+[SSL][Epoch 26/100] total=19.2390 align=0.0038 var=0.6407 cov=2.2884 slice=0.9285 proxy_eval=19.2383 lr=4.34e-04
+[SSL][Epoch 27/100] total=19.2632 align=0.0038 var=0.6423 cov=2.2749 slice=0.9280 proxy_eval=19.3892 lr=4.28e-04
+[SSL][Epoch 28/100] total=19.3169 align=0.0038 var=0.6452 cov=2.2538 slice=0.9283 proxy_eval=19.4523 lr=4.23e-04
+[SSL][Epoch 29/100] total=19.2327 align=0.0038 var=0.6407 cov=2.2850 slice=0.9272 proxy_eval=19.2757 lr=4.17e-04
+[SSL][Epoch 30/100] total=19.1792 align=0.0039 var=0.6395 cov=2.2625 slice=0.9263 proxy_eval=19.2954 lr=4.10e-04
+[SSL][Epoch 31/100] total=19.2863 align=0.0039 var=0.6437 cov=2.2622 slice=0.9274 proxy_eval=19.3016 lr=4.04e-04
+[SSL][Epoch 32/100] total=19.3105 align=0.0038 var=0.6443 cov=2.2699 slice=0.9277 proxy_eval=19.3365 lr=3.98e-04
+[SSL][Epoch 33/100] total=19.2011 align=0.0039 var=0.6387 cov=2.3026 slice=0.9269 proxy_eval=19.2376 lr=3.91e-04
+[SSL][Epoch 34/100] total=19.1472 align=0.0038 var=0.6363 cov=2.3097 slice=0.9267 proxy_eval=19.1379 lr=3.84e-04
+[INFO] Saved best checkpoint: proxy_loss=19.137938
+[SSL][Epoch 35/100] total=19.1459 align=0.0038 var=0.6363 cov=2.3082 slice=0.9264 proxy_eval=19.1047 lr=3.77e-04
+[INFO] Saved best checkpoint: proxy_loss=19.104681
+[SSL][Epoch 36/100] total=19.1214 align=0.0039 var=0.6364 cov=2.2822 slice=0.9259 proxy_eval=19.1314 lr=3.70e-04
+[SSL][Epoch 37/100] total=19.1204 align=0.0038 var=0.6354 cov=2.3046 slice=0.9261 proxy_eval=19.1449 lr=3.63e-04
+[SSL][Epoch 38/100] total=19.0705 align=0.0038 var=0.6328 cov=2.3210 slice=0.9259 proxy_eval=19.1799 lr=3.56e-04
+[SSL][Epoch 39/100] total=19.0552 align=0.0038 var=0.6317 cov=2.3324 slice=0.9257 proxy_eval=19.0189 lr=3.49e-04
+[INFO] Saved best checkpoint: proxy_loss=19.018852
+[SSL][Epoch 40/100] total=19.0664 align=0.0039 var=0.6332 cov=2.3062 slice=0.9255 proxy_eval=19.0495 lr=3.41e-04
+[SSL][Epoch 41/100] total=19.0120 align=0.0039 var=0.6302 cov=2.3282 slice=0.9254 proxy_eval=19.1302 lr=3.34e-04
+[SSL][Epoch 42/100] total=18.9992 align=0.0039 var=0.6295 cov=2.3315 slice=0.9250 proxy_eval=18.9932 lr=3.26e-04
+[INFO] Saved best checkpoint: proxy_loss=18.993222
+[SSL][Epoch 43/100] total=18.9933 align=0.0039 var=0.6286 cov=2.3492 slice=0.9248 proxy_eval=19.0465 lr=3.18e-04
+[SSL][Epoch 44/100] total=18.9767 align=0.0039 var=0.6293 cov=2.3154 slice=0.9249 proxy_eval=19.0476 lr=3.10e-04
+[SSL][Epoch 45/100] total=18.9654 align=0.0039 var=0.6276 cov=2.3464 slice=0.9247 proxy_eval=19.0384 lr=3.02e-04
+[SSL][Epoch 46/100] total=18.9777 align=0.0039 var=0.6285 cov=2.3371 slice=0.9248 proxy_eval=19.0658 lr=2.95e-04
+[SSL][Epoch 47/100] total=18.9527 align=0.0039 var=0.6275 cov=2.3371 slice=0.9245 proxy_eval=19.0180 lr=2.87e-04
+[SSL][Epoch 48/100] total=18.9284 align=0.0039 var=0.6262 cov=2.3457 slice=0.9244 proxy_eval=19.0544 lr=2.79e-04
+[SSL][Epoch 49/100] total=18.9644 align=0.0039 var=0.6275 cov=2.3474 slice=0.9245 proxy_eval=18.8979 lr=2.70e-04
+[INFO] Saved best checkpoint: proxy_loss=18.897865
+[SSL][Epoch 50/100] total=18.9306 align=0.0039 var=0.6269 cov=2.3299 slice=0.9244 proxy_eval=18.9951 lr=2.62e-04
+[SSL][Epoch 51/100] total=18.9478 align=0.0039 var=0.6271 cov=2.3422 slice=0.9243 proxy_eval=19.0686 lr=2.54e-04
+[SSL][Epoch 52/100] total=19.0087 align=0.0039 var=0.6295 cov=2.3422 slice=0.9248 proxy_eval=19.0196 lr=2.46e-04
+[SSL][Epoch 53/100] total=19.0827 align=0.0039 var=0.6340 cov=2.3023 slice=0.9251 proxy_eval=19.1379 lr=2.38e-04
+[SSL][Epoch 54/100] total=18.9930 align=0.0039 var=0.6291 cov=2.3366 slice=0.9247 proxy_eval=18.9110 lr=2.30e-04
+[SSL][Epoch 55/100] total=18.9809 align=0.0039 var=0.6290 cov=2.3278 slice=0.9245 proxy_eval=18.8671 lr=2.22e-04
+[INFO] Saved best checkpoint: proxy_loss=18.867094
+[SSL][Epoch 56/100] total=18.9498 align=0.0039 var=0.6272 cov=2.3418 slice=0.9243 proxy_eval=18.9829 lr=2.14e-04
+[SSL][Epoch 57/100] total=18.9786 align=0.0039 var=0.6282 cov=2.3464 slice=0.9246 proxy_eval=19.0110 lr=2.06e-04
+[SSL][Epoch 58/100] total=18.9395 align=0.0039 var=0.6266 cov=2.3462 slice=0.9244 proxy_eval=18.9554 lr=1.98e-04
+[SSL][Epoch 59/100] total=18.9291 align=0.0039 var=0.6261 cov=2.3492 slice=0.9242 proxy_eval=18.9042 lr=1.90e-04
+[SSL][Epoch 60/100] total=18.9248 align=0.0039 var=0.6259 cov=2.3489 slice=0.9242 proxy_eval=18.9127 lr=1.82e-04
+[SSL][Epoch 61/100] total=18.9121 align=0.0039 var=0.6250 cov=2.3588 slice=0.9240 proxy_eval=18.9113 lr=1.75e-04
+[SSL][Epoch 62/100] total=18.8881 align=0.0039 var=0.6245 cov=2.3467 slice=0.9240 proxy_eval=18.8724 lr=1.67e-04
+[SSL][Epoch 63/100] total=18.9150 align=0.0039 var=0.6247 cov=2.3698 slice=0.9240 proxy_eval=18.8821 lr=1.59e-04
+[SSL][Epoch 64/100] total=18.9110 align=0.0039 var=0.6247 cov=2.3664 slice=0.9240 proxy_eval=18.9527 lr=1.52e-04
+[SSL][Epoch 65/100] total=18.9121 align=0.0039 var=0.6257 cov=2.3408 slice=0.9241 proxy_eval=18.9885 lr=1.44e-04
+[SSL][Epoch 66/100] total=18.9282 align=0.0039 var=0.6263 cov=2.3430 slice=0.9242 proxy_eval=19.0045 lr=1.37e-04
+[SSL][Epoch 67/100] total=18.9084 align=0.0039 var=0.6252 cov=2.3510 slice=0.9241 proxy_eval=18.9041 lr=1.30e-04
+[SSL][Epoch 68/100] total=18.8808 align=0.0039 var=0.6238 cov=2.3580 slice=0.9238 proxy_eval=18.8495 lr=1.23e-04
+[INFO] Saved best checkpoint: proxy_loss=18.849480
+[SSL][Epoch 69/100] total=18.8857 align=0.0039 var=0.6234 cov=2.3733 slice=0.9239 proxy_eval=18.8416 lr=1.16e-04
+[INFO] Saved best checkpoint: proxy_loss=18.841620
+[SSL][Epoch 70/100] total=18.8810 align=0.0039 var=0.6237 cov=2.3613 slice=0.9238 proxy_eval=18.8310 lr=1.09e-04
+[INFO] Saved best checkpoint: proxy_loss=18.830980
+[SSL][Epoch 71/100] total=18.8522 align=0.0039 var=0.6220 cov=2.3749 slice=0.9237 proxy_eval=18.8564 lr=1.03e-04
+[SSL][Epoch 72/100] total=18.8522 align=0.0039 var=0.6227 cov=2.3567 slice=0.9237 proxy_eval=18.9064 lr=9.63e-05
+[SSL][Epoch 73/100] total=18.8607 align=0.0039 var=0.6226 cov=2.3674 slice=0.9237 proxy_eval=18.8631 lr=9.01e-05
+[SSL][Epoch 74/100] total=18.8476 align=0.0039 var=0.6217 cov=2.3775 slice=0.9236 proxy_eval=18.8757 lr=8.39e-05
+[SSL][Epoch 75/100] total=18.8496 align=0.0039 var=0.6215 cov=2.3858 slice=0.9237 proxy_eval=18.9376 lr=7.80e-05
+[SSL][Epoch 76/100] total=18.8414 align=0.0039 var=0.6219 cov=2.3669 slice=0.9235 proxy_eval=18.8206 lr=7.22e-05
+[INFO] Saved best checkpoint: proxy_loss=18.820632
+[SSL][Epoch 77/100] total=18.8258 align=0.0039 var=0.6207 cov=2.3806 slice=0.9235 proxy_eval=18.8333 lr=6.66e-05
+[SSL][Epoch 78/100] total=18.8148 align=0.0039 var=0.6207 cov=2.3703 slice=0.9234 proxy_eval=18.8188 lr=6.13e-05
+[INFO] Saved best checkpoint: proxy_loss=18.818813
+[SSL][Epoch 79/100] total=18.8241 align=0.0039 var=0.6210 cov=2.3719 slice=0.9234 proxy_eval=18.9027 lr=5.61e-05
+[SSL][Epoch 80/100] total=18.8397 align=0.0039 var=0.6220 cov=2.3624 slice=0.9235 proxy_eval=18.9389 lr=5.11e-05
+[SSL][Epoch 81/100] total=18.7951 align=0.0039 var=0.6188 cov=2.3979 slice=0.9233 proxy_eval=18.9904 lr=4.63e-05
+[SSL][Epoch 82/100] total=18.8406 align=0.0039 var=0.6215 cov=2.3752 slice=0.9234 proxy_eval=18.8391 lr=4.18e-05
+[SSL][Epoch 83/100] total=18.8159 align=0.0039 var=0.6203 cov=2.3820 slice=0.9234 proxy_eval=18.8495 lr=3.74e-05
+[SSL][Epoch 84/100] total=18.8112 align=0.0039 var=0.6200 cov=2.3832 slice=0.9233 proxy_eval=18.8859 lr=3.33e-05
+[SSL][Epoch 85/100] total=18.8236 align=0.0039 var=0.6210 cov=2.3708 slice=0.9234 proxy_eval=18.8227 lr=2.94e-05
+[SSL][Epoch 86/100] total=18.8185 align=0.0039 var=0.6205 cov=2.3774 slice=0.9233 proxy_eval=18.8788 lr=2.57e-05
+[SSL][Epoch 87/100] total=18.8015 align=0.0039 var=0.6196 cov=2.3829 slice=0.9233 proxy_eval=18.8386 lr=2.23e-05
+[SSL][Epoch 88/100] total=18.8102 align=0.0039 var=0.6197 cov=2.3895 slice=0.9234 proxy_eval=18.9946 lr=1.91e-05
+[SSL][Epoch 89/100] total=18.8036 align=0.0039 var=0.6199 cov=2.3801 slice=0.9233 proxy_eval=18.8283 lr=1.62e-05
+[SSL][Epoch 90/100] total=18.8149 align=0.0039 var=0.6200 cov=2.3886 slice=0.9233 proxy_eval=18.9458 lr=1.35e-05
+[SSL][Epoch 91/100] total=18.8017 align=0.0039 var=0.6196 cov=2.3839 slice=0.9233 proxy_eval=18.8484 lr=1.10e-05
+[SSL][Epoch 92/100] total=18.8160 align=0.0039 var=0.6205 cov=2.3764 slice=0.9233 proxy_eval=18.8825 lr=8.84e-06
+[SSL][Epoch 93/100] total=18.8218 align=0.0039 var=0.6205 cov=2.3821 slice=0.9233 proxy_eval=18.8324 lr=6.89e-06
+[SSL][Epoch 94/100] total=18.8034 align=0.0039 var=0.6201 cov=2.3732 slice=0.9232 proxy_eval=18.8825 lr=5.20e-06
+[SSL][Epoch 95/100] total=18.7893 align=0.0039 var=0.6195 cov=2.3755 slice=0.9232 proxy_eval=18.9556 lr=3.77e-06
+[SSL][Epoch 96/100] total=18.8150 align=0.0039 var=0.6200 cov=2.3868 slice=0.9233 proxy_eval=18.8340 lr=2.59e-06
+[SSL][Epoch 97/100] total=18.7908 align=0.0039 var=0.6193 cov=2.3802 slice=0.9232 proxy_eval=18.8488 lr=1.68e-06
+[SSL][Epoch 98/100] total=18.7898 align=0.0039 var=0.6194 cov=2.3782 slice=0.9232 proxy_eval=18.7852 lr=1.02e-06
+[INFO] Saved best checkpoint: proxy_loss=18.785206
+[SSL][Epoch 99/100] total=18.7929 align=0.0039 var=0.6193 cov=2.3836 slice=0.9232 proxy_eval=18.8052 lr=6.31e-07
+[SSL][Epoch 100/100] total=18.7973 align=0.0039 var=0.6195 cov=2.3831 slice=0.9232 proxy_eval=18.7863 lr=5.00e-07
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_dino/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_dino/phase1_encoder_last.pth
+Embedding CSV        : ./outputs/phase1_dino/phase1_embeddings.csv
+Best proxy loss      : 18.7852
+Total elapsed        : 06:03:32
+====================================================================================================
+Job finished at Fri  1 May 04:32:32 BST 2026
