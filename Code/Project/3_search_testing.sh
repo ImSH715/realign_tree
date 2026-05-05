@@ -42,6 +42,6 @@ python run_pipeline.py \
   --alpha 1.0 \
   --beta 0.0002 \
   --batch_size 32 \
-  --device cuda
+  --device cpu
 
 echo "Done"
