@@ -21,7 +21,7 @@ mkdir -p outputs/evaluation
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
-conda activate lejepa
+conda activate lejepa_gpu
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
