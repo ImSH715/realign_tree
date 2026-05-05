@@ -3,7 +3,12 @@ import torch
 import torch.nn as nn
 import pandas as pd
 import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import (
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+)
 from torch.utils.data import DataLoader
 
 from train_supervised_encoder import (
@@ -33,7 +38,49 @@ def parse_args():
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--device", default="cpu")
+    p.add_argument("--image_mode", default="rgb", choices=["rgb", "grayscale"])
     return p.parse_args()
+
+
+def binary_score_diagnostics(df, classes):
+    if len(classes) != 2:
+        return {}
+
+    class_names = [str(c) for c in classes]
+    positive_name = "1" if "1" in class_names else class_names[-1]
+    prob_col = f"prob_{positive_name}"
+    if prob_col not in df.columns:
+        return {}
+
+    pos_idx = class_names.index(positive_name)
+    y_true = (df["y_true"].astype(int).values == pos_idx).astype(int)
+    y_score = df[prob_col].astype(float).values
+
+    diagnostics = {
+        "positive_class": positive_name,
+        "positive_count": int(y_true.sum()),
+        "negative_count": int((1 - y_true).sum()),
+        "positive_prevalence": float(y_true.mean()) if len(y_true) else 0.0,
+        "probability_column": prob_col,
+    }
+
+    if len(np.unique(y_true)) == 2:
+        diagnostics["average_precision"] = float(average_precision_score(y_true, y_score))
+        diagnostics["roc_auc"] = float(roc_auc_score(y_true, y_score))
+    else:
+        diagnostics["average_precision"] = None
+        diagnostics["roc_auc"] = None
+
+    grouped = df.assign(_binary_true=y_true).groupby("_binary_true")[prob_col].describe()
+    grouped.index = grouped.index.map({0: "negative", 1: "positive"})
+    diagnostics["score_summary_by_true_class"] = json.loads(grouped.to_json(orient="index"))
+
+    if y_true.sum() and (1 - y_true).sum():
+        pos_mean = float(y_score[y_true == 1].mean())
+        neg_mean = float(y_score[y_true == 0].mean())
+        diagnostics["positive_mean_minus_negative_mean"] = pos_mean - neg_mean
+
+    return diagnostics
 
 
 @torch.no_grad()
@@ -64,7 +111,7 @@ def main():
         fx_field=args.fx_field,
         fy_field=args.fy_field,
         patch_size_px=args.patch_size_px,
-        transform=build_eval_transform(args.image_size),
+        transform=build_eval_transform(args.image_size, args.image_mode),
         coord_mode=args.coord_mode,
         class_to_idx=class_to_idx,
         folder_to_paths=folder_to_paths,
@@ -125,6 +172,16 @@ def main():
         out[f"prob_{cls}"] = [p[i] for p in probs_all]
 
     out.to_csv(os.path.join(args.output_dir, "classifier_predictions.csv"), index=False)
+
+    diagnostics = binary_score_diagnostics(out, classes)
+    if diagnostics:
+        with open(os.path.join(args.output_dir, "binary_score_diagnostics.json"), "w") as f:
+            json.dump(diagnostics, f, indent=2)
+        pd.DataFrame(diagnostics["score_summary_by_true_class"]).T.to_csv(
+            os.path.join(args.output_dir, "binary_score_summary_by_true_class.csv")
+        )
+        print("Binary score diagnostics:")
+        print(json.dumps(diagnostics, indent=2))
 
     print(json.dumps(report, indent=2))
 
