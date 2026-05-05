@@ -1,19 +1,23 @@
 #!/bin/bash
 
-#SBATCH --job-name=gray_binary_full
+#SBATCH --job-name=gray_binary_cuda
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/gray_binary_full_%j.out
-#SBATCH --error=logs/gray_binary_full_%j.err
+#SBATCH --output=logs/gray_binary_cuda_%j.out
+#SBATCH --error=logs/gray_binary_cuda_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
 
 mkdir -p logs
 mkdir -p outputs
+mkdir -p outputs/evaluation
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -26,6 +30,8 @@ echo "Job started at: $(date)"
 echo "Running on node: $(hostname)"
 echo "Python: $(which python)"
 python --version
+echo "CUDA check:"
+nvidia-smi
 echo "============================================================"
 
 # ------------------------------------------------------------
@@ -39,11 +45,11 @@ INIT_CKPT="./outputs/phase1_resnet50_cpu/phase1_encoder_best.pth"
 TRAIN_SHP="./outputs/splits_binary/valid_points_train.shp"
 VAL_SHP="./outputs/splits_binary/valid_points_val.shp"
 
-TRAIN_OUT="./outputs/binary_resnet50_gray"
-EVAL_OUT="./outputs/phase2_classifier_binary_gray"
+TRAIN_OUT="./outputs/binary_resnet50_gray_cuda"
+EVAL_OUT="./outputs/phase2_classifier_binary_gray_cuda"
 
 RECOVERY_POINTS="./outputs/evaluation/valid_points_recovery_20m.csv"
-REFINED_OUT="./outputs/evaluation/refined_classifier_binary_gray_20m.csv"
+REFINED_OUT="./outputs/evaluation/refined_classifier_binary_gray_cuda_20m.csv"
 
 # ------------------------------------------------------------
 # Sanity checks
@@ -53,7 +59,7 @@ echo "Checking required inputs..."
 
 test -f "$INIT_CKPT" || { echo "Missing init checkpoint: $INIT_CKPT"; exit 1; }
 test -f "$TRAIN_SHP" || { echo "Missing train shapefile: $TRAIN_SHP"; exit 1; }
-test -f "$VAL_SHP" || { echo "Missing val shapefile: $VAL_SHP"; exit 1; }
+test -f "$VAL_SHP" || { echo "Missing validation shapefile: $VAL_SHP"; exit 1; }
 test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
 
 echo "All required inputs found."
@@ -89,9 +95,8 @@ python train_supervised_encoder.py \
   --patience 0 \
   --debug_patches 64 \
   --print_val_dist \
-  --num_workers 0 \
-  --device cpu \
-  --no_amp
+  --num_workers 4 \
+  --device cuda
 
 # ------------------------------------------------------------
 # Step 2: Evaluate classifier on validation set
@@ -116,8 +121,8 @@ python eval_classifier_head.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 16 \
-  --num_workers 0 \
-  --device cpu
+  --num_workers 4 \
+  --device cuda
 
 # ------------------------------------------------------------
 # Step 3: Tune binary decision threshold
@@ -132,10 +137,9 @@ python tune_binary_threshold.py \
   --positive_label 1 \
   --output_csv "$EVAL_OUT/threshold_tuning.csv"
 
-# Extract best threshold by F1 from threshold_tuning.csv
-BEST_THRESHOLD=$(python - <<'PY'
+BEST_THRESHOLD=$(python - <<PY
 import pandas as pd
-df = pd.read_csv("./outputs/phase2_classifier_binary_gray/threshold_tuning.csv")
+df = pd.read_csv("$EVAL_OUT/threshold_tuning.csv")
 best = df.sort_values("f1_shihuahuaco", ascending=False).iloc[0]
 print(float(best["threshold"]))
 PY
@@ -144,7 +148,7 @@ PY
 echo "Best threshold selected: $BEST_THRESHOLD"
 
 # ------------------------------------------------------------
-# Step 4: Optional bounded search refinement
+# Step 4: Optional classifier-based bounded search refinement
 # ------------------------------------------------------------
 
 if [ -f "$RECOVERY_POINTS" ]; then
@@ -172,8 +176,7 @@ if [ -f "$RECOVERY_POINTS" ]; then
     --refine_step_px 8 \
     --beta 0.002 \
     --batch_size 32 \
-    --device cpu
-
+    --device cuda
 else
   echo "Skipping bounded search: recovery input not found:"
   echo "$RECOVERY_POINTS"
@@ -181,7 +184,7 @@ fi
 
 echo "============================================================"
 echo "Job finished at: $(date)"
-echo "Training output: $TRAIN_OUT"
-echo "Evaluation output: $EVAL_OUT"
-echo "Refinement output: $REFINED_OUT"
+echo "Training output    : $TRAIN_OUT"
+echo "Evaluation output  : $EVAL_OUT"
+echo "Refinement output  : $REFINED_OUT"
 echo "============================================================"
