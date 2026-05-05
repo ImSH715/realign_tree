@@ -1,4 +1,4 @@
 shapefileTIF
-*.shp
-*.shx
-*.cpg
+Pipeline
+Code/Project/outputs
+Code/Project/data

@@ -1,0 +1,696 @@
+"""
+To test the phase two.
+- See if the phase two is realiging random coordinate of the curated OSINFOR data.
+- Used to check trained model performs well with the currated data that is used to train the model.
+Evaluate whether noisy data is realigned properly to the answer data (GT).
+"""
+"""
+Phase 2 Evaluation on Curated Data
+Use:
+- encoder from Phase 1
+- classifier from Phase 3
+- noisy jittered shapefile as input
+- original valid_points.shp as ground truth
+
+Goal:
+Realign noisy points on curated orthomosaic and measure improvement.
+"""
+
+import os
+import glob
+import random
+import warnings
+
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import rasterio
+from rasterio.windows import Window
+from tqdm import tqdm
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from sklearn.cluster import DBSCAN
+import joblib
+
+warnings.filterwarnings("ignore")
+
+# ---------------------------------------------------------
+# 1. PATHS & HYPERPARAMETERS
+# ---------------------------------------------------------
+EPOCHS = 7
+
+# curated tif directory
+TIF_DIR = r"/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
+
+# GT and noisy evaluation shapefiles
+GT_SHP = r"/mnt/parscratch/users/acb20si/realign_tree/Code/Slide_grid/testing/data/tree_label_rdn/valid_points.shp"
+NOISY_SHP = r"data/tree_label_rdn/random_valid_range_20_35.shp"
+
+OUTPUT_CSV = "phase2_eval_random_valid_range_20_35.csv"
+
+MODEL_DIR = "data/models"
+ENCODER_PATH = os.path.join(MODEL_DIR, f"encoder_phase1_large_epoch{EPOCHS}.pth")
+RF_BUNDLE_PATH = os.path.join(MODEL_DIR, "species_model_bundle.joblib")
+
+LABEL_COL = "Tree"
+
+# image settings: must match Phase 1 / Phase 3 exactly
+IMG_SIZE = 448
+PATCH_SIZE = 16
+CROP_MULTIPLIER = 2
+CROP_SIZE = IMG_SIZE * CROP_MULTIPLIER   # 896
+HALF_CROP = CROP_SIZE // 2               # 448
+
+# inference / checkpoint
+BATCH_SIZE_INFER = 128
+CHECKPOINT_EVERY = 200
+SEED = 42
+
+# defaults (overwritten by bundle if present)
+MIN_SPECIES_PROB = 0.45
+DIST_PENALTY_ALPHA = 0.35
+MIN_CLUSTER_SIZE = 3
+MAX_ALLOWED_SHIFT = 25.0
+DBSCAN_EPS = 4.0
+
+# two-stage search
+COARSE_RADIUS = 15.0
+COARSE_STRIDE = 6.0
+
+FINE_RADIUS = 6.0
+FINE_STRIDE = 2.0
+
+# patch quality
+MIN_VALID_PIXEL_RATIO = 0.15
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+USE_AMP = (device.type == "cuda")
+
+
+# ---------------------------------------------------------
+# 2. MODEL DEFINITION
+# ---------------------------------------------------------
+class LeJepaEncoder(nn.Module):
+    def __init__(
+        self,
+        img_size=IMG_SIZE,
+        patch_size=PATCH_SIZE,
+        in_chans=3,
+        embed_dim=128,
+        depth=4,
+        num_heads=4
+    ):
+        super().__init__()
+        self.patch_embed = nn.Conv2d(
+            in_chans, embed_dim, kernel_size=patch_size, stride=patch_size
+        )
+        num_patches = (img_size // patch_size) ** 2
+        self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
+        self.blocks = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=embed_dim,
+                nhead=num_heads,
+                dim_feedforward=embed_dim * 4,
+                activation="gelu",
+                batch_first=True
+            )
+            for _ in range(depth)
+        ])
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x, ids_keep=None):
+        x = self.patch_embed(x).flatten(2).transpose(1, 2)
+        x = x + self.pos_embed
+
+        if ids_keep is not None:
+            D = x.shape[-1]
+            x = torch.gather(x, 1, ids_keep.unsqueeze(-1).expand(-1, -1, D))
+
+        for block in self.blocks:
+            x = block(x)
+
+        return self.norm(x)
+
+
+# ---------------------------------------------------------
+# 3. UTILS
+# ---------------------------------------------------------
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def normalize_species_name(x):
+    if pd.isna(x):
+        return ""
+    return str(x).strip().upper()
+
+
+def euclidean(x1, y1, x2, y2):
+    return float(np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2))
+
+
+def build_tif_index(tif_dir):
+    tif_files = glob.glob(os.path.join(tif_dir, "2023-*", "*.tif"))
+    index = []
+
+    print("Indexing TIF boundaries...")
+    for f in tqdm(tif_files, leave=False):
+        try:
+            with rasterio.open(f) as src:
+                index.append({
+                    "path": f,
+                    "bounds": src.bounds
+                })
+        except Exception:
+            continue
+
+    print(f"Indexed TIF count: {len(index)}")
+    return index
+
+
+def find_tif_for_point(x, y, tif_index):
+    for item in tif_index:
+        b = item["bounds"]
+        if b.left <= x <= b.right and b.bottom <= y <= b.top:
+            return item["path"]
+    return None
+
+
+def valid_pixel_ratio(tile):
+    if tile is None or tile.size == 0:
+        return 0.0
+    nonzero = np.any(tile > 0, axis=0)
+    return float(nonzero.mean())
+
+
+def build_search_grid(center_x, center_y, radius, stride, circular=True):
+    coords = []
+    for oy in np.arange(-radius, radius + 1e-6, stride):
+        for ox in np.arange(-radius, radius + 1e-6, stride):
+            if circular and (ox ** 2 + oy ** 2) > (radius ** 2):
+                continue
+            coords.append((center_x + ox, center_y + oy))
+    return coords
+
+
+def extract_embedding_batch(
+    encoder,
+    src,
+    coords,
+    batch_size=BATCH_SIZE_INFER,
+    min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
+):
+    if len(coords) == 0:
+        return (
+            np.empty((0, 2), dtype=np.float32),
+            np.empty((0, 128), dtype=np.float32),
+            np.empty((0,), dtype=np.float32),
+        )
+
+    tiles = []
+    valid_coords = []
+    ratios = []
+
+    for x, y in coords:
+        try:
+            py, px = src.index(x, y)
+            window = Window(
+                col_off=px - HALF_CROP,
+                row_off=py - HALF_CROP,
+                width=CROP_SIZE,
+                height=CROP_SIZE
+            )
+            tile = src.read([1, 2, 3], window=window, boundless=True, fill_value=0)
+
+            if tile.shape != (3, CROP_SIZE, CROP_SIZE):
+                continue
+
+            ratio = valid_pixel_ratio(tile)
+            if ratio < min_valid_pixel_ratio:
+                continue
+
+            tiles.append(tile)
+            valid_coords.append((x, y))
+            ratios.append(ratio)
+
+        except Exception:
+            continue
+
+    if len(tiles) == 0:
+        return (
+            np.empty((0, 2), dtype=np.float32),
+            np.empty((0, 128), dtype=np.float32),
+            np.empty((0,), dtype=np.float32),
+        )
+
+    imgs = torch.from_numpy(np.stack(tiles)).float().to(device) / 255.0
+    imgs = F.interpolate(
+        imgs,
+        size=(IMG_SIZE, IMG_SIZE),
+        mode="bilinear",
+        align_corners=False
+    )
+
+    mean_t = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
+    std_t  = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+    imgs = (imgs - mean_t) / std_t
+
+    emb_list = []
+
+    with torch.no_grad():
+        for i in range(0, imgs.shape[0], batch_size):
+            batch = imgs[i:i + batch_size]
+
+            if USE_AMP:
+                with torch.amp.autocast("cuda"):
+                    emb = encoder(batch).mean(dim=1)
+            else:
+                emb = encoder(batch).mean(dim=1)
+
+            emb_list.append(emb.cpu().numpy())
+
+    embeds_np = np.concatenate(emb_list, axis=0).astype(np.float32)
+    valid_coords_np = np.array(valid_coords, dtype=np.float32)
+    ratios_np = np.array(ratios, dtype=np.float32)
+
+    return valid_coords_np, embeds_np, ratios_np
+
+
+def choose_best_cluster(
+    filtered_coords,
+    filtered_scores,
+    filtered_probs,
+    origin_x,
+    origin_y,
+    search_radius,
+    eps,
+    min_cluster_size
+):
+    if len(filtered_coords) < min_cluster_size:
+        return None
+
+    db = DBSCAN(eps=eps, min_samples=min_cluster_size).fit(filtered_coords)
+    labels = db.labels_
+
+    valid_cluster_ids = [lab for lab in np.unique(labels) if lab != -1]
+    if len(valid_cluster_ids) == 0:
+        return None
+
+    best_cluster_score = -1e9
+    best_cluster_center = None
+    best_cluster_size = 0
+
+    for cid in valid_cluster_ids:
+        pts = filtered_coords[labels == cid]
+        pts_scores = filtered_scores[labels == cid]
+        pts_probs = filtered_probs[labels == cid]
+
+        center_x, center_y = pts.mean(axis=0)
+        center_dist = euclidean(center_x, center_y, origin_x, origin_y)
+
+        cluster_score = (
+            float(pts_scores.mean())
+            + 0.2 * float(pts_probs.mean())
+            - 0.1 * (center_dist / max(search_radius, 1e-6))
+        )
+
+        if cluster_score > best_cluster_score:
+            best_cluster_score = cluster_score
+            best_cluster_center = (float(center_x), float(center_y))
+            best_cluster_size = int(len(pts))
+
+    if best_cluster_center is None:
+        return None
+
+    return {
+        "center_x": best_cluster_center[0],
+        "center_y": best_cluster_center[1],
+        "cluster_score": best_cluster_score,
+        "cluster_size": best_cluster_size
+    }
+
+
+def score_candidates(
+    clf,
+    class_to_idx,
+    target_species,
+    coords_np,
+    embeds_np,
+    origin_x,
+    origin_y,
+    radius,
+    min_species_prob,
+    dist_penalty_alpha,
+    dbscan_eps,
+    min_cluster_size
+):
+    if len(embeds_np) == 0:
+        return None, "NO_VALID_PATCHES"
+
+    if target_species not in class_to_idx:
+        return None, "UNKNOWN_SPECIES_INDEX"
+
+    proba = clf.predict_proba(embeds_np)
+    species_idx = class_to_idx[target_species]
+    species_probs = proba[:, species_idx]
+
+    dists = np.sqrt(
+        (coords_np[:, 0] - origin_x) ** 2 +
+        (coords_np[:, 1] - origin_y) ** 2
+    )
+    norm_dists = dists / max(radius, 1e-6)
+    scores = species_probs - dist_penalty_alpha * norm_dists
+
+    keep_mask = species_probs >= min_species_prob
+    filtered_coords = coords_np[keep_mask]
+    filtered_scores = scores[keep_mask]
+    filtered_probs = species_probs[keep_mask]
+
+    if len(filtered_coords) < min_cluster_size:
+        return None, "LOW_CONFIDENCE"
+
+    best_cluster = choose_best_cluster(
+        filtered_coords=filtered_coords,
+        filtered_scores=filtered_scores,
+        filtered_probs=filtered_probs,
+        origin_x=origin_x,
+        origin_y=origin_y,
+        search_radius=radius,
+        eps=dbscan_eps,
+        min_cluster_size=min_cluster_size
+    )
+
+    if best_cluster is None:
+        return None, "NO_CLUSTER"
+
+    return best_cluster, "OK"
+
+
+def prepare_eval_dataframe(gt_shp, noisy_shp, label_col):
+    gt_gdf = gpd.read_file(gt_shp).copy()
+    noisy_gdf = gpd.read_file(noisy_shp).copy()
+
+    gt_gdf = gt_gdf[gt_gdf.geometry.notnull()].copy()
+    noisy_gdf = noisy_gdf[noisy_gdf.geometry.notnull()].copy()
+
+    gt_gdf[label_col] = gt_gdf[label_col].apply(normalize_species_name)
+    noisy_gdf[label_col] = noisy_gdf[label_col].apply(normalize_species_name)
+
+    if len(gt_gdf) != len(noisy_gdf):
+        raise ValueError(
+            f"GT and noisy shapefiles have different row counts: "
+            f"{len(gt_gdf)} vs {len(noisy_gdf)}"
+        )
+
+    # assumes row order is preserved between original valid_points and random_valid...
+    rows = []
+    for i in range(len(gt_gdf)):
+        gt_row = gt_gdf.iloc[i]
+        noisy_row = noisy_gdf.iloc[i]
+
+        rows.append({
+            "row_id": i,
+            "species_gt": normalize_species_name(gt_row[label_col]),
+            "species_noisy": normalize_species_name(noisy_row[label_col]),
+            "true_x": float(gt_row.geometry.x),
+            "true_y": float(gt_row.geometry.y),
+            "noisy_x": float(noisy_row.geometry.x),
+            "noisy_y": float(noisy_row.geometry.y),
+        })
+
+    df = pd.DataFrame(rows)
+    df["species"] = df["species_noisy"]
+
+    # start as original noisy point
+    df["realigned_x"] = df["noisy_x"]
+    df["realigned_y"] = df["noisy_y"]
+    df["initial_error"] = np.sqrt(
+        (df["true_x"] - df["noisy_x"]) ** 2 +
+        (df["true_y"] - df["noisy_y"]) ** 2
+    )
+    df["final_error"] = df["initial_error"]
+    df["improvement"] = 0.0
+    df["shift_distance"] = 0.0
+    df["status"] = "PENDING"
+
+    return df
+
+
+# ---------------------------------------------------------
+# 4. MAIN EXECUTION
+# ---------------------------------------------------------
+def main():
+    global MIN_SPECIES_PROB, DIST_PENALTY_ALPHA, MIN_CLUSTER_SIZE, MAX_ALLOWED_SHIFT, DBSCAN_EPS
+
+    set_seed(SEED)
+    print("\n--- Phase 2 Evaluation on Curated Randomized Points ---")
+    print(f"Device: {device}")
+
+    # -----------------------------------------------------
+    # Load encoder
+    # -----------------------------------------------------
+    encoder = LeJepaEncoder().to(device)
+
+    if not os.path.exists(ENCODER_PATH):
+        raise FileNotFoundError(f"Encoder not found: {ENCODER_PATH}")
+
+    encoder.load_state_dict(torch.load(ENCODER_PATH, map_location=device))
+    encoder.eval()
+    print(f"[SUCCESS] Loaded encoder from {ENCODER_PATH}")
+
+    # -----------------------------------------------------
+    # Load classifier bundle
+    # -----------------------------------------------------
+    if not os.path.exists(RF_BUNDLE_PATH):
+        raise FileNotFoundError(f"RF bundle not found: {RF_BUNDLE_PATH}")
+
+    bundle = joblib.load(RF_BUNDLE_PATH)
+    clf = bundle["classifier"]
+    known_species = set(bundle["classes"])
+
+    if "phase3_params" in bundle:
+        params = bundle["phase3_params"]
+        MIN_SPECIES_PROB = float(params.get("MIN_SPECIES_PROB", MIN_SPECIES_PROB))
+        DIST_PENALTY_ALPHA = float(params.get("DIST_PENALTY_ALPHA", DIST_PENALTY_ALPHA))
+        MIN_CLUSTER_SIZE = int(params.get("MIN_CLUSTER_SIZE", MIN_CLUSTER_SIZE))
+        MAX_ALLOWED_SHIFT = float(params.get("MAX_ALLOWED_SHIFT", MAX_ALLOWED_SHIFT))
+        DBSCAN_EPS = float(params.get("DBSCAN_EPS", DBSCAN_EPS))
+
+    class_to_idx = {c: i for i, c in enumerate(clf.classes_)}
+
+    print(f"[SUCCESS] Loaded RF bundle from {RF_BUNDLE_PATH}")
+    print(f"Known species count: {len(known_species)}")
+
+    # -----------------------------------------------------
+    # Build tif index
+    # -----------------------------------------------------
+    tif_index = build_tif_index(TIF_DIR)
+    if len(tif_index) == 0:
+        raise RuntimeError("No valid TIFs found in TIF_DIR.")
+
+    # -----------------------------------------------------
+    # Prepare evaluation dataframe
+    # -----------------------------------------------------
+    df = prepare_eval_dataframe(GT_SHP, NOISY_SHP, LABEL_COL)
+    print(f"Evaluation rows: {len(df)}")
+
+    pending_idx = df.index[df["status"] == "PENDING"].tolist()
+    print(f"Pending rows: {len(pending_idx)}")
+
+    processed_since_save = 0
+    current_tif_path = None
+    current_src = None
+
+    # pre-assign tif path
+    tif_paths = []
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Assigning TIFs", leave=False):
+        tif_path = find_tif_for_point(float(row["noisy_x"]), float(row["noisy_y"]), tif_index)
+        tif_paths.append(tif_path)
+    df["tif_path"] = tif_paths
+
+    df = df.sort_values(["tif_path", "noisy_x", "noisy_y"], na_position="last").reset_index(drop=True)
+
+    # -----------------------------------------------------
+    # Main loop
+    # -----------------------------------------------------
+    for ridx, row in tqdm(df.iterrows(), total=len(df), desc="Evaluating realignment"):
+        try:
+            true_x = float(row["true_x"])
+            true_y = float(row["true_y"])
+            noisy_x = float(row["noisy_x"])
+            noisy_y = float(row["noisy_y"])
+            target_species = normalize_species_name(row["species"])
+            tif_path = row["tif_path"]
+
+            if target_species == "":
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_EMPTY_SPECIES"
+                continue
+
+            if target_species not in known_species:
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_UNKNOWN_SPECIES"
+                continue
+
+            if tif_path is None:
+                df.at[ridx, "status"] = "KEEP_ORIGINAL_OUT_OF_BOUNDS"
+                continue
+
+            if tif_path != current_tif_path:
+                if current_src is not None:
+                    current_src.close()
+                current_src = rasterio.open(tif_path)
+                current_tif_path = tif_path
+
+            # -----------------------------
+            # Stage 1: coarse search
+            # -----------------------------
+            coarse_coords = build_search_grid(
+                center_x=noisy_x,
+                center_y=noisy_y,
+                radius=COARSE_RADIUS,
+                stride=COARSE_STRIDE,
+                circular=True
+            )
+
+            coarse_search_coords, coarse_search_embeds, _ = extract_embedding_batch(
+                encoder=encoder,
+                src=current_src,
+                coords=coarse_coords,
+                batch_size=BATCH_SIZE_INFER,
+                min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
+            )
+
+            coarse_result, coarse_status = score_candidates(
+                clf=clf,
+                class_to_idx=class_to_idx,
+                target_species=target_species,
+                coords_np=coarse_search_coords,
+                embeds_np=coarse_search_embeds,
+                origin_x=noisy_x,
+                origin_y=noisy_y,
+                radius=COARSE_RADIUS,
+                min_species_prob=MIN_SPECIES_PROB,
+                dist_penalty_alpha=DIST_PENALTY_ALPHA,
+                dbscan_eps=DBSCAN_EPS,
+                min_cluster_size=MIN_CLUSTER_SIZE
+            )
+
+            if coarse_result is None:
+                df.at[ridx, "status"] = f"KEEP_ORIGINAL_COARSE_{coarse_status}"
+                processed_since_save += 1
+                if processed_since_save >= CHECKPOINT_EVERY:
+                    df.to_csv(OUTPUT_CSV, index=False)
+                    processed_since_save = 0
+                continue
+
+            coarse_x = float(coarse_result["center_x"])
+            coarse_y = float(coarse_result["center_y"])
+
+            # -----------------------------
+            # Stage 2: fine search
+            # -----------------------------
+            fine_coords = build_search_grid(
+                center_x=coarse_x,
+                center_y=coarse_y,
+                radius=FINE_RADIUS,
+                stride=FINE_STRIDE,
+                circular=True
+            )
+
+            fine_search_coords, fine_search_embeds, _ = extract_embedding_batch(
+                encoder=encoder,
+                src=current_src,
+                coords=fine_coords,
+                batch_size=BATCH_SIZE_INFER,
+                min_valid_pixel_ratio=MIN_VALID_PIXEL_RATIO
+            )
+
+            fine_result, fine_status = score_candidates(
+                clf=clf,
+                class_to_idx=class_to_idx,
+                target_species=target_species,
+                coords_np=fine_search_coords,
+                embeds_np=fine_search_embeds,
+                origin_x=noisy_x,
+                origin_y=noisy_y,
+                radius=max(COARSE_RADIUS, FINE_RADIUS),
+                min_species_prob=MIN_SPECIES_PROB,
+                dist_penalty_alpha=DIST_PENALTY_ALPHA,
+                dbscan_eps=DBSCAN_EPS,
+                min_cluster_size=MIN_CLUSTER_SIZE
+            )
+
+            if fine_result is None:
+                new_x = coarse_x
+                new_y = coarse_y
+                final_status = f"MOVED_COARSE_ONLY_{fine_status}"
+            else:
+                new_x = float(fine_result["center_x"])
+                new_y = float(fine_result["center_y"])
+                final_status = "MOVED"
+
+            shift = euclidean(noisy_x, noisy_y, new_x, new_y)
+
+            if shift > MAX_ALLOWED_SHIFT:
+                new_x = noisy_x
+                new_y = noisy_y
+                shift = 0.0
+                final_status = "KEEP_ORIGINAL_MOVE_TOO_LARGE"
+
+            final_error = euclidean(true_x, true_y, new_x, new_y)
+            initial_error = euclidean(true_x, true_y, noisy_x, noisy_y)
+            improvement = initial_error - final_error
+
+            # optional evaluation-time reject
+            if improvement < 0:
+                new_x = noisy_x
+                new_y = noisy_y
+                shift = 0.0
+                final_error = initial_error
+                improvement = 0.0
+                final_status = "NEGATIVE_MOVE_REJECTED"
+
+            df.at[ridx, "realigned_x"] = new_x
+            df.at[ridx, "realigned_y"] = new_y
+            df.at[ridx, "shift_distance"] = shift
+            df.at[ridx, "final_error"] = final_error
+            df.at[ridx, "improvement"] = improvement
+            df.at[ridx, "status"] = final_status
+
+        except Exception as e:
+            df.at[ridx, "status"] = f"ERROR_{type(e).__name__}"
+
+        processed_since_save += 1
+        if processed_since_save >= CHECKPOINT_EVERY:
+            df.to_csv(OUTPUT_CSV, index=False)
+            processed_since_save = 0
+
+    if current_src is not None:
+        current_src.close()
+
+    # -----------------------------------------------------
+    # Save final output
+    # -----------------------------------------------------
+    df.to_csv(OUTPUT_CSV, index=False)
+
+    print(f"\nEvaluation saved to {OUTPUT_CSV}")
+    print("\nSTATUS summary:")
+    print(df["status"].value_counts(dropna=False))
+
+    print(f"\nMean initial error: {df['initial_error'].mean():.3f}")
+    print(f"Mean final error:   {df['final_error'].mean():.3f}")
+    print(f"Mean improvement:   {df['improvement'].mean():.3f}")
+
+    print("\nSpecies mean improvement:")
+    print(df.groupby("species")["improvement"].mean().sort_values())
+
+    print("\n[PHASE 2 EVAL DONE]")
+
+
+if __name__ == "__main__":
+    main()

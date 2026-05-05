@@ -1,0 +1,40 @@
+train_root: "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
+output_dir: "./outputs/phase1"
+
+backbone_name: "vit_base_patch16_224"
+backbone_pretrained: false
+
+device: "cuda"
+seed: 42
+num_workers: 0
+
+ssl_epochs: 20
+batch_size_ssl: 8
+ssl_lr: 0.0005
+weight_decay: 0.05
+warmup_epochs_ssl: 3
+min_lr_ratio: 0.001
+
+patch_size_px: 224
+patches_per_image: 100
+num_global_views: 2
+num_local_views: 4
+image_size_global: 224
+image_size_local: 96
+
+projector_hidden_dim: 2048
+projector_out_dim: 512
+
+align_weight: 1.0
+var_weight: 25.0
+cov_weight: 1.0
+slice_weight: 1.0
+num_slices: 256
+
+extract_stride_px: 224
+extract_batch_size: 32
+max_extract_patches_per_image: null
+
+mixed_precision: true
+tile_cache_size: 0
+save_every: 1
