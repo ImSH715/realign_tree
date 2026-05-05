@@ -77,6 +77,7 @@ def build_eval_transform(image_size: int) -> transforms.Compose:
     )
     return transforms.Compose(
         [
+            transforms.Grayscale(num_output_channels=3),
             transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor(),
             normalize,

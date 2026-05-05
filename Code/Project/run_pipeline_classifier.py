@@ -101,6 +101,7 @@ def read_patch(image_path, x, y, patch_size):
 
 def build_transform(image_size):
     return transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],

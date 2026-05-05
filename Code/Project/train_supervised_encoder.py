@@ -389,6 +389,7 @@ class GTPointDataset(Dataset):
 
 def build_train_transform(image_size):
     return transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
@@ -401,6 +402,7 @@ def build_train_transform(image_size):
 
 def build_eval_transform(image_size):
     return transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
