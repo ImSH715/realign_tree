@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=classifier_phase3
+#SBATCH --job-name=search_testing
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/phase_3/slide_grid_%j.out
-#SBATCH --error=logs/phase_3/slide_grid_%j.err
+#SBATCH --output=logs/testing/phase1_5/testing_search_%j.out
+#SBATCH --error=logs/testing/phase1_5/testing_search_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
