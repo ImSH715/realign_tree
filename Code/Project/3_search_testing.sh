@@ -40,7 +40,7 @@ python run_pipeline.py \
   --alpha 1.0 \
   --beta 0.0002 \
   --batch_size 32 \
-  --device cuda
+  --device cpu
 
 python eval_direct_gt.py \
   --input_csv "./outputs/evaluation/single_tif_beta0002_refined.csv" \
@@ -67,7 +67,7 @@ python run_pipeline.py \
   --alpha 1.0 \
   --beta 0.002 \
   --batch_size 32 \
-  --device cuda
+  --device cpu
 
 python eval_direct_gt.py \
   --input_csv "./outputs/evaluation/single_tif_beta0002b_refined.csv" \
