@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=phase3_bin_cpu
+#SBATCH --job-name=phase3_bin_cpu_ppv2
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/preprocessing/phase3/phase3_bin_cpu_%j.out
-#SBATCH --error=logs/preprocessing/phase3/phase3_bin_cpu_%j.err
+#SBATCH --output=logs/phase3/phase3_bin_cpu_ppv2_%j.out
+#SBATCH --error=logs/phase3/phase3_bin_cpu_ppv2_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -24,27 +24,12 @@ echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 
 
-echo "============================================================"
-echo "Job started at: $(date)"
-echo "Running on node: $(hostname)"
-echo "Python: $(which python)"
-python --version
-echo "============================================================"
-
-# ------------------------------------------------------------
-# Paths
-# ------------------------------------------------------------
-
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 
-POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco.csv"
+POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_only.csv"
 
 ENCODER_CKPT="./outputs/phase1_5_lejepa_cpu_binary_preprocess/phase1_encoder_best.pth"
 PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco_preprocess/class_prototypes.csv"
-
-# ------------------------------------------------------------
-# Sanity checks
-# ------------------------------------------------------------
 
 echo "Checking required inputs..."
 test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
@@ -57,9 +42,8 @@ echo "All required inputs found."
 # ------------------------------------------------------------
 # EXP 1: beta = 0.0002
 # ------------------------------------------------------------
-
 echo "============================================================"
-echo "EXP 1: prototype phase3 | beta=0.0002"
+echo "EXP 1: aggressive preprocess + large-search | beta=0.0002"
 echo "============================================================"
 
 python run_pipeline.py \
@@ -67,7 +51,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -86,15 +70,14 @@ python run_pipeline.py \
   --no_amp
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002_refined.csv" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002_evaluated.csv"
+  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_evaluated.csv"
 
 # ------------------------------------------------------------
 # EXP 2: beta = 0.002
 # ------------------------------------------------------------
-
 echo "============================================================"
-echo "EXP 2: prototype phase3 | beta=0.002"
+echo "EXP 2: aggressive preprocess + large-search | beta=0.002"
 echo "============================================================"
 
 python run_pipeline.py \
@@ -102,7 +85,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -121,42 +104,65 @@ python run_pipeline.py \
   --no_amp
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002b_refined.csv" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_beta0002b_evaluated.csv"
+  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_evaluated.csv"
 
 # ------------------------------------------------------------
-# Quick summary
+# Summary
 # ------------------------------------------------------------
-
-echo "============================================================"
-echo "SUMMARY"
-echo "============================================================"
-
 python - <<'PY'
 import pandas as pd
 
-files = [
+baseline_files = [
     "./outputs/evaluation/phase3_binary_cpu_proto_beta0002_evaluated.csv",
     "./outputs/evaluation/phase3_binary_cpu_proto_beta0002b_evaluated.csv",
 ]
 
-for path in files:
-    print("=" * 100)
-    print(path)
-    df = pd.read_csv(path)
+new_files = [
+    "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_evaluated.csv",
+    "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_evaluated.csv",
+]
 
-    print("mean_before_m   :", df["distance_before_m"].mean())
-    print("mean_after_m    :", df["distance_after_m"].mean())
-    print("median_before_m :", df["distance_before_m"].median())
-    print("median_after_m  :", df["distance_after_m"].median())
-    print("mean_movement_m :", df["movement_m"].mean())
+print("=" * 100)
+print("BASELINE")
+print("=" * 100)
+for path in baseline_files:
+    try:
+        df = pd.read_csv(path)
+        print(path)
+        print("mean_before_m   :", df["distance_before_m"].mean())
+        print("mean_after_m    :", df["distance_after_m"].mean())
+        print("median_before_m :", df["distance_before_m"].median())
+        print("median_after_m  :", df["distance_after_m"].median())
+        print("mean_movement_m :", df["movement_m"].mean())
+        print("improved :", int((df["evaluation"] == "improved").sum()))
+        print("unchanged:", int((df["evaluation"] == "unchanged").sum()))
+        print("worse    :", int((df["evaluation"] == "worse").sum()))
+        print("-" * 80)
+    except Exception as e:
+        print(path, "FAILED:", e)
 
-    print("improved :", int((df["evaluation"] == "improved").sum()))
-    print("unchanged:", int((df["evaluation"] == "unchanged").sum()))
-    print("worse    :", int((df["evaluation"] == "worse").sum()))
+print("=" * 100)
+print("PREPROCESS V2")
+print("=" * 100)
+for path in new_files:
+    try:
+        df = pd.read_csv(path)
+        print(path)
+        print("mean_before_m   :", df["distance_before_m"].mean())
+        print("mean_after_m    :", df["distance_after_m"].mean())
+        print("median_before_m :", df["distance_before_m"].median())
+        print("median_after_m  :", df["distance_after_m"].median())
+        print("mean_movement_m :", df["movement_m"].mean())
+        print("improved :", int((df["evaluation"] == "improved").sum()))
+        print("unchanged:", int((df["evaluation"] == "unchanged").sum()))
+        print("worse    :", int((df["evaluation"] == "worse").sum()))
+        print("-" * 80)
+    except Exception as e:
+        print(path, "FAILED:", e)
 PY
 
 echo "============================================================"
-echo "PHASE 3 DONE"
+echo "PHASE 3 PREPROCESS V2 DONE"
 echo "Finished at: $(date)"
 echo "============================================================"
