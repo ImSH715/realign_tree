@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=120:00:00
+#SBATCH --time=90:00:00
 #SBATCH --output=logs/phase12/binary_ppv2_p1p2_%j.out
 #SBATCH --error=logs/phase12/binary_ppv2_p1p2_%j.err
 #SBATCH --mail-type=END,FAIL
