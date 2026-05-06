@@ -52,17 +52,34 @@ if [ -e "$PHASE1_OUT_LINK" ] && [ ! -L "$PHASE1_OUT_LINK" ]; then
 fi
 ln -sfn "$PHASE1_OUT_ABS" "$PHASE1_OUT_LINK"
 
-TRAIN_ROOTS=(
+CANDIDATE_ROOTS=(
+  "/shared/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
+  "/shared/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
   "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
   "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
+  "/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
+  "/users/aca21jo/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
+  "$HOME/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
+  "$HOME/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
 )
 
-echo "Training roots:"
-printf '  %s\n' "${TRAIN_ROOTS[@]}"
-
-for root in "${TRAIN_ROOTS[@]}"; do
-  test -d "$root" || { echo "Missing training root: $root"; exit 1; }
+TRAIN_ROOTS=()
+for root in "${CANDIDATE_ROOTS[@]}"; do
+  if [ -d "$root" ]; then
+    TRAIN_ROOTS+=("$root")
+  fi
 done
+
+echo "Training roots:"
+if [ "${#TRAIN_ROOTS[@]}" -eq 0 ]; then
+  echo "No shared orthomosaic roots found. Candidate roots checked:"
+  printf '  %s\n' "${CANDIDATE_ROOTS[@]}"
+  echo "Find the absolute ai4eo path with:"
+  echo "  cd ai4eo && pwd -P"
+  exit 1
+fi
+
+printf '  %s\n' "${TRAIN_ROOTS[@]}"
 
 echo "============================================================"
 echo "Phase 1: DINOv2-backbone SSL pretraining on shared orthomosaics"
