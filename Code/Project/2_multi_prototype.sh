@@ -38,8 +38,8 @@ python tune_binary_threshold.py \
   --output_csv "./outputs/eval_binary_classifier_val/threshold_tuning.csv"
 
 python build_multi_prototypes.py \
-  --embedding_csv "./outputs/binary_shihuahuaco_classweights_check/phase1_embeddings.csv" \
-  --output_csv "./outputs/phase2_binary_shihuahuaco/multi_class_prototypes.csv" \
+  --embedding_csv "./outputs/binary_resnet50/phase1_embeddings.csv" \
+  --output_csv "./outputs/binary_resnet50/class_prototypes.csv" \
   --label_col label \
   --positive_label 1 \
   --k_other 5 \
