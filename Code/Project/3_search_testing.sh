@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=one_tiff
+#SBATCH --job-name=L_fixed_phase3
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/testing/phase1_5/one_tiff_%j.out
-#SBATCH --error=logs/testing/phase1_5/one_tiff_%j.err
+#SBATCH --output=logs/fixed/lejepa/phase3/all_shihuahuaco_%j.out
+#SBATCH --error=logs/fixed/lejepa/phase3/all_shihuahuaco_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
