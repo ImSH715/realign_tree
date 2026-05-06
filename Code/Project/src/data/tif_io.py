@@ -1,6 +1,6 @@
 import os
 import glob
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple, Union
 from src.data.preprocess import preprocess
 
 import numpy as np
@@ -8,7 +8,7 @@ import rasterio
 from PIL import Image
 
 
-def recursive_find_tif_files(root_dir: str) -> List[str]:
+def recursive_find_tif_files(root_dir: Union[str, Sequence[str]]) -> List[str]:
     patterns = ["**/*.tif", "**/*.TIF", "**/*.tiff", "**/*.TIFF"]
     files = []
     exclude_tokens = [
@@ -17,13 +17,19 @@ def recursive_find_tif_files(root_dir: str) -> List[str]:
         "/orthomosaic/tile-",
     ]
 
-    for pattern in patterns:
-        found = glob.glob(os.path.join(root_dir, pattern), recursive=True)
-        for p in found:
-            ap = os.path.abspath(p)
-            if any(token in ap for token in exclude_tokens):
-                continue
-            files.append(ap)
+    if isinstance(root_dir, (list, tuple, set)):
+        roots = list(root_dir)
+    else:
+        roots = [root_dir]
+
+    for root in roots:
+        for pattern in patterns:
+            found = glob.glob(os.path.join(str(root), pattern), recursive=True)
+            for p in found:
+                ap = os.path.abspath(p)
+                if any(token in ap for token in exclude_tokens):
+                    continue
+                files.append(ap)
 
     return sorted(list(set(files)))
 

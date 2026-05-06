@@ -314,7 +314,7 @@ def parse_args():
         description="Phase 1: self-supervised encoder training on recursive TIFF patches"
     )
 
-    parser.add_argument("--train_root", required=True)
+    parser.add_argument("--train_root", required=True, nargs="+")
     parser.add_argument("--output_dir", required=True)
 
     parser.add_argument(
@@ -402,7 +402,9 @@ def main():
 
     print("=" * 100)
     print("Recursive TIFF scan")
-    print(f"Train root        : {args.train_root}")
+    print("Train roots       :")
+    for root in args.train_root:
+        print(f"  {root}")
     print(f"Found TIFF files  : {len(tif_files)}")
     print("=" * 100)
 
