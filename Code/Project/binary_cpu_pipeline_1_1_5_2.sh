@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=phase_1_15_2
+#SBATCH --job-name=ppv2_phase_1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/preprocessing/p_lejepa_%j.out
-#SBATCH --error=logs/preprocessing/p_lejepa_%j.err
+#SBATCH --output=logs/preprocessing/phase_1_1_5_2/ppv2_%j.out
+#SBATCH --error=logs/preprocessing/phase_1_1_5_2/ppv2_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -29,35 +29,31 @@ echo "Running on node: $(hostname)"
 
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 
-# binary split
 TRAIN_SHP="./outputs/splits_binary/valid_points_train.shp"
 VAL_SHP="./outputs/splits_binary/valid_points_val.shp"
 
-# phase outputs
-PHASE1_OUT="./outputs/phase1_lejepa_cpu_binary_preprocess"
-PHASE1_5_OUT="./outputs/phase1_5_lejepa_cpu_binary_preprocess"
-PHASE2_OUT="./outputs/phase2_binary_shihuahuaco_preprocess"
-PHASE2_MULTI_OUT="./outputs/phase2_binary_shihuahuaco_multi_preprocess"
-EVAL_OUT="./outputs/eval_binary_classifier_val_preprocess"
+PHASE1_OUT="./outputs/phase1_lejepa_cpu_binary_preprocess_new"
+PHASE1_5_OUT="./outputs/phase1_5_lejepa_cpu_binary_preprocess_new"
+PHASE2_OUT="./outputs/phase2_binary_shihuahuaco_preprocess_new"
+PHASE2_MULTI_OUT="./outputs/phase2_binary_shihuahuaco_multi_preprocess_new"
+EVAL_OUT="./outputs/eval_binary_classifier_val_preprocess_new"
 
 # ------------------------------------------------------------
 # Sanity checks
 # ------------------------------------------------------------
 
 echo "Checking required inputs..."
-
 test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
-test -f "$TRAIN_SHP" || { echo "Missing train shapefile: $TRAIN_SHP"; exit 1; }
-test -f "$VAL_SHP" || { echo "Missing validation shapefile: $VAL_SHP"; exit 1; }
-
+test -f "$TRAIN_SHP" || { echo "Missing train shp: $TRAIN_SHP"; exit 1; }
+test -f "$VAL_SHP" || { echo "Missing val shp: $VAL_SHP"; exit 1; }
 echo "All required inputs found."
 
 # ------------------------------------------------------------
-# Phase 1: SSL pretraining (CPU, LeJEPA backbone)
+# Phase 1
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 1: SSL encoder training (binary experiment base encoder)"
+echo "PHASE 1: SSL encoder training"
 echo "============================================================"
 
 python train_encoder.py \
@@ -79,7 +75,7 @@ python train_encoder.py \
 echo "[DONE] Phase 1"
 
 # ------------------------------------------------------------
-# Phase 1.5: supervised fine-tuning for binary classification
+# Phase 1.5
 # ------------------------------------------------------------
 
 echo "============================================================"
@@ -112,11 +108,11 @@ python train_supervised_encoder.py \
 echo "[DONE] Phase 1.5"
 
 # ------------------------------------------------------------
-# Optional quality check for binary classifier head
+# Optional classifier validation
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "CHECK: classifier head validation performance"
+echo "CHECK: classifier head validation"
 echo "============================================================"
 
 python eval_classifier_head.py \
@@ -142,14 +138,14 @@ python tune_binary_threshold.py \
   --positive_label 1 \
   --output_csv "$EVAL_OUT/threshold_tuning.csv"
 
-echo "[DONE] classifier eval + threshold tuning"
+echo "[DONE] classifier validation"
 
 # ------------------------------------------------------------
-# Phase 2A: extract embeddings using the Phase 1.5 encoder
+# Phase 2A: extract embeddings
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 2A: extract GT embeddings (binary, train split)"
+echo "PHASE 2A: extract GT embeddings"
 echo "============================================================"
 
 python extract_gt_embeddings.py \
@@ -173,7 +169,7 @@ python extract_gt_embeddings.py \
 echo "[DONE] embedding extraction"
 
 # ------------------------------------------------------------
-# Phase 2B: build standard binary prototypes
+# Phase 2B: standard prototypes
 # ------------------------------------------------------------
 
 echo "============================================================"
@@ -203,11 +199,11 @@ python build_prototypes.py \
 echo "[DONE] standard prototypes"
 
 # ------------------------------------------------------------
-# Phase 2C: optional multi-prototypes for binary experiment
+# Phase 2C: optional multi-prototypes
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 2C: build multi-prototypes (optional binary ablation)"
+echo "PHASE 2C: build multi-prototypes"
 echo "============================================================"
 
 python build_multi_prototypes.py \
@@ -221,11 +217,11 @@ python build_multi_prototypes.py \
 echo "[DONE] multi-prototypes"
 
 # ------------------------------------------------------------
-# Final quick summary
+# Final summary
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PIPELINE COMPLETED"
+echo "PHASE 1 + 1.5 + 2 COMPLETED"
 echo "============================================================"
 echo "Phase 1 output        : $PHASE1_OUT"
 echo "Phase 1.5 output      : $PHASE1_5_OUT"
