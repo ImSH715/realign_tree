@@ -28,19 +28,19 @@ echo "Job started at $(date)"
 python run_pipeline.py \
   --encoder_ckpt "./outputs/phase1_5_lejepa_cpu_binary_preprocess/phase1_encoder_best.pth" \
   --prototypes_csv "./outputs/phase2_binary_shihuahuaco/class_prototypes_named.csv" \
-  --points_csv "Project/data/Censo_Forestal_shihuahuaco_overlap_only.csv" \
+  --points_csv "Project/data/Censo_Forestal_shihuahuaco_phase3.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "./outputs/phase3/censo_shihuahuaco_refined_gpu_1200px.csv" \
+  --output_csv "./outputs/phase3/censo_shihuahuaco_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
   --y_column "original_north" \
   --target_label_column "label" \
   --coord_type world \
-  --search_radius_px 1200 \
-  --coarse_step_px 64 \
-  --refine_radius_px 160 \
-  --refine_step_px 16\
+  --search_radius_px 900 \
+  --coarse_step_px 48 \
+  --refine_radius_px 128 \
+  --refine_step_px 16 \
   --similarity cosine \
   --alpha 1.0 \
   --beta 0.0002 \
