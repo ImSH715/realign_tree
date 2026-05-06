@@ -62,6 +62,7 @@ class Config:
     save_every: int = 1
     monitor_metric: str = "val_macro_f1"
     debug_patches: int = 32
+    image_mode: str = "rgb"
 
 
 def set_seed(seed: int):
@@ -322,10 +323,23 @@ class GTPointDataset(Dataset):
         safe_mkdir(self.debug_dir)
         rows = []
 
-        n = min(self.debug_patches, len(self.rows))
-        print(f"[INFO] Saving {n} debug patches to {self.debug_dir}")
+        by_label: Dict[str, List[int]] = {}
+        for idx, row in enumerate(self.rows):
+            label = str(row[self.label_field]).strip()
+            by_label.setdefault(label, []).append(idx)
 
-        for idx in range(n):
+        if not by_label:
+            return
+
+        per_class = max(1, int(np.ceil(self.debug_patches / len(by_label))))
+        selected = []
+        for label in sorted(by_label):
+            selected.extend(by_label[label][:per_class])
+        selected = selected[: self.debug_patches]
+
+        print(f"[INFO] Saving {len(selected)} class-balanced debug patches to {self.debug_dir}")
+
+        for idx in selected:
             row = self.rows[idx]
             label = str(row[self.label_field]).strip()
             image_path = row["_image_path"]
@@ -387,9 +401,12 @@ class GTPointDataset(Dataset):
         return x, torch.tensor(y, dtype=torch.long)
 
 
-def build_train_transform(image_size):
-    return transforms.Compose([
-        transforms.Grayscale(num_output_channels=3),
+def build_train_transform(image_size, image_mode="rgb"):
+    steps = []
+    if image_mode == "grayscale":
+        steps.append(transforms.Grayscale(num_output_channels=3))
+
+    steps.extend([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
@@ -398,16 +415,21 @@ def build_train_transform(image_size):
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
     ])
+    return transforms.Compose(steps)
 
 
-def build_eval_transform(image_size):
-    return transforms.Compose([
-        transforms.Grayscale(num_output_channels=3),
+def build_eval_transform(image_size, image_mode="rgb"):
+    steps = []
+    if image_mode == "grayscale":
+        steps.append(transforms.Grayscale(num_output_channels=3))
+
+    steps.extend([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
     ])
+    return transforms.Compose(steps)
 
 
 def forward_features(model, x):
@@ -661,6 +683,7 @@ def parse_args():
     )
 
     parser.add_argument("--debug_patches", type=int, default=32)
+    parser.add_argument("--image_mode", default="rgb", choices=["rgb", "grayscale"])
 
     parser.add_argument("--no_amp", action="store_true")
     parser.add_argument("--no_class_weights", action="store_true")
@@ -706,6 +729,7 @@ def main():
         save_every=args.save_every,
         monitor_metric=args.monitor_metric,
         debug_patches=args.debug_patches,
+        image_mode=args.image_mode,
     )
 
     set_seed(cfg.seed)
@@ -733,7 +757,7 @@ def main():
         fx_field=cfg.fx_field,
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
-        transform=build_train_transform(cfg.image_size),
+        transform=build_train_transform(cfg.image_size, cfg.image_mode),
         coord_mode=cfg.coord_mode,
         folder_to_paths=folder_to_paths,
         debug_dir=os.path.join(debug_root, "train"),
@@ -749,7 +773,7 @@ def main():
         fx_field=cfg.fx_field,
         fy_field=cfg.fy_field,
         patch_size_px=cfg.patch_size_px,
-        transform=build_eval_transform(cfg.image_size),
+        transform=build_eval_transform(cfg.image_size, cfg.image_mode),
         coord_mode=cfg.coord_mode,
         class_to_idx=train_ds.class_to_idx,
         folder_to_paths=folder_to_paths,
@@ -780,6 +804,7 @@ def main():
     print("AMP enabled:", use_amp)
     print("Class weights:", cfg.use_class_weights)
     print("Balanced sampler:", cfg.use_balanced_sampler)
+    print("Image mode:", cfg.image_mode)
     print("Debug patches:", debug_root)
     print("=" * 80)
 
