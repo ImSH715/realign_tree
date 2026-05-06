@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=21_lejepa
+#SBATCH --job-name=phase_1_15_2
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/phase_1_5/21_lejepa_%j.out
-#SBATCH --error=logs/phase_1_5/21_lejepa_%j.err
+#SBATCH --output=logs/preprocessing/p_lejepa_%j.out
+#SBATCH --error=logs/preprocessing/p_lejepa_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
