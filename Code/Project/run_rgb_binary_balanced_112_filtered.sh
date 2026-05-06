@@ -80,6 +80,7 @@ python train_supervised_encoder.py \
   --weight_decay 1e-4 \
   --freeze_encoder_epochs 0 \
   --patience 0 \
+  --save_every 0 \
   --balanced_sampler \
   --max_black_fraction 0.20 \
   --max_bright_fraction 0.35 \

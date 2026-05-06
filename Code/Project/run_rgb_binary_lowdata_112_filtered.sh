@@ -80,6 +80,7 @@ python train_supervised_encoder.py \
   --weight_decay 5e-4 \
   --freeze_encoder_epochs 5 \
   --patience 0 \
+  --save_every 0 \
   --balanced_sampler \
   --train_repeat_factor 4 \
   --label_smoothing 0.05 \
