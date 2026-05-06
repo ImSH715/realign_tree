@@ -1,13 +1,16 @@
 #!/bin/bash
 
-#SBATCH --job-name=L_11_class
-#SBATCH --mem=82G
-#SBATCH --cpus-per-task=8
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --time=90:00:00
-#SBATCH --output=logs/testing/lejepa/phase3/11_class_%j.out
-#SBATCH --error=logs/testing/lejepa/phase3/11_class_%j.err
+#SBATCH --job-name=L_gpu_11_class
+#SBATCH --partition=gpu                # Partition: gpu
+#SBATCH --qos=gpu                      # QOS: gpu
+#SBATCH --gres=gpu:1                   # Request 1 GPU
+#SBATCH --mem=82G                      # Request 82GB RAM
+#SBATCH --cpus-per-task=8              # 8 CPU cores for data loading
+#SBATCH --nodes=1                      # Single node
+#SBATCH --ntasks=1                     # Single task
+#SBATCH --time=90:00:00   
+#SBATCH --output=logs/fixed/lejepa/phase3/11_class_%j.out
+#SBATCH --error=logs/fixed/lejepa/phase3/11_class_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -25,7 +28,7 @@ python run_pipeline.py \
   --prototypes_csv "./outputs/phase2_lejepa_11/class_prototypes.csv" \
   --points_csv "./outputs/evaluation/valid_points_recovery_20m_lejepa11.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
-  --output_csv "./outputs/evaluation/valid_points_recovery_20m_lejepa11_refined.csv" \
+  --output_csv "./outputs/evaluation/valid_points_recovery_20m_lejepa11_refined_gpu.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
