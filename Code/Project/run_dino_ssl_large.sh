@@ -91,7 +91,7 @@ python train_encoder.py \
   --num_global_views 2 \
   --num_local_views 2 \
   --image_size_global 224 \
-  --image_size_local 96 \
+  --image_size_local 224 \
   --eval_batches 10 \
   --num_workers 4 \
   --tile_cache_size 16 \
