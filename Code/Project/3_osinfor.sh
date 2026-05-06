@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=osinfor
+#SBATCH --job-name=osinfor_1200
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -10,8 +10,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/osinfor/phase3_new_censo_%j.out
-#SBATCH --error=logs/osinfor/phase3_new_censo_%j.err
+#SBATCH --output=logs/osinfor/phase3_1200px_censo_%j.out
+#SBATCH --error=logs/osinfor/phase3_1200px_censo_%j.err
 
 # --- 2. Email Notification Settings ---
 #SBATCH --mail-type=END,FAIL
@@ -37,10 +37,10 @@ python run_pipeline.py \
   --y_column "original_north" \
   --target_label_column "label" \
   --coord_type world \
-  --search_radius_px 560 \
-  --coarse_step_px 32 \
-  --refine_radius_px 96 \
-  --refine_step_px 8 \
+  --search_radius_px 1200 \
+  --coarse_step_px 64 \
+  --refine_radius_px 160 \
+  --refine_step_px 16\
   --similarity cosine \
   --alpha 1.0 \
   --beta 0.0002 \
