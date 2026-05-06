@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 from train_supervised_encoder import (
     GTPointDataset, build_eval_transform, build_tif_index,
-    forward_features, infer_feature_dim
+    VALID_IMAGE_MODES, forward_features, infer_feature_dim
 )
 from src.models.checkpoint import load_encoder_from_checkpoint
 
@@ -38,7 +38,7 @@ def parse_args():
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--device", default="cpu")
-    p.add_argument("--image_mode", default="rgb", choices=["rgb", "grayscale"])
+    p.add_argument("--image_mode", default="rgb", choices=VALID_IMAGE_MODES)
     return p.parse_args()
 
 

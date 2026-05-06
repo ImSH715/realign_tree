@@ -24,9 +24,14 @@ from tqdm import tqdm
 from src.models.checkpoint import load_encoder_from_checkpoint
 
 
+VALID_IMAGE_MODES = ["rgb", "grayscale", "rgb_no_green", "rgb_green_mean", "rgb_green_dropout"]
+IMAGENET_GREEN_MEAN = 0.456
+
+
 @dataclass
 class Config:
     init_ckpt: str
+    init_head_ckpt: str
     train_shp: str
     val_shp: str
     imagery_root: str
@@ -448,6 +453,16 @@ def build_train_transform(image_size, image_mode="rgb"):
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
         transforms.ColorJitter(brightness=0.08, contrast=0.08, saturation=0.05, hue=0.01),
+    ])
+
+    if image_mode == "rgb_green_dropout":
+        steps.append(transforms.RandomApply([transforms.Lambda(mute_green_to_mean)], p=0.5))
+    elif image_mode == "rgb_no_green":
+        steps.append(transforms.Lambda(mute_green_to_zero))
+    elif image_mode == "rgb_green_mean":
+        steps.append(transforms.Lambda(mute_green_to_mean))
+
+    steps.extend([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
@@ -462,11 +477,33 @@ def build_eval_transform(image_size, image_mode="rgb"):
 
     steps.extend([
         transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.BICUBIC),
+    ])
+
+    if image_mode == "rgb_green_dropout":
+        steps.append(transforms.Lambda(mute_green_to_mean))
+    elif image_mode == "rgb_no_green":
+        steps.append(transforms.Lambda(mute_green_to_zero))
+    elif image_mode == "rgb_green_mean":
+        steps.append(transforms.Lambda(mute_green_to_mean))
+
+    steps.extend([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
     ])
     return transforms.Compose(steps)
+
+
+def mute_green_to_zero(img):
+    arr = np.array(img.convert("RGB"), copy=True)
+    arr[:, :, 1] = 0
+    return Image.fromarray(arr)
+
+
+def mute_green_to_mean(img):
+    arr = np.array(img.convert("RGB"), copy=True)
+    arr[:, :, 1] = int(round(IMAGENET_GREEN_MEAN * 255))
+    return Image.fromarray(arr)
 
 
 def forward_features(model, x):
@@ -684,6 +721,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Phase 1.5 supervised fine-tuning")
 
     parser.add_argument("--init_ckpt", required=True)
+    parser.add_argument("--init_head_ckpt", default="")
     parser.add_argument("--train_shp", required=True)
     parser.add_argument("--val_shp", required=True)
     parser.add_argument("--imagery_root", required=True)
@@ -720,7 +758,7 @@ def parse_args():
     )
 
     parser.add_argument("--debug_patches", type=int, default=32)
-    parser.add_argument("--image_mode", default="rgb", choices=["rgb", "grayscale"])
+    parser.add_argument("--image_mode", default="rgb", choices=VALID_IMAGE_MODES)
     parser.add_argument("--max_black_fraction", type=float, default=1.0)
     parser.add_argument("--max_bright_fraction", type=float, default=1.0)
     parser.add_argument("--train_repeat_factor", type=int, default=1)
@@ -742,6 +780,7 @@ def main():
 
     cfg = Config(
         init_ckpt=args.init_ckpt,
+        init_head_ckpt=args.init_head_ckpt,
         train_shp=args.train_shp,
         val_shp=args.val_shp,
         imagery_root=args.imagery_root,
@@ -885,6 +924,21 @@ def main():
 
     feat_dim = infer_feature_dim(model, device, cfg.image_size)
     head = nn.Linear(feat_dim, len(train_ds.classes)).to(device)
+
+    if cfg.init_head_ckpt:
+        head_ckpt = torch.load(cfg.init_head_ckpt, map_location=device)
+        head_state = head_ckpt.get("head_state_dict", head_ckpt) if isinstance(head_ckpt, dict) else head_ckpt
+        missing, unexpected = head.load_state_dict(head_state, strict=False)
+        print(f"Loaded initial classifier head: {cfg.init_head_ckpt}")
+        if isinstance(head_ckpt, dict):
+            if "classes" in head_ckpt and list(head_ckpt["classes"]) != list(train_ds.classes):
+                print(f"[WARN] Head checkpoint classes differ from current classes: {head_ckpt['classes']} vs {train_ds.classes}")
+            if "feat_dim" in head_ckpt and int(head_ckpt["feat_dim"]) != int(feat_dim):
+                print(f"[WARN] Head checkpoint feat_dim differs from current feat_dim: {head_ckpt['feat_dim']} vs {feat_dim}")
+        if missing:
+            print(f"[WARN] Missing keys while loading classifier head: {missing}")
+        if unexpected:
+            print(f"[WARN] Unexpected keys while loading classifier head: {unexpected}")
 
     if cfg.use_class_weights:
         class_weights = compute_class_weights(train_ds, len(train_ds.classes), device)

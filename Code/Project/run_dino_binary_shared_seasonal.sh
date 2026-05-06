@@ -48,6 +48,16 @@ TRAIN_REPEAT_FACTOR="${TRAIN_REPEAT_FACTOR:-2}"
 LABEL_SMOOTHING="${LABEL_SMOOTHING:-0.05}"
 LR_ENCODER="${LR_ENCODER:-1e-6}"
 LR_HEAD="${LR_HEAD:-1e-4}"
+SUPERVISED_INIT_DIR="${SUPERVISED_INIT_DIR:-}"
+SUPERVISED_INIT_NAME="${SUPERVISED_INIT_NAME:-best}"
+TRAIN_IMAGE_MODE="${TRAIN_IMAGE_MODE:-rgb}"
+if [ -z "${EVAL_IMAGE_MODE+x}" ]; then
+  if [ "$TRAIN_IMAGE_MODE" = "rgb_green_dropout" ]; then
+    EVAL_IMAGE_MODE="rgb"
+  else
+    EVAL_IMAGE_MODE="$TRAIN_IMAGE_MODE"
+  fi
+fi
 
 TRAIN_OUT_NAME="binary_dino_shared_seasonal_rgb_balanced_cuda${RUN_TAG}"
 EVAL_OUT_NAME="phase2_classifier_binary_dino_shared_seasonal_rgb_balanced_cuda${RUN_TAG}"
@@ -68,15 +78,30 @@ ensure_output_link() {
 ensure_output_link "$TRAIN_OUT_NAME"
 ensure_output_link "$EVAL_OUT_NAME"
 
-PHASE1_DIR="./outputs/phase1_dino_ssl_shared_seasonal"
-if [ -f "$PHASE1_DIR/phase1_encoder_best.pth" ]; then
-  INIT_CKPT="$PHASE1_DIR/phase1_encoder_best.pth"
-elif [ -f "$PHASE1_DIR/phase1_encoder_last.pth" ]; then
-  INIT_CKPT="$PHASE1_DIR/phase1_encoder_last.pth"
+INIT_HEAD_ARGS=()
+
+if [ -n "$SUPERVISED_INIT_DIR" ]; then
+  if [ ! -f "$SUPERVISED_INIT_DIR/phase1_encoder_${SUPERVISED_INIT_NAME}.pth" ]; then
+    echo "Missing supervised encoder checkpoint: $SUPERVISED_INIT_DIR/phase1_encoder_${SUPERVISED_INIT_NAME}.pth"
+    exit 1
+  fi
+  if [ ! -f "$SUPERVISED_INIT_DIR/classifier_head_${SUPERVISED_INIT_NAME}.pth" ]; then
+    echo "Missing supervised classifier head checkpoint: $SUPERVISED_INIT_DIR/classifier_head_${SUPERVISED_INIT_NAME}.pth"
+    exit 1
+  fi
+  INIT_CKPT="$SUPERVISED_INIT_DIR/phase1_encoder_${SUPERVISED_INIT_NAME}.pth"
+  INIT_HEAD_ARGS=(--init_head_ckpt "$SUPERVISED_INIT_DIR/classifier_head_${SUPERVISED_INIT_NAME}.pth")
 else
-  echo "Missing DINO SSL checkpoint under: $PHASE1_DIR"
-  echo "Run run_dino_ssl_shared_seasonal.sh first."
-  exit 1
+  PHASE1_DIR="./outputs/phase1_dino_ssl_shared_seasonal"
+  if [ -f "$PHASE1_DIR/phase1_encoder_best.pth" ]; then
+    INIT_CKPT="$PHASE1_DIR/phase1_encoder_best.pth"
+  elif [ -f "$PHASE1_DIR/phase1_encoder_last.pth" ]; then
+    INIT_CKPT="$PHASE1_DIR/phase1_encoder_last.pth"
+  else
+    echo "Missing DINO SSL checkpoint under: $PHASE1_DIR"
+    echo "Run run_dino_ssl_shared_seasonal.sh first."
+    exit 1
+  fi
 fi
 
 IMAGERY_ROOT="/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
@@ -87,11 +112,16 @@ TRAIN_OUT="./outputs/$TRAIN_OUT_NAME"
 EVAL_OUT="./outputs/$EVAL_OUT_NAME"
 
 echo "Using DINO init checkpoint: $INIT_CKPT"
+if [ -n "$SUPERVISED_INIT_DIR" ]; then
+  echo "Using supervised head : $SUPERVISED_INIT_DIR/classifier_head_${SUPERVISED_INIT_NAME}.pth"
+fi
 echo "Run tag               : ${RUN_TAG:-<none>}"
 echo "Fine-tune epochs      : $EPOCHS"
 echo "Freeze encoder epochs : $FREEZE_ENCODER_EPOCHS"
 echo "Train repeat factor   : $TRAIN_REPEAT_FACTOR"
 echo "Label smoothing       : $LABEL_SMOOTHING"
+echo "Train image mode      : $TRAIN_IMAGE_MODE"
+echo "Eval image mode       : $EVAL_IMAGE_MODE"
 echo "Checking required inputs..."
 test -f "$TRAIN_SHP" || { echo "Missing train shapefile: $TRAIN_SHP"; exit 1; }
 test -f "$VAL_SHP" || { echo "Missing validation shapefile: $VAL_SHP"; exit 1; }
@@ -104,6 +134,7 @@ echo "============================================================"
 
 python train_supervised_encoder.py \
   --init_ckpt "$INIT_CKPT" \
+  "${INIT_HEAD_ARGS[@]}" \
   --train_shp "$TRAIN_SHP" \
   --val_shp "$VAL_SHP" \
   --imagery_root "$IMAGERY_ROOT" \
@@ -114,7 +145,7 @@ python train_supervised_encoder.py \
   --fx_field fx \
   --fy_field fy \
   --coord_mode auto \
-  --image_mode rgb \
+  --image_mode "$TRAIN_IMAGE_MODE" \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
@@ -151,7 +182,7 @@ python eval_classifier_head.py \
   --fx_field fx \
   --fy_field fy \
   --coord_mode auto \
-  --image_mode rgb \
+  --image_mode "$EVAL_IMAGE_MODE" \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 16 \
