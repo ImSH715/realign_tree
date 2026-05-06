@@ -1,13 +1,16 @@
 #!/bin/bash
 
-#SBATCH --job-name=ppv2_phase_1
+#SBATCH --job-name=gpu_ppv2_phase_1
+#SBATCH --partition=gpu-h100
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/preprocessing/phase_1_1_5_2/ppv2_%j.out
-#SBATCH --error=logs/preprocessing/phase_1_1_5_2/ppv2_%j.err
+#SBATCH --output=logs/preprocessing/phase_1_1_5_2/gpu_ppv2_%j.out
+#SBATCH --error=logs/preprocessing/phase_1_1_5_2/gpu_ppv2_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
