@@ -39,6 +39,8 @@ def parse_args():
     p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--device", default="cpu")
     p.add_argument("--image_mode", default="rgb", choices=VALID_IMAGE_MODES)
+    p.add_argument("--max_black_fraction", type=float, default=1.0)
+    p.add_argument("--max_bright_fraction", type=float, default=1.0)
     return p.parse_args()
 
 
@@ -116,6 +118,8 @@ def main():
         class_to_idx=class_to_idx,
         folder_to_paths=folder_to_paths,
         debug_patches=0,
+        max_black_fraction=args.max_black_fraction,
+        max_bright_fraction=args.max_bright_fraction,
     )
 
     loader = DataLoader(

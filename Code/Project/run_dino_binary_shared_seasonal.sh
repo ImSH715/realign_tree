@@ -185,6 +185,8 @@ python eval_classifier_head.py \
   --image_mode "$EVAL_IMAGE_MODE" \
   --image_size 224 \
   --patch_size_px 224 \
+  --max_black_fraction 0.20 \
+  --max_bright_fraction 0.35 \
   --batch_size 16 \
   --num_workers 4 \
   --device cuda
