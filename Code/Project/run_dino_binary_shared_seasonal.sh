@@ -41,6 +41,17 @@ echo "============================================================"
 SCRATCH_OUT_ROOT="/mnt/parscratch/users/aca21jo/realign_outputs"
 mkdir -p "$SCRATCH_OUT_ROOT"
 
+RUN_TAG="${RUN_TAG:-}"
+EPOCHS="${EPOCHS:-40}"
+FREEZE_ENCODER_EPOCHS="${FREEZE_ENCODER_EPOCHS:-10}"
+TRAIN_REPEAT_FACTOR="${TRAIN_REPEAT_FACTOR:-2}"
+LABEL_SMOOTHING="${LABEL_SMOOTHING:-0.05}"
+LR_ENCODER="${LR_ENCODER:-1e-6}"
+LR_HEAD="${LR_HEAD:-1e-4}"
+
+TRAIN_OUT_NAME="binary_dino_shared_seasonal_rgb_balanced_cuda${RUN_TAG}"
+EVAL_OUT_NAME="phase2_classifier_binary_dino_shared_seasonal_rgb_balanced_cuda${RUN_TAG}"
+
 ensure_output_link() {
   local name="$1"
   local abs="$SCRATCH_OUT_ROOT/$name"
@@ -54,8 +65,8 @@ ensure_output_link() {
   ln -sfn "$abs" "$link"
 }
 
-ensure_output_link "binary_dino_shared_seasonal_rgb_balanced_cuda"
-ensure_output_link "phase2_classifier_binary_dino_shared_seasonal_rgb_balanced_cuda"
+ensure_output_link "$TRAIN_OUT_NAME"
+ensure_output_link "$EVAL_OUT_NAME"
 
 PHASE1_DIR="./outputs/phase1_dino_ssl_shared_seasonal"
 if [ -f "$PHASE1_DIR/phase1_encoder_best.pth" ]; then
@@ -72,10 +83,15 @@ IMAGERY_ROOT="/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosa
 TRAIN_SHP="./outputs/splits_binary/valid_points_train.shp"
 VAL_SHP="./outputs/splits_binary/valid_points_val.shp"
 
-TRAIN_OUT="./outputs/binary_dino_shared_seasonal_rgb_balanced_cuda"
-EVAL_OUT="./outputs/phase2_classifier_binary_dino_shared_seasonal_rgb_balanced_cuda"
+TRAIN_OUT="./outputs/$TRAIN_OUT_NAME"
+EVAL_OUT="./outputs/$EVAL_OUT_NAME"
 
 echo "Using DINO init checkpoint: $INIT_CKPT"
+echo "Run tag               : ${RUN_TAG:-<none>}"
+echo "Fine-tune epochs      : $EPOCHS"
+echo "Freeze encoder epochs : $FREEZE_ENCODER_EPOCHS"
+echo "Train repeat factor   : $TRAIN_REPEAT_FACTOR"
+echo "Label smoothing       : $LABEL_SMOOTHING"
 echo "Checking required inputs..."
 test -f "$TRAIN_SHP" || { echo "Missing train shapefile: $TRAIN_SHP"; exit 1; }
 test -f "$VAL_SHP" || { echo "Missing validation shapefile: $VAL_SHP"; exit 1; }
@@ -102,16 +118,16 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 40 \
-  --lr_encoder 1e-6 \
-  --lr_head 1e-4 \
+  --epochs "$EPOCHS" \
+  --lr_encoder "$LR_ENCODER" \
+  --lr_head "$LR_HEAD" \
   --weight_decay 5e-4 \
-  --freeze_encoder_epochs 10 \
+  --freeze_encoder_epochs "$FREEZE_ENCODER_EPOCHS" \
   --patience 0 \
   --save_every 0 \
   --balanced_sampler \
-  --train_repeat_factor 2 \
-  --label_smoothing 0.05 \
+  --train_repeat_factor "$TRAIN_REPEAT_FACTOR" \
+  --label_smoothing "$LABEL_SMOOTHING" \
   --max_black_fraction 0.20 \
   --max_bright_fraction 0.35 \
   --debug_patches 80 \
