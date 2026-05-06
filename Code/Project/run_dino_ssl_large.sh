@@ -56,8 +56,11 @@ TRAIN_ROOTS=(
   "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 )
 
-# Add extra unlabeled roots here if they exist on Stanage.
+# Extra unlabeled orthomosaic roots. These are added only if they exist.
+# Prefer orthomosaics over raw photographs so SSL stays close to downstream imagery.
 OPTIONAL_ROOTS=(
+  "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
+  "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
   "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/02. Non-curated"
   "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/non_curated"
   "/mnt/parscratch/users/aca21jo/2025_Forge/non_curated"
