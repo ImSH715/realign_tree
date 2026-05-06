@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
+from PIL import Image
 
 
 def parse_args():
@@ -12,6 +13,7 @@ def parse_args():
     p.add_argument("--output_html", default=None)
     p.add_argument("--thumb_size", type=int, default=180)
     p.add_argument("--max_per_class", type=int, default=80)
+    p.add_argument("--no_crosshair", action="store_true")
     return p.parse_args()
 
 
@@ -37,6 +39,37 @@ def resolve_patch_path(raw_path, debug_dir):
         return name_path
 
     return cwd_path
+
+
+def patch_quality(path):
+    metrics = {
+        "black_fraction": None,
+        "bright_fraction": None,
+        "flags": [],
+    }
+    try:
+        img = Image.open(path).convert("RGB")
+        pixels = list(img.getdata())
+    except Exception as e:
+        metrics["flags"].append(f"unreadable: {e}")
+        return metrics
+
+    if not pixels:
+        metrics["flags"].append("empty")
+        return metrics
+
+    n = len(pixels)
+    black = sum(1 for r, g, b in pixels if max(r, g, b) <= 5)
+    bright = sum(1 for r, g, b in pixels if min(r, g, b) >= 245)
+    metrics["black_fraction"] = black / n
+    metrics["bright_fraction"] = bright / n
+
+    if metrics["black_fraction"] >= 0.25:
+        metrics["flags"].append("high black/no-data")
+    if metrics["bright_fraction"] >= 0.25:
+        metrics["flags"].append("high bright/washed")
+
+    return metrics
 
 
 def main():
@@ -70,12 +103,23 @@ def main():
                 f"px={row.get('pixel_x', '')}",
                 f"py={row.get('pixel_y', '')}",
             ]
+            quality = patch_quality(patch_path)
+            if quality["black_fraction"] is not None:
+                title_bits.append(f"black={quality['black_fraction']:.3f}")
+                title_bits.append(f"bright={quality['bright_fraction']:.3f}")
+            if quality["flags"]:
+                title_bits.append("flags=" + "; ".join(quality["flags"]))
             title = html.escape(" | ".join(str(x) for x in title_bits))
             caption = html.escape(f"{row.get('idx', '')} - {row.get('folder', '')}")
+            flag_html = ""
+            if quality["flags"]:
+                flag_html = '<div class="flag">' + html.escape(", ".join(quality["flags"])) + "</div>"
+            crosshair_class = "" if args.no_crosshair else " with-crosshair"
             rows.append(
                 f'<figure title="{title}">'
-                f'<img src="{html.escape(src)}" loading="lazy" />'
+                f'<div class="thumb{crosshair_class}"><img src="{html.escape(src)}" loading="lazy" /></div>'
                 f"<figcaption>{caption}</figcaption>"
+                f"{flag_html}"
                 "</figure>"
             )
         rows.append("</div>")
@@ -108,6 +152,35 @@ def main():
       border: 1px solid #d7dbe3;
       border-radius: 6px;
     }}
+    .thumb {{
+      position: relative;
+    }}
+    .thumb.with-crosshair::before,
+    .thumb.with-crosshair::after {{
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 2;
+    }}
+    .thumb.with-crosshair::before {{
+      width: 22px;
+      height: 22px;
+      border: 2px solid #ff2d55;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px white;
+    }}
+    .thumb.with-crosshair::after {{
+      width: 34px;
+      height: 34px;
+      background:
+        linear-gradient(#ff2d55, #ff2d55) center / 34px 2px no-repeat,
+        linear-gradient(#ff2d55, #ff2d55) center / 2px 34px no-repeat;
+      filter: drop-shadow(0 0 1px white);
+      opacity: 0.9;
+    }}
     img {{
       width: 100%;
       aspect-ratio: 1;
@@ -123,6 +196,12 @@ def main():
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }}
+    .flag {{
+      margin-top: 4px;
+      color: #b42318;
+      font-size: 12px;
+      font-weight: bold;
     }}
   </style>
 </head>
