@@ -1,0 +1,1603 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Thu 30 Apr 02:08:23 BST 2026
+Running on node: node308.pri.stanage.alces.network
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 788
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/phase1_5_resnet50_21/debug_patches/train
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 169
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/phase1_5_resnet50_21/debug_patches/val
+================================================================================
+Phase 1.5 supervised fine-tuning setup
+Classes: ['Almendro', 'Ana caspi', 'AzÃºcar huayo', 'Caoba', 'Capirona', 'Catahua', 'Catuaba', 'Cedro', 'Copaiba', 'Cumala', 'Estoraque', 'Guacamayo caspi', 'Huayruro', 'Huimba', 'Ishpingo', 'Lupuna', 'Mashonaste', 'Palo baston', 'Pashaco', 'Quillobordon', 'Shihuahuaco', 'Tahuari', 'Yacushapana']
+Train samples: 788
+Val samples: 169
+Coord mode: auto
+AMP enabled: False
+Class weights: True
+Balanced sampler: False
+Debug patches: ./outputs/phase1_5_resnet50_21/debug_patches
+================================================================================
+Class weights: [0.4027143716812134, 0.10067859292030334, 0.21195493638515472, 0.42390987277030945, 0.2876531183719635, 0.15489014983177185, 0.8054287433624268, 2.684762477874756, 0.10884171724319458, 0.23689080774784088, 0.2013571858406067, 0.6195605993270874, 0.0856839045882225, 1.6108574867248535, 0.2237301915884018, 0.10067859292030334, 0.42390987277030945, 1.150612473487854, 4.027143478393555, 0.6195605993270874, 0.08135643601417542, 8.05428695678711, 0.38353750109672546]
+[VAL epoch 1] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 1] Pred counts by index: {20: 97, 15: 29, 10: 7, 1: 9, 12: 12, 8: 5, 6: 5, 14: 2, 5: 3}
+[VAL epoch 1] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 1] Pred counts by class:
+  01 Ana caspi: 9
+  05 Catahua: 3
+  06 Catuaba: 5
+  08 Copaiba: 5
+  10 Estoraque: 7
+  12 Huayruro: 12
+  14 Ishpingo: 2
+  15 Lupuna: 29
+  20 Shihuahuaco: 97
+Epoch 001 | frozen=1 | train loss 3.1105 acc 0.1003 macro_f1 0.0318 weighted_f1 0.0636 | val loss 3.0722 acc 0.1006 macro_f1 0.0340 weighted_f1 0.0786
+[INFO] Saved best checkpoint at epoch 1: val_macro_f1=0.033960
+[VAL epoch 2] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 2] Pred counts by index: {10: 10, 20: 50, 1: 38, 5: 12, 14: 1, 15: 38, 12: 19, 9: 1}
+[VAL epoch 2] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 2] Pred counts by class:
+  01 Ana caspi: 38
+  05 Catahua: 12
+  09 Cumala: 1
+  10 Estoraque: 10
+  12 Huayruro: 19
+  14 Ishpingo: 1
+  15 Lupuna: 38
+  20 Shihuahuaco: 50
+Epoch 002 | frozen=1 | train loss 3.0646 acc 0.1675 macro_f1 0.0725 weighted_f1 0.1381 | val loss 3.0253 acc 0.1775 macro_f1 0.0626 weighted_f1 0.1323
+[INFO] Saved best checkpoint at epoch 2: val_macro_f1=0.062639
+[VAL epoch 3] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 3] Pred counts by index: {15: 72, 20: 22, 1: 19, 12: 37, 10: 6, 8: 6, 2: 5, 5: 2}
+[VAL epoch 3] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 3] Pred counts by class:
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 5
+  05 Catahua: 2
+  08 Copaiba: 6
+  10 Estoraque: 6
+  12 Huayruro: 37
+  15 Lupuna: 72
+  20 Shihuahuaco: 22
+Epoch 003 | frozen=1 | train loss 3.0359 acc 0.2208 macro_f1 0.0782 weighted_f1 0.1664 | val loss 3.0130 acc 0.2249 macro_f1 0.0782 weighted_f1 0.1584
+[INFO] Saved best checkpoint at epoch 3: val_macro_f1=0.078196
+[VAL epoch 4] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 4] Pred counts by index: {10: 4, 5: 6, 15: 59, 14: 1, 1: 19, 20: 24, 8: 11, 12: 35, 9: 4, 2: 6}
+[VAL epoch 4] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 4] Pred counts by class:
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 6
+  05 Catahua: 6
+  08 Copaiba: 11
+  09 Cumala: 4
+  10 Estoraque: 4
+  12 Huayruro: 35
+  14 Ishpingo: 1
+  15 Lupuna: 59
+  20 Shihuahuaco: 24
+Epoch 004 | frozen=1 | train loss 3.0282 acc 0.2322 macro_f1 0.0877 weighted_f1 0.1852 | val loss 2.9847 acc 0.2367 macro_f1 0.0963 weighted_f1 0.1836
+[INFO] Saved best checkpoint at epoch 4: val_macro_f1=0.096275
+[VAL epoch 5] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 5] Pred counts by index: {12: 53, 5: 8, 1: 15, 14: 3, 15: 50, 20: 13, 8: 7, 10: 2, 9: 10, 2: 7, 4: 1}
+[VAL epoch 5] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 5] Pred counts by class:
+  01 Ana caspi: 15
+  02 AzÃºcar huayo: 7
+  04 Capirona: 1
+  05 Catahua: 8
+  08 Copaiba: 7
+  09 Cumala: 10
+  10 Estoraque: 2
+  12 Huayruro: 53
+  14 Ishpingo: 3
+  15 Lupuna: 50
+  20 Shihuahuaco: 13
+Epoch 005 | frozen=1 | train loss 3.0042 acc 0.2284 macro_f1 0.0935 weighted_f1 0.1890 | val loss 2.9755 acc 0.2485 macro_f1 0.0968 weighted_f1 0.1805
+[INFO] Saved best checkpoint at epoch 5: val_macro_f1=0.096754
+[VAL epoch 6] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 6] Pred counts by index: {9: 19, 5: 12, 10: 5, 14: 3, 1: 15, 20: 21, 12: 50, 8: 10, 15: 21, 22: 3, 2: 8, 4: 1, 19: 1}
+[VAL epoch 6] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 6] Pred counts by class:
+  01 Ana caspi: 15
+  02 AzÃºcar huayo: 8
+  04 Capirona: 1
+  05 Catahua: 12
+  08 Copaiba: 10
+  09 Cumala: 19
+  10 Estoraque: 5
+  12 Huayruro: 50
+  14 Ishpingo: 3
+  15 Lupuna: 21
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 3
+Epoch 006 | frozen=1 | train loss 2.9940 acc 0.2538 macro_f1 0.1110 weighted_f1 0.2085 | val loss 2.9622 acc 0.2249 macro_f1 0.1015 weighted_f1 0.1862
+[INFO] Saved best checkpoint at epoch 6: val_macro_f1=0.101452
+[VAL epoch 7] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 7] Pred counts by index: {14: 6, 5: 13, 1: 22, 15: 21, 20: 11, 12: 68, 8: 6, 22: 5, 9: 9, 2: 6, 4: 1, 19: 1}
+[VAL epoch 7] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 7] Pred counts by class:
+  01 Ana caspi: 22
+  02 AzÃºcar huayo: 6
+  04 Capirona: 1
+  05 Catahua: 13
+  08 Copaiba: 6
+  09 Cumala: 9
+  12 Huayruro: 68
+  14 Ishpingo: 6
+  15 Lupuna: 21
+  19 Quillobordon: 1
+  20 Shihuahuaco: 11
+  22 Yacushapana: 5
+Epoch 007 | frozen=1 | train loss 2.9806 acc 0.2297 macro_f1 0.0986 weighted_f1 0.1826 | val loss 2.9534 acc 0.2367 macro_f1 0.1041 weighted_f1 0.1753
+[INFO] Saved best checkpoint at epoch 7: val_macro_f1=0.104123
+[VAL epoch 8] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 8] Pred counts by index: {9: 12, 5: 12, 1: 22, 14: 3, 15: 20, 22: 9, 20: 9, 8: 9, 12: 63, 2: 8, 4: 1, 10: 1}
+[VAL epoch 8] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 8] Pred counts by class:
+  01 Ana caspi: 22
+  02 AzÃºcar huayo: 8
+  04 Capirona: 1
+  05 Catahua: 12
+  08 Copaiba: 9
+  09 Cumala: 12
+  10 Estoraque: 1
+  12 Huayruro: 63
+  14 Ishpingo: 3
+  15 Lupuna: 20
+  20 Shihuahuaco: 9
+  22 Yacushapana: 9
+Epoch 008 | frozen=1 | train loss 2.9612 acc 0.2538 macro_f1 0.1182 weighted_f1 0.2004 | val loss 2.9358 acc 0.2308 macro_f1 0.0997 weighted_f1 0.1682
+[VAL epoch 9] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 9] Pred counts by index: {14: 7, 5: 12, 1: 22, 15: 27, 20: 12, 12: 49, 8: 9, 4: 3, 22: 4, 9: 9, 10: 3, 2: 12}
+[VAL epoch 9] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 9] Pred counts by class:
+  01 Ana caspi: 22
+  02 AzÃºcar huayo: 12
+  04 Capirona: 3
+  05 Catahua: 12
+  08 Copaiba: 9
+  09 Cumala: 9
+  10 Estoraque: 3
+  12 Huayruro: 49
+  14 Ishpingo: 7
+  15 Lupuna: 27
+  20 Shihuahuaco: 12
+  22 Yacushapana: 4
+Epoch 009 | frozen=1 | train loss 2.9462 acc 0.2640 macro_f1 0.1265 weighted_f1 0.2166 | val loss 2.9279 acc 0.2426 macro_f1 0.1192 weighted_f1 0.1856
+[INFO] Saved best checkpoint at epoch 9: val_macro_f1=0.119236
+[VAL epoch 10] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 10] Pred counts by index: {14: 5, 5: 25, 1: 21, 15: 19, 20: 15, 12: 52, 8: 4, 22: 5, 9: 10, 2: 10, 4: 2, 19: 1}
+[VAL epoch 10] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 10] Pred counts by class:
+  01 Ana caspi: 21
+  02 AzÃºcar huayo: 10
+  04 Capirona: 2
+  05 Catahua: 25
+  08 Copaiba: 4
+  09 Cumala: 10
+  12 Huayruro: 52
+  14 Ishpingo: 5
+  15 Lupuna: 19
+  19 Quillobordon: 1
+  20 Shihuahuaco: 15
+  22 Yacushapana: 5
+Epoch 010 | frozen=1 | train loss 2.9299 acc 0.2881 macro_f1 0.1412 weighted_f1 0.2451 | val loss 2.9107 acc 0.2604 macro_f1 0.1210 weighted_f1 0.2003
+[INFO] Saved best checkpoint at epoch 10: val_macro_f1=0.120983
+[VAL epoch 11] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 11] Pred counts by index: {9: 18, 5: 16, 1: 25, 14: 2, 20: 21, 12: 48, 22: 3, 15: 20, 8: 3, 2: 11, 4: 1, 19: 1}
+[VAL epoch 11] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 11] Pred counts by class:
+  01 Ana caspi: 25
+  02 AzÃºcar huayo: 11
+  04 Capirona: 1
+  05 Catahua: 16
+  08 Copaiba: 3
+  09 Cumala: 18
+  12 Huayruro: 48
+  14 Ishpingo: 2
+  15 Lupuna: 20
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 3
+Epoch 011 | frozen=1 | train loss 2.9233 acc 0.2881 macro_f1 0.1285 weighted_f1 0.2404 | val loss 2.9047 acc 0.2544 macro_f1 0.1058 weighted_f1 0.1946
+[VAL epoch 12] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 12] Pred counts by index: {9: 20, 5: 22, 1: 24, 14: 4, 15: 21, 20: 17, 12: 38, 22: 5, 8: 4, 2: 11, 4: 2, 19: 1}
+[VAL epoch 12] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 12] Pred counts by class:
+  01 Ana caspi: 24
+  02 AzÃºcar huayo: 11
+  04 Capirona: 2
+  05 Catahua: 22
+  08 Copaiba: 4
+  09 Cumala: 20
+  12 Huayruro: 38
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  19 Quillobordon: 1
+  20 Shihuahuaco: 17
+  22 Yacushapana: 5
+Epoch 012 | frozen=1 | train loss 2.9047 acc 0.2766 macro_f1 0.1292 weighted_f1 0.2353 | val loss 2.9004 acc 0.2544 macro_f1 0.1189 weighted_f1 0.2041
+[VAL epoch 13] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 13] Pred counts by index: {14: 8, 15: 24, 1: 25, 5: 18, 8: 5, 20: 14, 12: 50, 22: 2, 9: 9, 2: 12, 4: 1, 19: 1}
+[VAL epoch 13] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 13] Pred counts by class:
+  01 Ana caspi: 25
+  02 AzÃºcar huayo: 12
+  04 Capirona: 1
+  05 Catahua: 18
+  08 Copaiba: 5
+  09 Cumala: 9
+  12 Huayruro: 50
+  14 Ishpingo: 8
+  15 Lupuna: 24
+  19 Quillobordon: 1
+  20 Shihuahuaco: 14
+  22 Yacushapana: 2
+Epoch 013 | frozen=0 | train loss 2.8914 acc 0.2855 macro_f1 0.1355 weighted_f1 0.2414 | val loss 2.8890 acc 0.2544 macro_f1 0.1211 weighted_f1 0.1912
+[INFO] Saved best checkpoint at epoch 13: val_macro_f1=0.121115
+[VAL epoch 14] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 14] Pred counts by index: {9: 12, 5: 13, 1: 21, 14: 5, 15: 31, 16: 1, 20: 13, 12: 51, 4: 1, 22: 5, 8: 2, 2: 13, 19: 1}
+[VAL epoch 14] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 14] Pred counts by class:
+  01 Ana caspi: 21
+  02 AzÃºcar huayo: 13
+  04 Capirona: 1
+  05 Catahua: 13
+  08 Copaiba: 2
+  09 Cumala: 12
+  12 Huayruro: 51
+  14 Ishpingo: 5
+  15 Lupuna: 31
+  16 Mashonaste: 1
+  19 Quillobordon: 1
+  20 Shihuahuaco: 13
+  22 Yacushapana: 5
+Epoch 014 | frozen=0 | train loss 2.8829 acc 0.2843 macro_f1 0.1302 weighted_f1 0.2364 | val loss 2.8824 acc 0.2544 macro_f1 0.1195 weighted_f1 0.1878
+[VAL epoch 15] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 15] Pred counts by index: {14: 7, 5: 19, 1: 20, 9: 23, 2: 15, 20: 9, 12: 44, 8: 5, 15: 17, 22: 6, 4: 2, 19: 2}
+[VAL epoch 15] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 15] Pred counts by class:
+  01 Ana caspi: 20
+  02 AzÃºcar huayo: 15
+  04 Capirona: 2
+  05 Catahua: 19
+  08 Copaiba: 5
+  09 Cumala: 23
+  12 Huayruro: 44
+  14 Ishpingo: 7
+  15 Lupuna: 17
+  19 Quillobordon: 2
+  20 Shihuahuaco: 9
+  22 Yacushapana: 6
+Epoch 015 | frozen=0 | train loss 2.8683 acc 0.3109 macro_f1 0.1635 weighted_f1 0.2719 | val loss 2.8912 acc 0.2544 macro_f1 0.1236 weighted_f1 0.2008
+[INFO] Saved best checkpoint at epoch 15: val_macro_f1=0.123567
+[VAL epoch 16] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 16] Pred counts by index: {9: 20, 5: 19, 1: 20, 14: 5, 16: 2, 20: 10, 12: 50, 15: 18, 22: 5, 8: 3, 2: 12, 4: 3, 19: 2}
+[VAL epoch 16] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 16] Pred counts by class:
+  01 Ana caspi: 20
+  02 AzÃºcar huayo: 12
+  04 Capirona: 3
+  05 Catahua: 19
+  08 Copaiba: 3
+  09 Cumala: 20
+  12 Huayruro: 50
+  14 Ishpingo: 5
+  15 Lupuna: 18
+  16 Mashonaste: 2
+  19 Quillobordon: 2
+  20 Shihuahuaco: 10
+  22 Yacushapana: 5
+Epoch 016 | frozen=0 | train loss 2.8597 acc 0.2944 macro_f1 0.1512 weighted_f1 0.2528 | val loss 2.8652 acc 0.2722 macro_f1 0.1314 weighted_f1 0.2115
+[INFO] Saved best checkpoint at epoch 16: val_macro_f1=0.131399
+[VAL epoch 17] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 17] Pred counts by index: {12: 48, 5: 10, 1: 14, 14: 6, 9: 17, 2: 18, 20: 14, 8: 3, 10: 4, 4: 4, 22: 7, 16: 2, 15: 19, 19: 3}
+[VAL epoch 17] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 17] Pred counts by class:
+  01 Ana caspi: 14
+  02 AzÃºcar huayo: 18
+  04 Capirona: 4
+  05 Catahua: 10
+  08 Copaiba: 3
+  09 Cumala: 17
+  10 Estoraque: 4
+  12 Huayruro: 48
+  14 Ishpingo: 6
+  15 Lupuna: 19
+  16 Mashonaste: 2
+  19 Quillobordon: 3
+  20 Shihuahuaco: 14
+  22 Yacushapana: 7
+Epoch 017 | frozen=0 | train loss 2.8496 acc 0.3033 macro_f1 0.1730 weighted_f1 0.2620 | val loss 2.8703 acc 0.2722 macro_f1 0.1366 weighted_f1 0.2266
+[INFO] Saved best checkpoint at epoch 17: val_macro_f1=0.136554
+[VAL epoch 18] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 18] Pred counts by index: {14: 7, 5: 24, 1: 17, 16: 2, 20: 13, 12: 40, 8: 4, 22: 6, 9: 19, 15: 18, 2: 12, 4: 5, 19: 2}
+[VAL epoch 18] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 18] Pred counts by class:
+  01 Ana caspi: 17
+  02 AzÃºcar huayo: 12
+  04 Capirona: 5
+  05 Catahua: 24
+  08 Copaiba: 4
+  09 Cumala: 19
+  12 Huayruro: 40
+  14 Ishpingo: 7
+  15 Lupuna: 18
+  16 Mashonaste: 2
+  19 Quillobordon: 2
+  20 Shihuahuaco: 13
+  22 Yacushapana: 6
+Epoch 018 | frozen=0 | train loss 2.8296 acc 0.3020 macro_f1 0.1742 weighted_f1 0.2696 | val loss 2.8477 acc 0.2722 macro_f1 0.1346 weighted_f1 0.2229
+[VAL epoch 19] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 19] Pred counts by index: {14: 6, 8: 12, 1: 12, 5: 15, 2: 16, 20: 8, 12: 35, 9: 25, 4: 4, 22: 8, 16: 4, 15: 21, 19: 2, 10: 1}
+[VAL epoch 19] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 19] Pred counts by class:
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 16
+  04 Capirona: 4
+  05 Catahua: 15
+  08 Copaiba: 12
+  09 Cumala: 25
+  10 Estoraque: 1
+  12 Huayruro: 35
+  14 Ishpingo: 6
+  15 Lupuna: 21
+  16 Mashonaste: 4
+  19 Quillobordon: 2
+  20 Shihuahuaco: 8
+  22 Yacushapana: 8
+Epoch 019 | frozen=0 | train loss 2.8067 acc 0.2957 macro_f1 0.1840 weighted_f1 0.2654 | val loss 2.8481 acc 0.2485 macro_f1 0.1267 weighted_f1 0.2093
+[VAL epoch 20] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 20] Pred counts by index: {9: 38, 8: 9, 1: 16, 5: 13, 14: 5, 12: 40, 20: 3, 4: 6, 22: 6, 15: 20, 2: 11, 19: 2}
+[VAL epoch 20] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 20] Pred counts by class:
+  01 Ana caspi: 16
+  02 AzÃºcar huayo: 11
+  04 Capirona: 6
+  05 Catahua: 13
+  08 Copaiba: 9
+  09 Cumala: 38
+  12 Huayruro: 40
+  14 Ishpingo: 5
+  15 Lupuna: 20
+  19 Quillobordon: 2
+  20 Shihuahuaco: 3
+  22 Yacushapana: 6
+Epoch 020 | frozen=0 | train loss 2.8074 acc 0.2995 macro_f1 0.1751 weighted_f1 0.2630 | val loss 2.8412 acc 0.2426 macro_f1 0.1224 weighted_f1 0.1912
+[VAL epoch 21] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 21] Pred counts by index: {9: 34, 15: 22, 1: 12, 5: 10, 14: 6, 22: 9, 20: 12, 12: 38, 8: 5, 4: 4, 2: 16, 19: 1}
+[VAL epoch 21] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 21] Pred counts by class:
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 16
+  04 Capirona: 4
+  05 Catahua: 10
+  08 Copaiba: 5
+  09 Cumala: 34
+  12 Huayruro: 38
+  14 Ishpingo: 6
+  15 Lupuna: 22
+  19 Quillobordon: 1
+  20 Shihuahuaco: 12
+  22 Yacushapana: 9
+Epoch 021 | frozen=0 | train loss 2.7809 acc 0.3033 macro_f1 0.1725 weighted_f1 0.2601 | val loss 2.8305 acc 0.2544 macro_f1 0.1301 weighted_f1 0.2211
+[VAL epoch 22] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 22] Pred counts by index: {14: 7, 5: 21, 1: 14, 15: 18, 2: 13, 20: 7, 12: 42, 8: 5, 4: 6, 22: 7, 9: 27, 19: 2}
+[VAL epoch 22] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 22] Pred counts by class:
+  01 Ana caspi: 14
+  02 AzÃºcar huayo: 13
+  04 Capirona: 6
+  05 Catahua: 21
+  08 Copaiba: 5
+  09 Cumala: 27
+  12 Huayruro: 42
+  14 Ishpingo: 7
+  15 Lupuna: 18
+  19 Quillobordon: 2
+  20 Shihuahuaco: 7
+  22 Yacushapana: 7
+Epoch 022 | frozen=0 | train loss 2.7912 acc 0.3223 macro_f1 0.1860 weighted_f1 0.2884 | val loss 2.8173 acc 0.2781 macro_f1 0.1378 weighted_f1 0.2240
+[INFO] Saved best checkpoint at epoch 22: val_macro_f1=0.137839
+[VAL epoch 23] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 23] Pred counts by index: {9: 41, 5: 14, 1: 18, 14: 5, 2: 12, 12: 35, 15: 24, 4: 6, 22: 6, 8: 4, 20: 2, 19: 2}
+[VAL epoch 23] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 23] Pred counts by class:
+  01 Ana caspi: 18
+  02 AzÃºcar huayo: 12
+  04 Capirona: 6
+  05 Catahua: 14
+  08 Copaiba: 4
+  09 Cumala: 41
+  12 Huayruro: 35
+  14 Ishpingo: 5
+  15 Lupuna: 24
+  19 Quillobordon: 2
+  20 Shihuahuaco: 2
+  22 Yacushapana: 6
+Epoch 023 | frozen=0 | train loss 2.7959 acc 0.3096 macro_f1 0.1865 weighted_f1 0.2732 | val loss 2.8200 acc 0.2722 macro_f1 0.1383 weighted_f1 0.2199
+[INFO] Saved best checkpoint at epoch 23: val_macro_f1=0.138306
+[VAL epoch 24] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 24] Pred counts by index: {14: 12, 5: 15, 1: 19, 9: 22, 2: 21, 20: 6, 12: 36, 8: 4, 4: 9, 15: 16, 22: 4, 10: 2, 19: 2, 16: 1}
+[VAL epoch 24] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 24] Pred counts by class:
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 21
+  04 Capirona: 9
+  05 Catahua: 15
+  08 Copaiba: 4
+  09 Cumala: 22
+  10 Estoraque: 2
+  12 Huayruro: 36
+  14 Ishpingo: 12
+  15 Lupuna: 16
+  16 Mashonaste: 1
+  19 Quillobordon: 2
+  20 Shihuahuaco: 6
+  22 Yacushapana: 4
+Epoch 024 | frozen=0 | train loss 2.7617 acc 0.3299 macro_f1 0.1842 weighted_f1 0.2934 | val loss 2.8440 acc 0.2544 macro_f1 0.1299 weighted_f1 0.2211
+[VAL epoch 25] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 25] Pred counts by index: {14: 7, 5: 17, 1: 17, 22: 10, 9: 29, 16: 1, 20: 6, 12: 42, 4: 10, 15: 15, 8: 1, 2: 12, 19: 2}
+[VAL epoch 25] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 25] Pred counts by class:
+  01 Ana caspi: 17
+  02 AzÃºcar huayo: 12
+  04 Capirona: 10
+  05 Catahua: 17
+  08 Copaiba: 1
+  09 Cumala: 29
+  12 Huayruro: 42
+  14 Ishpingo: 7
+  15 Lupuna: 15
+  16 Mashonaste: 1
+  19 Quillobordon: 2
+  20 Shihuahuaco: 6
+  22 Yacushapana: 10
+Epoch 025 | frozen=0 | train loss 2.7744 acc 0.3109 macro_f1 0.1876 weighted_f1 0.2772 | val loss 2.8135 acc 0.2544 macro_f1 0.1255 weighted_f1 0.2102
+[VAL epoch 26] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 26] Pred counts by index: {14: 8, 5: 12, 1: 22, 9: 28, 16: 2, 15: 27, 12: 32, 8: 4, 19: 5, 20: 7, 22: 3, 2: 12, 4: 4, 10: 3}
+[VAL epoch 26] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 26] Pred counts by class:
+  01 Ana caspi: 22
+  02 AzÃºcar huayo: 12
+  04 Capirona: 4
+  05 Catahua: 12
+  08 Copaiba: 4
+  09 Cumala: 28
+  10 Estoraque: 3
+  12 Huayruro: 32
+  14 Ishpingo: 8
+  15 Lupuna: 27
+  16 Mashonaste: 2
+  19 Quillobordon: 5
+  20 Shihuahuaco: 7
+  22 Yacushapana: 3
+Epoch 026 | frozen=0 | train loss 2.7709 acc 0.3096 macro_f1 0.1729 weighted_f1 0.2799 | val loss 2.8217 acc 0.2426 macro_f1 0.1420 weighted_f1 0.2029
+[INFO] Saved best checkpoint at epoch 26: val_macro_f1=0.141954
+[VAL epoch 27] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 27] Pred counts by index: {9: 25, 5: 21, 1: 17, 14: 5, 15: 13, 16: 1, 12: 47, 19: 3, 20: 9, 22: 6, 8: 4, 2: 13, 4: 5}
+[VAL epoch 27] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 27] Pred counts by class:
+  01 Ana caspi: 17
+  02 AzÃºcar huayo: 13
+  04 Capirona: 5
+  05 Catahua: 21
+  08 Copaiba: 4
+  09 Cumala: 25
+  12 Huayruro: 47
+  14 Ishpingo: 5
+  15 Lupuna: 13
+  16 Mashonaste: 1
+  19 Quillobordon: 3
+  20 Shihuahuaco: 9
+  22 Yacushapana: 6
+Epoch 027 | frozen=0 | train loss 2.7588 acc 0.3020 macro_f1 0.1854 weighted_f1 0.2684 | val loss 2.7964 acc 0.2722 macro_f1 0.1599 weighted_f1 0.2176
+[INFO] Saved best checkpoint at epoch 27: val_macro_f1=0.159929
+[VAL epoch 28] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 28] Pred counts by index: {14: 8, 5: 18, 1: 18, 16: 3, 20: 7, 12: 42, 8: 3, 4: 7, 9: 25, 22: 4, 15: 14, 2: 14, 19: 4, 10: 2}
+[VAL epoch 28] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 28] Pred counts by class:
+  01 Ana caspi: 18
+  02 AzÃºcar huayo: 14
+  04 Capirona: 7
+  05 Catahua: 18
+  08 Copaiba: 3
+  09 Cumala: 25
+  10 Estoraque: 2
+  12 Huayruro: 42
+  14 Ishpingo: 8
+  15 Lupuna: 14
+  16 Mashonaste: 3
+  19 Quillobordon: 4
+  20 Shihuahuaco: 7
+  22 Yacushapana: 4
+Epoch 028 | frozen=0 | train loss 2.7593 acc 0.3185 macro_f1 0.2205 weighted_f1 0.2910 | val loss 2.8107 acc 0.2722 macro_f1 0.1416 weighted_f1 0.2341
+[VAL epoch 29] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 29] Pred counts by index: {14: 6, 8: 7, 1: 12, 5: 8, 9: 28, 2: 17, 20: 9, 12: 33, 15: 20, 4: 9, 3: 1, 22: 8, 16: 5, 19: 4, 0: 2}
+[VAL epoch 29] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 29] Pred counts by class:
+  00 Almendro: 2
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 17
+  03 Caoba: 1
+  04 Capirona: 9
+  05 Catahua: 8
+  08 Copaiba: 7
+  09 Cumala: 28
+  12 Huayruro: 33
+  14 Ishpingo: 6
+  15 Lupuna: 20
+  16 Mashonaste: 5
+  19 Quillobordon: 4
+  20 Shihuahuaco: 9
+  22 Yacushapana: 8
+Epoch 029 | frozen=0 | train loss 2.7502 acc 0.3338 macro_f1 0.2212 weighted_f1 0.3013 | val loss 2.8190 acc 0.2308 macro_f1 0.1223 weighted_f1 0.1965
+[VAL epoch 30] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 30] Pred counts by index: {9: 24, 5: 19, 1: 17, 14: 5, 22: 8, 16: 4, 20: 6, 12: 45, 4: 8, 15: 15, 8: 3, 2: 12, 19: 2, 0: 1}
+[VAL epoch 30] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 30] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 17
+  02 AzÃºcar huayo: 12
+  04 Capirona: 8
+  05 Catahua: 19
+  08 Copaiba: 3
+  09 Cumala: 24
+  12 Huayruro: 45
+  14 Ishpingo: 5
+  15 Lupuna: 15
+  16 Mashonaste: 4
+  19 Quillobordon: 2
+  20 Shihuahuaco: 6
+  22 Yacushapana: 8
+Epoch 030 | frozen=0 | train loss 2.7371 acc 0.3325 macro_f1 0.1990 weighted_f1 0.2964 | val loss 2.8007 acc 0.2899 macro_f1 0.1495 weighted_f1 0.2344
+[VAL epoch 31] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 31] Pred counts by index: {14: 6, 5: 9, 1: 18, 15: 21, 16: 1, 20: 10, 12: 41, 19: 6, 4: 8, 22: 7, 9: 26, 8: 3, 2: 12, 0: 1}
+[VAL epoch 31] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 31] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 18
+  02 AzÃºcar huayo: 12
+  04 Capirona: 8
+  05 Catahua: 9
+  08 Copaiba: 3
+  09 Cumala: 26
+  12 Huayruro: 41
+  14 Ishpingo: 6
+  15 Lupuna: 21
+  16 Mashonaste: 1
+  19 Quillobordon: 6
+  20 Shihuahuaco: 10
+  22 Yacushapana: 7
+Epoch 031 | frozen=0 | train loss 2.7412 acc 0.3173 macro_f1 0.1931 weighted_f1 0.2828 | val loss 2.8006 acc 0.2485 macro_f1 0.1373 weighted_f1 0.2035
+[VAL epoch 32] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 32] Pred counts by index: {9: 23, 5: 12, 1: 16, 14: 5, 16: 3, 20: 10, 12: 47, 2: 13, 8: 5, 4: 6, 22: 6, 15: 19, 19: 3, 10: 1}
+[VAL epoch 32] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 32] Pred counts by class:
+  01 Ana caspi: 16
+  02 AzÃºcar huayo: 13
+  04 Capirona: 6
+  05 Catahua: 12
+  08 Copaiba: 5
+  09 Cumala: 23
+  10 Estoraque: 1
+  12 Huayruro: 47
+  14 Ishpingo: 5
+  15 Lupuna: 19
+  16 Mashonaste: 3
+  19 Quillobordon: 3
+  20 Shihuahuaco: 10
+  22 Yacushapana: 6
+Epoch 032 | frozen=0 | train loss 2.7462 acc 0.3185 macro_f1 0.2135 weighted_f1 0.2902 | val loss 2.7953 acc 0.2781 macro_f1 0.1390 weighted_f1 0.2323
+[VAL epoch 33] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 33] Pred counts by index: {14: 7, 5: 7, 1: 25, 22: 10, 9: 22, 16: 3, 20: 14, 12: 38, 2: 14, 8: 3, 4: 4, 15: 18, 19: 2, 0: 1, 6: 1}
+[VAL epoch 33] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 33] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 25
+  02 AzÃºcar huayo: 14
+  04 Capirona: 4
+  05 Catahua: 7
+  06 Catuaba: 1
+  08 Copaiba: 3
+  09 Cumala: 22
+  12 Huayruro: 38
+  14 Ishpingo: 7
+  15 Lupuna: 18
+  16 Mashonaste: 3
+  19 Quillobordon: 2
+  20 Shihuahuaco: 14
+  22 Yacushapana: 10
+Epoch 033 | frozen=0 | train loss 2.7419 acc 0.2906 macro_f1 0.1645 weighted_f1 0.2602 | val loss 2.8551 acc 0.2781 macro_f1 0.1675 weighted_f1 0.2442
+[INFO] Saved best checkpoint at epoch 33: val_macro_f1=0.167469
+[VAL epoch 34] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 34] Pred counts by index: {9: 30, 5: 12, 1: 12, 14: 6, 22: 10, 16: 2, 20: 9, 12: 45, 15: 17, 4: 8, 8: 3, 2: 13, 19: 2}
+[VAL epoch 34] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 34] Pred counts by class:
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 13
+  04 Capirona: 8
+  05 Catahua: 12
+  08 Copaiba: 3
+  09 Cumala: 30
+  12 Huayruro: 45
+  14 Ishpingo: 6
+  15 Lupuna: 17
+  16 Mashonaste: 2
+  19 Quillobordon: 2
+  20 Shihuahuaco: 9
+  22 Yacushapana: 10
+Epoch 034 | frozen=0 | train loss 2.7347 acc 0.3135 macro_f1 0.1858 weighted_f1 0.2794 | val loss 2.8002 acc 0.2485 macro_f1 0.1284 weighted_f1 0.2067
+[VAL epoch 35] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 35] Pred counts by index: {9: 27, 5: 10, 1: 13, 14: 6, 8: 9, 20: 8, 12: 46, 4: 7, 22: 7, 15: 17, 2: 15, 19: 4}
+[VAL epoch 35] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 35] Pred counts by class:
+  01 Ana caspi: 13
+  02 AzÃºcar huayo: 15
+  04 Capirona: 7
+  05 Catahua: 10
+  08 Copaiba: 9
+  09 Cumala: 27
+  12 Huayruro: 46
+  14 Ishpingo: 6
+  15 Lupuna: 17
+  19 Quillobordon: 4
+  20 Shihuahuaco: 8
+  22 Yacushapana: 7
+Epoch 035 | frozen=0 | train loss 2.7072 acc 0.3350 macro_f1 0.2213 weighted_f1 0.3018 | val loss 2.7971 acc 0.2840 macro_f1 0.1507 weighted_f1 0.2493
+[VAL epoch 36] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 36] Pred counts by index: {9: 26, 5: 10, 1: 13, 14: 7, 16: 4, 20: 5, 12: 42, 8: 8, 4: 7, 22: 8, 15: 12, 2: 19, 19: 4, 10: 2, 0: 1, 3: 1}
+[VAL epoch 36] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 36] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 13
+  02 AzÃºcar huayo: 19
+  03 Caoba: 1
+  04 Capirona: 7
+  05 Catahua: 10
+  08 Copaiba: 8
+  09 Cumala: 26
+  10 Estoraque: 2
+  12 Huayruro: 42
+  14 Ishpingo: 7
+  15 Lupuna: 12
+  16 Mashonaste: 4
+  19 Quillobordon: 4
+  20 Shihuahuaco: 5
+  22 Yacushapana: 8
+Epoch 036 | frozen=0 | train loss 2.7283 acc 0.3299 macro_f1 0.2169 weighted_f1 0.3002 | val loss 2.8108 acc 0.2426 macro_f1 0.1268 weighted_f1 0.2012
+[VAL epoch 37] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 37] Pred counts by index: {12: 38, 5: 13, 1: 19, 14: 5, 9: 27, 16: 2, 8: 6, 20: 6, 4: 12, 22: 7, 15: 13, 2: 13, 19: 6, 0: 1, 6: 1}
+[VAL epoch 37] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 37] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 13
+  04 Capirona: 12
+  05 Catahua: 13
+  06 Catuaba: 1
+  08 Copaiba: 6
+  09 Cumala: 27
+  12 Huayruro: 38
+  14 Ishpingo: 5
+  15 Lupuna: 13
+  16 Mashonaste: 2
+  19 Quillobordon: 6
+  20 Shihuahuaco: 6
+  22 Yacushapana: 7
+Epoch 037 | frozen=0 | train loss 2.7180 acc 0.3160 macro_f1 0.1984 weighted_f1 0.2914 | val loss 2.7888 acc 0.2604 macro_f1 0.1579 weighted_f1 0.2348
+[VAL epoch 38] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 38] Pred counts by index: {14: 7, 5: 8, 1: 19, 15: 17, 2: 20, 20: 9, 12: 32, 8: 4, 4: 10, 22: 6, 16: 3, 9: 25, 10: 3, 19: 4, 0: 2}
+[VAL epoch 38] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 38] Pred counts by class:
+  00 Almendro: 2
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 20
+  04 Capirona: 10
+  05 Catahua: 8
+  08 Copaiba: 4
+  09 Cumala: 25
+  10 Estoraque: 3
+  12 Huayruro: 32
+  14 Ishpingo: 7
+  15 Lupuna: 17
+  16 Mashonaste: 3
+  19 Quillobordon: 4
+  20 Shihuahuaco: 9
+  22 Yacushapana: 6
+Epoch 038 | frozen=0 | train loss 2.7145 acc 0.3058 macro_f1 0.1976 weighted_f1 0.2723 | val loss 2.8095 acc 0.2367 macro_f1 0.1276 weighted_f1 0.2124
+[VAL epoch 39] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 39] Pred counts by index: {9: 30, 5: 11, 1: 19, 14: 8, 16: 3, 15: 16, 12: 37, 19: 4, 20: 5, 4: 8, 22: 5, 8: 4, 2: 17, 10: 2}
+[VAL epoch 39] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 39] Pred counts by class:
+  01 Ana caspi: 19
+  02 AzÃºcar huayo: 17
+  04 Capirona: 8
+  05 Catahua: 11
+  08 Copaiba: 4
+  09 Cumala: 30
+  10 Estoraque: 2
+  12 Huayruro: 37
+  14 Ishpingo: 8
+  15 Lupuna: 16
+  16 Mashonaste: 3
+  19 Quillobordon: 4
+  20 Shihuahuaco: 5
+  22 Yacushapana: 5
+Epoch 039 | frozen=0 | train loss 2.7148 acc 0.3135 macro_f1 0.2071 weighted_f1 0.2786 | val loss 2.8077 acc 0.2604 macro_f1 0.1535 weighted_f1 0.2220
+[VAL epoch 40] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 40] Pred counts by index: {14: 7, 5: 9, 1: 21, 9: 26, 2: 13, 20: 9, 12: 38, 8: 5, 16: 5, 4: 8, 22: 5, 15: 19, 19: 2, 10: 1, 0: 1}
+[VAL epoch 40] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 40] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 21
+  02 AzÃºcar huayo: 13
+  04 Capirona: 8
+  05 Catahua: 9
+  08 Copaiba: 5
+  09 Cumala: 26
+  10 Estoraque: 1
+  12 Huayruro: 38
+  14 Ishpingo: 7
+  15 Lupuna: 19
+  16 Mashonaste: 5
+  19 Quillobordon: 2
+  20 Shihuahuaco: 9
+  22 Yacushapana: 5
+Epoch 040 | frozen=0 | train loss 2.7091 acc 0.3414 macro_f1 0.2120 weighted_f1 0.3047 | val loss 2.8051 acc 0.2663 macro_f1 0.1419 weighted_f1 0.2272
+[VAL epoch 40] True counts by index: {10: 7, 5: 15, 20: 21, 6: 4, 15: 21, 1: 12, 8: 16, 12: 20, 3: 6, 13: 1, 19: 1, 9: 7, 0: 5, 22: 4, 16: 5, 17: 3, 4: 7, 2: 8, 14: 4, 11: 2}
+[VAL epoch 40] Pred counts by index: {14: 7, 5: 9, 1: 21, 9: 26, 2: 13, 20: 9, 12: 38, 8: 5, 16: 5, 4: 8, 22: 5, 15: 19, 19: 2, 10: 1, 0: 1}
+[VAL epoch 40] True counts by class:
+  00 Almendro: 5
+  01 Ana caspi: 12
+  02 AzÃºcar huayo: 8
+  03 Caoba: 6
+  04 Capirona: 7
+  05 Catahua: 15
+  06 Catuaba: 4
+  08 Copaiba: 16
+  09 Cumala: 7
+  10 Estoraque: 7
+  11 Guacamayo caspi: 2
+  12 Huayruro: 20
+  13 Huimba: 1
+  14 Ishpingo: 4
+  15 Lupuna: 21
+  16 Mashonaste: 5
+  17 Palo baston: 3
+  19 Quillobordon: 1
+  20 Shihuahuaco: 21
+  22 Yacushapana: 4
+[VAL epoch 40] Pred counts by class:
+  00 Almendro: 1
+  01 Ana caspi: 21
+  02 AzÃºcar huayo: 13
+  04 Capirona: 8
+  05 Catahua: 9
+  08 Copaiba: 5
+  09 Cumala: 26
+  10 Estoraque: 1
+  12 Huayruro: 38
+  14 Ishpingo: 7
+  15 Lupuna: 19
+  16 Mashonaste: 5
+  19 Quillobordon: 2
+  20 Shihuahuaco: 9
+  22 Yacushapana: 5
+================================================================================
+Phase 1.5 supervised fine-tuning completed
+Best monitored metric: val_macro_f1 = 0.167469
+Best epoch: 33
+Saved best encoder: ./outputs/phase1_5_resnet50_21/phase1_encoder_best.pth
+Saved last encoder: ./outputs/phase1_5_resnet50_21/phase1_encoder_last.pth
+Elapsed: 10036.7s
+================================================================================
+Job finished at Thu 30 Apr 04:56:19 BST 2026

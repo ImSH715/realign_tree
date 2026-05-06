@@ -1,0 +1,213 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Thu 30 Apr 02:02:42 BST 2026
+Running on node: node059.pri.stanage.alces.network
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 784
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/binary_dino/debug_patches/train
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/binary_dino/debug_patches/val
+================================================================================
+Phase 1.5 supervised fine-tuning setup
+Classes: ['0', '1']
+Train samples: 784
+Val samples: 218
+Coord mode: auto
+AMP enabled: False
+Class weights: True
+Balanced sampler: False
+Debug patches: ./outputs/binary_dino/debug_patches
+================================================================================
+Class weights: [0.18622449040412903, 1.8137754201889038]
+[VAL epoch 1] True counts by index: {0: 163, 1: 55}
+[VAL epoch 1] Pred counts by index: {1: 106, 0: 112}
+[VAL epoch 1] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 1] Pred counts by class:
+  00 0: 112
+  01 1: 106
+Epoch 001 | frozen=1 | train loss 0.7459 acc 0.7436 macro_f1 0.4706 weighted_f1 0.7800 | val loss 0.7816 acc 0.4817 macro_f1 0.4436 weighted_f1 0.5157
+[INFO] Saved best checkpoint at epoch 1: val_macro_f1=0.443614
+[VAL epoch 2] True counts by index: {0: 163, 1: 55}
+[VAL epoch 2] Pred counts by index: {0: 213, 1: 5}
+[VAL epoch 2] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 2] Pred counts by class:
+  00 0: 213
+  01 1: 5
+Epoch 002 | frozen=1 | train loss 0.6850 acc 0.8265 macro_f1 0.5104 weighted_f1 0.8305 | val loss 0.6601 acc 0.7248 macro_f1 0.4202 weighted_f1 0.6284
+[VAL epoch 3] True counts by index: {0: 163, 1: 55}
+[VAL epoch 3] Pred counts by index: {0: 212, 1: 6}
+[VAL epoch 3] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 3] Pred counts by class:
+  00 0: 212
+  01 1: 6
+Epoch 003 | frozen=1 | train loss 0.6657 acc 0.8763 macro_f1 0.4867 weighted_f1 0.8506 | val loss 0.6380 acc 0.7385 macro_f1 0.4568 weighted_f1 0.6506
+[INFO] Saved best checkpoint at epoch 3: val_macro_f1=0.456787
+[VAL epoch 4] True counts by index: {0: 163, 1: 55}
+[VAL epoch 4] Pred counts by index: {0: 209, 1: 9}
+[VAL epoch 4] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 4] Pred counts by class:
+  00 0: 209
+  01 1: 9
+Epoch 004 | frozen=0 | train loss 0.6745 acc 0.8099 macro_f1 0.4899 weighted_f1 0.8187 | val loss 0.6976 acc 0.7339 macro_f1 0.4689 weighted_f1 0.6548
+[INFO] Saved best checkpoint at epoch 4: val_macro_f1=0.468918
+[VAL epoch 5] True counts by index: {0: 163, 1: 55}
+[VAL epoch 5] Pred counts by index: {0: 205, 1: 13}
+[VAL epoch 5] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 5] Pred counts by class:
+  00 0: 205
+  01 1: 13
+Epoch 005 | frozen=0 | train loss 0.6596 acc 0.8036 macro_f1 0.5430 weighted_f1 0.8238 | val loss 0.6415 acc 0.7431 macro_f1 0.5121 weighted_f1 0.6784
+[INFO] Saved best checkpoint at epoch 5: val_macro_f1=0.512148
+[VAL epoch 6] True counts by index: {0: 163, 1: 55}
+[VAL epoch 6] Pred counts by index: {0: 167, 1: 51}
+[VAL epoch 6] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 6] Pred counts by class:
+  00 0: 167
+  01 1: 51
+Epoch 006 | frozen=0 | train loss 0.6485 acc 0.7895 macro_f1 0.5125 weighted_f1 0.8116 | val loss 0.6688 acc 0.6239 macro_f1 0.4890 weighted_f1 0.6190
+[VAL epoch 7] True counts by index: {0: 163, 1: 55}
+[VAL epoch 7] Pred counts by index: {0: 197, 1: 21}
+[VAL epoch 7] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 7] Pred counts by class:
+  00 0: 197
+  01 1: 21
+Epoch 007 | frozen=0 | train loss 0.6410 acc 0.8342 macro_f1 0.5150 weighted_f1 0.8352 | val loss 0.6255 acc 0.7156 macro_f1 0.5060 weighted_f1 0.6654
+[VAL epoch 8] True counts by index: {0: 163, 1: 55}
+[VAL epoch 8] Pred counts by index: {0: 185, 1: 33}
+[VAL epoch 8] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 8] Pred counts by class:
+  00 0: 185
+  01 1: 33
+Epoch 008 | frozen=0 | train loss 0.6788 acc 0.7997 macro_f1 0.5189 weighted_f1 0.8180 | val loss 0.6332 acc 0.7156 macro_f1 0.5586 weighted_f1 0.6890
+[INFO] Saved best checkpoint at epoch 8: val_macro_f1=0.558647
+[VAL epoch 9] True counts by index: {0: 163, 1: 55}
+[VAL epoch 9] Pred counts by index: {0: 183, 1: 35}
+[VAL epoch 9] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 9] Pred counts by class:
+  00 0: 183
+  01 1: 35
+Epoch 009 | frozen=0 | train loss 0.6799 acc 0.8151 macro_f1 0.5383 weighted_f1 0.8292 | val loss 0.6332 acc 0.7156 macro_f1 0.5660 weighted_f1 0.6922
+[INFO] Saved best checkpoint at epoch 9: val_macro_f1=0.565960
+[VAL epoch 10] True counts by index: {0: 163, 1: 55}
+[VAL epoch 10] Pred counts by index: {0: 190, 1: 28}
+[VAL epoch 10] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 10] Pred counts by class:
+  00 0: 190
+  01 1: 28
+Epoch 010 | frozen=0 | train loss 0.6558 acc 0.8469 macro_f1 0.4967 weighted_f1 0.8384 | val loss 0.6424 acc 0.6927 macro_f1 0.5015 weighted_f1 0.6544
+[VAL epoch 11] True counts by index: {0: 163, 1: 55}
+[VAL epoch 11] Pred counts by index: {0: 206, 1: 12}
+[VAL epoch 11] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 11] Pred counts by class:
+  00 0: 206
+  01 1: 12
+Epoch 011 | frozen=0 | train loss 0.6453 acc 0.8023 macro_f1 0.5250 weighted_f1 0.8203 | val loss 0.6469 acc 0.7202 macro_f1 0.4621 weighted_f1 0.6467
+[VAL epoch 12] True counts by index: {0: 163, 1: 55}
+[VAL epoch 12] Pred counts by index: {0: 216, 1: 2}
+[VAL epoch 12] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 12] Pred counts by class:
+  00 0: 216
+  01 1: 2
+Epoch 012 | frozen=0 | train loss 0.6209 acc 0.8355 macro_f1 0.5273 weighted_f1 0.8379 | val loss 0.6438 acc 0.7385 macro_f1 0.4248 weighted_f1 0.6353
+[VAL epoch 13] True counts by index: {0: 163, 1: 55}
+[VAL epoch 13] Pred counts by index: {0: 184, 1: 34}
+[VAL epoch 13] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 13] Pred counts by class:
+  00 0: 184
+  01 1: 34
+Epoch 013 | frozen=0 | train loss 0.6674 acc 0.8724 macro_f1 0.5028 weighted_f1 0.8517 | val loss 0.6126 acc 0.7385 macro_f1 0.5976 weighted_f1 0.7156
+[INFO] Saved best checkpoint at epoch 13: val_macro_f1=0.597643
+[VAL epoch 14] True counts by index: {0: 163, 1: 55}
+[VAL epoch 14] Pred counts by index: {0: 211, 1: 7}
+[VAL epoch 14] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 14] Pred counts by class:
+  00 0: 211
+  01 1: 7
+Epoch 014 | frozen=0 | train loss 0.6476 acc 0.7666 macro_f1 0.5180 weighted_f1 0.7997 | val loss 0.6380 acc 0.7339 macro_f1 0.4547 weighted_f1 0.6480
+[VAL epoch 15] True counts by index: {0: 163, 1: 55}
+[VAL epoch 15] Pred counts by index: {0: 166, 1: 52}
+[VAL epoch 15] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 15] Pred counts by class:
+  00 0: 166
+  01 1: 52
+Epoch 015 | frozen=0 | train loss 0.6629 acc 0.8418 macro_f1 0.4726 weighted_f1 0.8317 | val loss 0.6356 acc 0.6835 macro_f1 0.5727 weighted_f1 0.6805
+[VAL epoch 16] True counts by index: {0: 163, 1: 55}
+[VAL epoch 16] Pred counts by index: {0: 215, 1: 3}
+[VAL epoch 16] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 16] Pred counts by class:
+  00 0: 215
+  01 1: 3
+Epoch 016 | frozen=0 | train loss 0.6482 acc 0.7730 macro_f1 0.5146 weighted_f1 0.8028 | val loss 0.6136 acc 0.7431 macro_f1 0.4432 weighted_f1 0.6456
+[VAL epoch 17] True counts by index: {0: 163, 1: 55}
+[VAL epoch 17] Pred counts by index: {0: 218}
+[VAL epoch 17] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 17] Pred counts by class:
+  00 0: 218
+Epoch 017 | frozen=0 | train loss 0.6494 acc 0.7883 macro_f1 0.5361 weighted_f1 0.8144 | val loss 0.7200 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[VAL epoch 18] True counts by index: {0: 163, 1: 55}
+[VAL epoch 18] Pred counts by index: {0: 214, 1: 4}
+[VAL epoch 18] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 18] Pred counts by class:
+  00 0: 214
+  01 1: 4
+Epoch 018 | frozen=0 | train loss 0.6276 acc 0.8967 macro_f1 0.4728 weighted_f1 0.8575 | val loss 0.6234 acc 0.7385 macro_f1 0.4414 weighted_f1 0.6432
+[INFO] Early stopping at epoch 18. Best epoch: 13
+[VAL epoch 18] True counts by index: {0: 163, 1: 55}
+[VAL epoch 18] Pred counts by index: {0: 214, 1: 4}
+[VAL epoch 18] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 18] Pred counts by class:
+  00 0: 214
+  01 1: 4
+================================================================================
+Phase 1.5 supervised fine-tuning completed
+Best monitored metric: val_macro_f1 = 0.597643
+Best epoch: 13
+Saved best encoder: ./outputs/binary_dino/phase1_encoder_best.pth
+Saved last encoder: ./outputs/binary_dino/phase1_encoder_last.pth
+Elapsed: 6529.0s
+================================================================================
+Job finished at Thu 30 Apr 03:52:29 BST 2026

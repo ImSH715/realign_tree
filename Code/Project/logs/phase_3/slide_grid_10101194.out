@@ -1,0 +1,89 @@
+=== Classifier Phase3 ===
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+{
+  "0": {
+    "precision": 0.7584269662921348,
+    "recall": 0.8282208588957055,
+    "f1-score": 0.7917888563049853,
+    "support": 163.0
+  },
+  "1": {
+    "precision": 0.3,
+    "recall": 0.21818181818181817,
+    "f1-score": 0.25263157894736843,
+    "support": 55.0
+  },
+  "accuracy": 0.6743119266055045,
+  "macro avg": {
+    "precision": 0.5292134831460674,
+    "recall": 0.5232013385387618,
+    "f1-score": 0.5222102176261769,
+    "support": 218.0
+  },
+  "weighted avg": {
+    "precision": 0.6427687867230182,
+    "recall": 0.6743119266055045,
+    "f1-score": 0.6557629377055866,
+    "support": 218.0
+  }
+}
+Best threshold by Shihuahuaco F1:
+threshold                  0.180000
+accuracy                   0.334862
+precision_shihuahuaco      0.270408
+recall_shihuahuaco         0.963636
+f1_shihuahuaco             0.422311
+pred_positive            196.000000
+Name: 13, dtype: float64
+================================================================================
+Slide-grid classifier Phase 3
+Input: ./outputs/evaluation/valid_points_direct.csv
+Output: ./outputs/evaluation/slide_grid_classifier_binary.shp
+Target: Shihuahuaco
+Rows: 141
+Grid sizes: [30.0, 20.0, 10.0]
+Threshold: 0.5
+Max iterations: 10
+Device: cpu
+================================================================================
+
+Iteration 1/10 | active slides: 141
+  finalized: 5 | continuing slides: 136
+
+Iteration 2/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 3/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 4/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 5/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 6/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 7/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 8/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 9/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+
+Iteration 10/10 | active slides: 136
+  finalized: 0 | continuing slides: 136
+================================================================================
+Done
+Saved SHP: ./outputs/evaluation/slide_grid_classifier_binary.shp
+Saved CSV: ./outputs/evaluation/slide_grid_classifier_binary.csv
+================================================================================
+Done

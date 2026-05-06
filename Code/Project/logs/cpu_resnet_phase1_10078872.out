@@ -63,3 +63,91 @@ Extraction samples    : 3560
 [SSL][Epoch 22/100] total=18.4757 align=0.0039 var=0.6030 cov=2.4776 slice=0.9195 proxy_eval=21.0881 lr=4.54e-04
 [SSL][Epoch 23/100] total=18.4616 align=0.0039 var=0.6025 cov=2.4763 slice=0.9191 proxy_eval=22.8692 lr=4.49e-04
 [SSL][Epoch 24/100] total=18.4729 align=0.0039 var=0.6027 cov=2.4812 slice=0.9191 proxy_eval=21.0843 lr=4.44e-04
+[SSL][Epoch 25/100] total=18.4575 align=0.0039 var=0.6024 cov=2.4738 slice=0.9195 proxy_eval=20.5934 lr=4.39e-04
+[SSL][Epoch 26/100] total=18.4610 align=0.0039 var=0.6024 cov=2.4783 slice=0.9187 proxy_eval=21.2404 lr=4.34e-04
+[SSL][Epoch 27/100] total=18.4828 align=0.0039 var=0.6030 cov=2.4858 slice=0.9193 proxy_eval=21.7102 lr=4.28e-04
+[SSL][Epoch 28/100] total=18.4515 align=0.0039 var=0.6020 cov=2.4774 slice=0.9191 proxy_eval=21.3187 lr=4.23e-04
+[SSL][Epoch 29/100] total=18.4705 align=0.0039 var=0.6026 cov=2.4820 slice=0.9195 proxy_eval=21.0901 lr=4.17e-04
+[SSL][Epoch 30/100] total=18.4288 align=0.0039 var=0.6006 cov=2.4909 slice=0.9186 proxy_eval=21.6218 lr=4.10e-04
+[SSL][Epoch 31/100] total=18.4367 align=0.0039 var=0.6011 cov=2.4866 slice=0.9184 proxy_eval=22.1976 lr=4.04e-04
+[SSL][Epoch 32/100] total=18.4255 align=0.0039 var=0.6005 cov=2.4903 slice=0.9187 proxy_eval=21.4667 lr=3.98e-04
+[SSL][Epoch 33/100] total=18.4551 align=0.0039 var=0.6016 cov=2.4923 slice=0.9186 proxy_eval=22.3695 lr=3.91e-04
+[SSL][Epoch 34/100] total=18.4518 align=0.0039 var=0.6020 cov=2.4790 slice=0.9188 proxy_eval=21.9812 lr=3.84e-04
+[SSL][Epoch 35/100] total=18.4195 align=0.0039 var=0.6002 cov=2.4914 slice=0.9184 proxy_eval=21.0626 lr=3.77e-04
+[SSL][Epoch 36/100] total=18.3981 align=0.0039 var=0.5989 cov=2.5046 slice=0.9183 proxy_eval=22.0010 lr=3.70e-04
+[SSL][Epoch 37/100] total=18.4213 align=0.0039 var=0.6000 cov=2.4983 slice=0.9183 proxy_eval=21.0441 lr=3.63e-04
+[SSL][Epoch 38/100] total=18.4292 align=0.0039 var=0.6011 cov=2.4805 slice=0.9185 proxy_eval=21.6583 lr=3.56e-04
+[SSL][Epoch 39/100] total=18.4135 align=0.0039 var=0.5997 cov=2.4978 slice=0.9186 proxy_eval=20.6582 lr=3.49e-04
+[SSL][Epoch 40/100] total=18.4585 align=0.0039 var=0.6019 cov=2.4879 slice=0.9188 proxy_eval=21.6249 lr=3.41e-04
+[SSL][Epoch 41/100] total=18.4340 align=0.0039 var=0.6013 cov=2.4797 slice=0.9186 proxy_eval=21.4338 lr=3.34e-04
+[SSL][Epoch 42/100] total=18.4460 align=0.0039 var=0.6014 cov=2.4889 slice=0.9186 proxy_eval=21.0528 lr=3.26e-04
+[SSL][Epoch 43/100] total=18.4209 align=0.0039 var=0.5996 cov=2.5096 slice=0.9185 proxy_eval=22.6527 lr=3.18e-04
+[SSL][Epoch 44/100] total=18.4017 align=0.0038 var=0.5993 cov=2.4961 slice=0.9183 proxy_eval=21.3402 lr=3.10e-04
+[SSL][Epoch 45/100] total=18.4349 align=0.0038 var=0.6012 cov=2.4825 slice=0.9191 proxy_eval=21.7039 lr=3.02e-04
+[SSL][Epoch 46/100] total=18.4259 align=0.0038 var=0.6006 cov=2.4883 slice=0.9185 proxy_eval=20.7463 lr=2.95e-04
+[SSL][Epoch 47/100] total=18.4226 align=0.0039 var=0.6006 cov=2.4844 slice=0.9184 proxy_eval=20.8248 lr=2.87e-04
+[SSL][Epoch 48/100] total=18.4350 align=0.0039 var=0.6011 cov=2.4861 slice=0.9186 proxy_eval=21.5928 lr=2.79e-04
+[SSL][Epoch 49/100] total=18.4444 align=0.0039 var=0.6018 cov=2.4769 slice=0.9190 proxy_eval=20.7877 lr=2.70e-04
+[SSL][Epoch 50/100] total=18.4363 align=0.0039 var=0.6010 cov=2.4890 slice=0.9186 proxy_eval=22.2845 lr=2.62e-04
+[SSL][Epoch 51/100] total=18.4220 align=0.0039 var=0.6003 cov=2.4915 slice=0.9185 proxy_eval=21.5229 lr=2.54e-04
+[SSL][Epoch 52/100] total=18.4373 align=0.0039 var=0.6012 cov=2.4854 slice=0.9185 proxy_eval=21.1996 lr=2.46e-04
+[SSL][Epoch 53/100] total=18.4270 align=0.0039 var=0.6009 cov=2.4811 slice=0.9185 proxy_eval=21.7856 lr=2.38e-04
+[SSL][Epoch 54/100] total=18.4264 align=0.0039 var=0.6008 cov=2.4840 slice=0.9184 proxy_eval=21.3883 lr=2.30e-04
+[SSL][Epoch 55/100] total=18.4044 align=0.0039 var=0.5995 cov=2.4937 slice=0.9183 proxy_eval=21.5569 lr=2.22e-04
+[SSL][Epoch 56/100] total=18.4275 align=0.0039 var=0.6006 cov=2.4889 slice=0.9185 proxy_eval=22.0216 lr=2.14e-04
+[SSL][Epoch 57/100] total=18.4010 align=0.0039 var=0.5994 cov=2.4929 slice=0.9183 proxy_eval=20.8537 lr=2.06e-04
+[SSL][Epoch 58/100] total=18.4077 align=0.0039 var=0.5995 cov=2.4982 slice=0.9182 proxy_eval=21.3797 lr=1.98e-04
+[SSL][Epoch 59/100] total=18.4053 align=0.0039 var=0.5995 cov=2.4963 slice=0.9183 proxy_eval=21.7754 lr=1.90e-04
+[SSL][Epoch 60/100] total=18.4005 align=0.0039 var=0.5992 cov=2.4985 slice=0.9181 proxy_eval=21.3111 lr=1.82e-04
+[SSL][Epoch 61/100] total=18.4139 align=0.0039 var=0.6000 cov=2.4917 slice=0.9183 proxy_eval=21.2827 lr=1.75e-04
+[SSL][Epoch 62/100] total=18.4160 align=0.0039 var=0.5999 cov=2.4968 slice=0.9183 proxy_eval=21.2798 lr=1.67e-04
+[SSL][Epoch 63/100] total=18.4083 align=0.0039 var=0.5997 cov=2.4940 slice=0.9182 proxy_eval=21.6522 lr=1.59e-04
+[SSL][Epoch 64/100] total=18.4065 align=0.0039 var=0.5996 cov=2.4936 slice=0.9181 proxy_eval=21.4410 lr=1.52e-04
+[SSL][Epoch 65/100] total=18.3943 align=0.0039 var=0.5990 cov=2.4978 slice=0.9181 proxy_eval=21.3782 lr=1.44e-04
+[SSL][Epoch 66/100] total=18.4081 align=0.0039 var=0.5996 cov=2.4952 slice=0.9183 proxy_eval=21.6559 lr=1.37e-04
+[SSL][Epoch 67/100] total=18.4169 align=0.0039 var=0.6000 cov=2.4936 slice=0.9183 proxy_eval=20.7254 lr=1.30e-04
+[SSL][Epoch 68/100] total=18.4102 align=0.0039 var=0.5995 cov=2.5015 slice=0.9183 proxy_eval=21.3928 lr=1.23e-04
+[SSL][Epoch 69/100] total=18.4034 align=0.0039 var=0.5993 cov=2.4987 slice=0.9183 proxy_eval=22.2573 lr=1.16e-04
+[SSL][Epoch 70/100] total=18.4014 align=0.0039 var=0.5993 cov=2.4970 slice=0.9182 proxy_eval=20.9817 lr=1.09e-04
+[SSL][Epoch 71/100] total=18.4030 align=0.0039 var=0.5994 cov=2.4954 slice=0.9182 proxy_eval=20.8959 lr=1.03e-04
+[SSL][Epoch 72/100] total=18.3833 align=0.0039 var=0.5983 cov=2.5044 slice=0.9181 proxy_eval=20.9442 lr=9.63e-05
+[SSL][Epoch 73/100] total=18.3878 align=0.0039 var=0.5984 cov=2.5046 slice=0.9181 proxy_eval=20.8325 lr=9.01e-05
+[SSL][Epoch 74/100] total=18.3912 align=0.0039 var=0.5987 cov=2.5030 slice=0.9181 proxy_eval=21.2730 lr=8.39e-05
+[SSL][Epoch 75/100] total=18.4044 align=0.0039 var=0.5993 cov=2.4999 slice=0.9182 proxy_eval=21.2001 lr=7.80e-05
+[SSL][Epoch 76/100] total=18.3962 align=0.0039 var=0.5991 cov=2.4956 slice=0.9182 proxy_eval=21.3947 lr=7.22e-05
+[SSL][Epoch 77/100] total=18.4070 align=0.0039 var=0.5995 cov=2.4981 slice=0.9182 proxy_eval=21.3659 lr=6.66e-05
+[SSL][Epoch 78/100] total=18.4000 align=0.0039 var=0.5991 cov=2.5007 slice=0.9181 proxy_eval=21.0534 lr=6.13e-05
+[SSL][Epoch 79/100] total=18.3811 align=0.0039 var=0.5981 cov=2.5075 slice=0.9181 proxy_eval=21.1959 lr=5.61e-05
+[SSL][Epoch 80/100] total=18.3831 align=0.0039 var=0.5982 cov=2.5052 slice=0.9181 proxy_eval=21.7102 lr=5.11e-05
+[SSL][Epoch 81/100] total=18.3693 align=0.0039 var=0.5974 cov=2.5129 slice=0.9180 proxy_eval=21.2574 lr=4.63e-05
+[SSL][Epoch 82/100] total=18.3928 align=0.0039 var=0.5986 cov=2.5051 slice=0.9181 proxy_eval=20.9637 lr=4.18e-05
+[SSL][Epoch 83/100] total=18.3894 align=0.0039 var=0.5985 cov=2.5059 slice=0.9181 proxy_eval=21.8113 lr=3.74e-05
+[SSL][Epoch 84/100] total=18.3973 align=0.0039 var=0.5990 cov=2.5005 slice=0.9182 proxy_eval=21.5890 lr=3.33e-05
+[SSL][Epoch 85/100] total=18.3910 align=0.0039 var=0.5986 cov=2.5038 slice=0.9180 proxy_eval=20.9733 lr=2.94e-05
+[SSL][Epoch 86/100] total=18.3860 align=0.0039 var=0.5983 cov=2.5057 slice=0.9181 proxy_eval=21.2430 lr=2.57e-05
+[SSL][Epoch 87/100] total=18.3820 align=0.0039 var=0.5980 cov=2.5089 slice=0.9181 proxy_eval=22.2791 lr=2.23e-05
+[SSL][Epoch 88/100] total=18.4020 align=0.0039 var=0.5992 cov=2.5002 slice=0.9182 proxy_eval=21.7998 lr=1.91e-05
+[SSL][Epoch 89/100] total=18.3822 align=0.0039 var=0.5980 cov=2.5095 slice=0.9180 proxy_eval=21.6282 lr=1.62e-05
+[SSL][Epoch 90/100] total=18.3894 align=0.0039 var=0.5986 cov=2.5024 slice=0.9181 proxy_eval=21.5069 lr=1.35e-05
+[SSL][Epoch 91/100] total=18.3994 align=0.0039 var=0.5992 cov=2.4977 slice=0.9181 proxy_eval=21.6136 lr=1.10e-05
+[SSL][Epoch 92/100] total=18.3973 align=0.0039 var=0.5988 cov=2.5047 slice=0.9181 proxy_eval=21.4585 lr=8.84e-06
+[SSL][Epoch 93/100] total=18.3892 align=0.0039 var=0.5985 cov=2.5052 slice=0.9181 proxy_eval=22.0509 lr=6.89e-06
+[SSL][Epoch 94/100] total=18.3900 align=0.0039 var=0.5986 cov=2.5032 slice=0.9181 proxy_eval=21.2126 lr=5.20e-06
+[SSL][Epoch 95/100] total=18.3950 align=0.0039 var=0.5988 cov=2.5042 slice=0.9181 proxy_eval=20.9486 lr=3.77e-06
+[SSL][Epoch 96/100] total=18.3902 align=0.0039 var=0.5986 cov=2.5039 slice=0.9180 proxy_eval=20.9829 lr=2.59e-06
+[SSL][Epoch 97/100] total=18.3879 align=0.0039 var=0.5983 cov=2.5075 slice=0.9180 proxy_eval=21.9802 lr=1.68e-06
+[SSL][Epoch 98/100] total=18.4076 align=0.0039 var=0.5995 cov=2.4984 slice=0.9181 proxy_eval=22.2021 lr=1.02e-06
+[SSL][Epoch 99/100] total=18.3944 align=0.0039 var=0.5988 cov=2.5027 slice=0.9180 proxy_eval=21.4778 lr=6.31e-07
+[SSL][Epoch 100/100] total=18.3732 align=0.0039 var=0.5976 cov=2.5124 slice=0.9180 proxy_eval=21.3261 lr=5.00e-07
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_resnet50_cpu/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_resnet50_cpu/phase1_encoder_last.pth
+Embedding CSV        : ./outputs/phase1_resnet50_cpu/phase1_embeddings.csv
+Best proxy loss      : 19.2953
+Total elapsed        : 32:39:21
+====================================================================================================
+Job finished at Fri  1 May 00:02:05 BST 2026

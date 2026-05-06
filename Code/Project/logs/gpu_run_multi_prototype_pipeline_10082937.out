@@ -1,0 +1,16 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Sun  3 May 02:15:46 BST 2026
+====================================================================================================
+Classifier Phase 3 started
+Encoder: ./outputs/binary_shihuahuaco_classweights_check/phase1_encoder_best.pth
+Head   : ./outputs/binary_shihuahuaco_classweights_check/classifier_head_best.pth
+Input  : ./outputs/evaluation/valid_points_recovery_20m.csv
+Output : ./outputs/evaluation/refined_classifier_binary_20m.csv
+Classes: ['0', '1']
+====================================================================================================
+====================================================================================================
+Classifier Phase 3 completed
+Saved: ./outputs/evaluation/refined_classifier_binary_20m.csv
+Elapsed: 18:11:56
+====================================================================================================

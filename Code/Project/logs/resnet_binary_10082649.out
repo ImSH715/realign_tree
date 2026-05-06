@@ -1,0 +1,93 @@
+Using Python from: /users/acb20si/.conda/envs/lejepa/bin/python
+Python 3.11.13
+Job started at Thu 30 Apr 02:04:49 BST 2026
+Running on node: node062.pri.stanage.alces.network
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving TIFF paths for valid_points_train.shp...
+[INFO] Resolved samples: 784
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/binary_resnet50/debug_patches/train
+[INFO] Resolving TIFF paths for valid_points_val.shp...
+[INFO] Resolved samples: 218
+[INFO] Failed samples  : 0
+[INFO] Saving 64 debug patches to ./outputs/binary_resnet50/debug_patches/val
+================================================================================
+Phase 1.5 supervised fine-tuning setup
+Classes: ['0', '1']
+Train samples: 784
+Val samples: 218
+Coord mode: auto
+AMP enabled: False
+Class weights: True
+Balanced sampler: False
+Debug patches: ./outputs/binary_resnet50/debug_patches
+================================================================================
+Class weights: [0.18622449040412903, 1.8137754201889038]
+[VAL epoch 1] True counts by index: {0: 163, 1: 55}
+[VAL epoch 1] Pred counts by index: {0: 218}
+[VAL epoch 1] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 1] Pred counts by class:
+  00 0: 218
+Epoch 001 | frozen=1 | train loss 0.6548 acc 0.9069 macro_f1 0.4889 weighted_f1 0.8650 | val loss 0.6527 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[INFO] Saved best checkpoint at epoch 1: val_macro_f1=0.427822
+[VAL epoch 2] True counts by index: {0: 163, 1: 55}
+[VAL epoch 2] Pred counts by index: {0: 218}
+[VAL epoch 2] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 2] Pred counts by class:
+  00 0: 218
+Epoch 002 | frozen=1 | train loss 0.6461 acc 0.9069 macro_f1 0.4756 weighted_f1 0.8626 | val loss 0.6456 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[VAL epoch 3] True counts by index: {0: 163, 1: 55}
+[VAL epoch 3] Pred counts by index: {0: 218}
+[VAL epoch 3] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 3] Pred counts by class:
+  00 0: 218
+Epoch 003 | frozen=1 | train loss 0.6353 acc 0.9069 macro_f1 0.4756 weighted_f1 0.8626 | val loss 0.6467 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[VAL epoch 4] True counts by index: {0: 163, 1: 55}
+[VAL epoch 4] Pred counts by index: {0: 218}
+[VAL epoch 4] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 4] Pred counts by class:
+  00 0: 218
+Epoch 004 | frozen=0 | train loss 0.6341 acc 0.9069 macro_f1 0.4756 weighted_f1 0.8626 | val loss 0.6429 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[VAL epoch 5] True counts by index: {0: 163, 1: 55}
+[VAL epoch 5] Pred counts by index: {0: 218}
+[VAL epoch 5] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 5] Pred counts by class:
+  00 0: 218
+Epoch 005 | frozen=0 | train loss 0.6409 acc 0.9069 macro_f1 0.4756 weighted_f1 0.8626 | val loss 0.6500 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[VAL epoch 6] True counts by index: {0: 163, 1: 55}
+[VAL epoch 6] Pred counts by index: {0: 218}
+[VAL epoch 6] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 6] Pred counts by class:
+  00 0: 218
+Epoch 006 | frozen=0 | train loss 0.6465 acc 0.9069 macro_f1 0.4756 weighted_f1 0.8626 | val loss 0.6399 acc 0.7477 macro_f1 0.4278 weighted_f1 0.6398
+[INFO] Early stopping at epoch 6. Best epoch: 1
+[VAL epoch 6] True counts by index: {0: 163, 1: 55}
+[VAL epoch 6] Pred counts by index: {0: 218}
+[VAL epoch 6] True counts by class:
+  00 0: 163
+  01 1: 55
+[VAL epoch 6] Pred counts by class:
+  00 0: 218
+================================================================================
+Phase 1.5 supervised fine-tuning completed
+Best monitored metric: val_macro_f1 = 0.427822
+Best epoch: 1
+Saved best encoder: ./outputs/binary_resnet50/phase1_encoder_best.pth
+Saved last encoder: ./outputs/binary_resnet50/phase1_encoder_last.pth
+Elapsed: 1735.3s
+================================================================================
+Job finished at Thu 30 Apr 02:34:52 BST 2026

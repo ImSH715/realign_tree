@@ -57,3 +57,34 @@ Extraction samples    : 3560
 [INFO] Saved best checkpoint: proxy_loss=19.484526
 [SSL][Epoch 14/30] total=19.4310 align=0.0039 var=0.6522 cov=2.1939 slice=0.9279 proxy_eval=19.7690 lr=3.22e-04
 [SSL][Epoch 15/30] total=19.5155 align=0.0039 var=0.6556 cov=2.1909 slice=0.9309 proxy_eval=19.5481 lr=2.94e-04
+[SSL][Epoch 16/30] total=19.7171 align=0.0039 var=0.6664 cov=2.1154 slice=0.9366 proxy_eval=19.9459 lr=2.65e-04
+[SSL][Epoch 17/30] total=19.7746 align=0.0039 var=0.6699 cov=2.0895 slice=0.9332 proxy_eval=19.7878 lr=2.36e-04
+[SSL][Epoch 18/30] total=19.9659 align=0.0039 var=0.6760 cov=2.1179 slice=0.9440 proxy_eval=19.9390 lr=2.07e-04
+[SSL][Epoch 19/30] total=19.6937 align=0.0038 var=0.6628 cov=2.1807 slice=0.9391 proxy_eval=19.7322 lr=1.79e-04
+[SSL][Epoch 20/30] total=19.5426 align=0.0039 var=0.6562 cov=2.2019 slice=0.9322 proxy_eval=19.5227 lr=1.51e-04
+[SSL][Epoch 21/30] total=19.3975 align=0.0039 var=0.6476 cov=2.2757 slice=0.9282 proxy_eval=19.2886 lr=1.25e-04
+[INFO] Saved best checkpoint: proxy_loss=19.288568
+[SSL][Epoch 22/30] total=19.3184 align=0.0039 var=0.6450 cov=2.2631 slice=0.9275 proxy_eval=19.3128 lr=1.01e-04
+[SSL][Epoch 23/30] total=19.2653 align=0.0039 var=0.6437 cov=2.2423 slice=0.9254 proxy_eval=19.3279 lr=7.89e-05
+[SSL][Epoch 24/30] total=19.2425 align=0.0039 var=0.6416 cov=2.2747 slice=0.9246 proxy_eval=19.1683 lr=5.89e-05
+[INFO] Saved best checkpoint: proxy_loss=19.168285
+[SSL][Epoch 25/30] total=19.1491 align=0.0039 var=0.6381 cov=2.2698 slice=0.9239 proxy_eval=19.2752 lr=4.16e-05
+[SSL][Epoch 26/30] total=19.1508 align=0.0039 var=0.6377 cov=2.2808 slice=0.9237 proxy_eval=19.1539 lr=2.71e-05
+[INFO] Saved best checkpoint: proxy_loss=19.153869
+[SSL][Epoch 27/30] total=19.1198 align=0.0039 var=0.6363 cov=2.2846 slice=0.9236 proxy_eval=19.1081 lr=1.56e-05
+[INFO] Saved best checkpoint: proxy_loss=19.108072
+[SSL][Epoch 28/30] total=19.1012 align=0.0039 var=0.6359 cov=2.2765 slice=0.9233 proxy_eval=19.1241 lr=7.23e-06
+[SSL][Epoch 29/30] total=19.1072 align=0.0039 var=0.6361 cov=2.2766 slice=0.9233 proxy_eval=19.1119 lr=2.19e-06
+[SSL][Epoch 30/30] total=19.0801 align=0.0039 var=0.6346 cov=2.2885 slice=0.9232 proxy_eval=19.2130 lr=5.00e-07
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_dino_cpu/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_dino_cpu/phase1_encoder_last.pth
+Embedding CSV        : ./outputs/phase1_dino_cpu/phase1_embeddings.csv
+Best proxy loss      : 19.1081
+Total elapsed        : 15:41:46
+====================================================================================================
+Job finished at Thu 30 Apr 07:23:08 BST 2026
