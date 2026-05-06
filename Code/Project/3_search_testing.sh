@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=R_fixed_phase3
+#SBATCH --job-name=D_fixed_phase3
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/fixed/resnet50/phase3/all_shihuahuaco_%j.out
-#SBATCH --error=logs/fixed/resnet50/phase3/all_shihuahuaco_%j.err
+#SBATCH --output=logs/fixed/dino/phase3/all_shihuahuaco_%j.out
+#SBATCH --error=logs/fixed/dino/phase3/all_shihuahuaco_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -16,8 +16,8 @@ conda activate lejepa
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_uid.csv"
 
-ENCODER_CKPT="./outputs/binary_resnet50/phase1_encoder_best.pth"
-PROTOTYPES_CSV="./outputs/binary_resnet50/class_prototypes_named.csv"
+ENCODER_CKPT="./outputs/binary_dino/phase1_encoder_best.pth"
+PROTOTYPES_CSV="./outputs/binary_dino/class_prototypes_named.csv"
 
 # beta 0.0002
 python run_pipeline.py \
@@ -25,7 +25,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/resnet50_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/dino_beta0002_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -43,8 +43,8 @@ python run_pipeline.py \
   --device cpu
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/resnet50_beta0002_refined.csv" \
-  --output_csv "./outputs/evaluation/resnet50_beta0002_evaluated.csv"
+  --input_csv "./outputs/evaluation/dino_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/dino_beta0002_evaluated.csv"
 
 # beta 0.002
 python run_pipeline.py \
@@ -52,7 +52,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/resnet50_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/dino_beta0002b_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -70,15 +70,15 @@ python run_pipeline.py \
   --device cpu
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/resnet50_beta0002b_refined.csv" \
-  --output_csv "./outputs/evaluation/resnet50_beta0002b_evaluated.csv"
+  --input_csv "./outputs/evaluation/dino_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/dino_beta0002b_evaluated.csv"
 
 python - <<'PY'
 import pandas as pd
 
 for path in [
-    "./outputs/evaluation/resnet50_beta0002_evaluated.csv",
-    "./outputs/evaluation/resnet50_beta0002b_evaluated.csv",
+    "./outputs/evaluation/dino_beta0002_evaluated.csv",
+    "./outputs/evaluation/dino_beta0002b_evaluated.csv",
 ]:
     df = pd.read_csv(path)
     print("=" * 100)
