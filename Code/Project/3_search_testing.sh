@@ -14,7 +14,7 @@ eval "$(conda shell.bash hook)"
 conda activate lejepa
 
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-POINTS_CSV="POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_top1tif.csv""
+POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_uid.csv"
 
 ENCODER_CKPT="./outputs/binary_lejepa/phase1_encoder_best.pth"
 PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco/class_prototypes_named.csv"
