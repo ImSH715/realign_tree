@@ -1,15 +1,14 @@
 #!/bin/bash
 
-#SBATCH --job-name=bin_ppv2_p1p2
+#SBATCH --job-name=ppv2_phase_1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/phase12/binary_ppv2_p1p2_%j.out
-#SBATCH --error=logs/phase12/binary_ppv2_p1p2_%j.err
+#SBATCH --output=logs/preprocessing/phase_1_1_5_2/ppv2_%j.out
+#SBATCH --error=logs/preprocessing/phase_1_1_5_2/ppv2_%j.err
 #SBATCH --mail-type=END,FAIL
-
 
 mkdir -p logs
 
@@ -23,6 +22,7 @@ echo "Using Python from: $(which python)"
 python --version
 echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
+
 # ------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------
@@ -32,16 +32,20 @@ IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosa
 TRAIN_SHP="./outputs/splits_binary/valid_points_train.shp"
 VAL_SHP="./outputs/splits_binary/valid_points_val.shp"
 
-PHASE1_OUT="./outputs/phase1_lejepa_cpu_binary_ppv2"
-PHASE1_5_OUT="./outputs/phase1_5_lejepa_cpu_binary_ppv2"
-PHASE2_OUT="./outputs/phase2_binary_shihuahuaco_ppv2"
-PHASE2_MULTI_OUT="./outputs/phase2_binary_shihuahuaco_multi_ppv2"
-EVAL_OUT="./outputs/eval_binary_classifier_val_ppv2"
+PHASE1_OUT="./outputs/phase1_lejepa_cpu_binary_preprocess_new"
+PHASE1_5_OUT="./outputs/phase1_5_lejepa_cpu_binary_preprocess_new"
+PHASE2_OUT="./outputs/phase2_binary_shihuahuaco_preprocess_new"
+PHASE2_MULTI_OUT="./outputs/phase2_binary_shihuahuaco_multi_preprocess_new"
+EVAL_OUT="./outputs/eval_binary_classifier_val_preprocess_new"
+
+# ------------------------------------------------------------
+# Sanity checks
+# ------------------------------------------------------------
 
 echo "Checking required inputs..."
 test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
-test -f "$TRAIN_SHP" || { echo "Missing train shapefile: $TRAIN_SHP"; exit 1; }
-test -f "$VAL_SHP" || { echo "Missing validation shapefile: $VAL_SHP"; exit 1; }
+test -f "$TRAIN_SHP" || { echo "Missing train shp: $TRAIN_SHP"; exit 1; }
+test -f "$VAL_SHP" || { echo "Missing val shp: $VAL_SHP"; exit 1; }
 echo "All required inputs found."
 
 # ------------------------------------------------------------
@@ -49,7 +53,7 @@ echo "All required inputs found."
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 1: SSL encoder training (CPU, LeJEPA, preprocess v2)"
+echo "PHASE 1: SSL encoder training"
 echo "============================================================"
 
 python train_encoder.py \
@@ -75,7 +79,7 @@ echo "[DONE] Phase 1"
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 1.5: supervised fine-tuning (BinaryTree, preprocess v2)"
+echo "PHASE 1.5: supervised fine-tuning (BinaryTree)"
 echo "============================================================"
 
 python train_supervised_encoder.py \
@@ -104,7 +108,7 @@ python train_supervised_encoder.py \
 echo "[DONE] Phase 1.5"
 
 # ------------------------------------------------------------
-# Binary classifier quality check
+# Optional classifier validation
 # ------------------------------------------------------------
 
 echo "============================================================"
@@ -141,7 +145,7 @@ echo "[DONE] classifier validation"
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "PHASE 2A: extract GT embeddings (BinaryTree, train split)"
+echo "PHASE 2A: extract GT embeddings"
 echo "============================================================"
 
 python extract_gt_embeddings.py \
@@ -212,8 +216,12 @@ python build_multi_prototypes.py \
 
 echo "[DONE] multi-prototypes"
 
+# ------------------------------------------------------------
+# Final summary
+# ------------------------------------------------------------
+
 echo "============================================================"
-echo "PIPELINE COMPLETED"
+echo "PHASE 1 + 1.5 + 2 COMPLETED"
 echo "============================================================"
 echo "Phase 1 output        : $PHASE1_OUT"
 echo "Phase 1.5 output      : $PHASE1_5_OUT"
