@@ -1,14 +1,15 @@
 #!/bin/bash
 
-#SBATCH --job-name=bin_ppv2_p3
+#SBATCH --job-name=bin_ppv1_p3
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=120:00:00
-#SBATCH --output=logs/phase3/binary_ppv2_p3_%j.out
-#SBATCH --error=logs/phase3/binary_ppv2_p3_%j.err
+#SBATCH --output=logs/phase3/bin_ppv1_p3_%j.out
+#SBATCH --error=logs/phase3/bin_ppv1_p3_%j.err
 #SBATCH --mail-type=END,FAIL
+
 
 mkdir -p logs
 
@@ -31,8 +32,12 @@ IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosa
 
 POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_only.csv"
 
-ENCODER_CKPT="./outputs/phase1_5_lejepa_cpu_binary_ppv2/phase1_encoder_best.pth"
-PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco_ppv2/class_prototypes.csv"
+ENCODER_CKPT="./outputs/phase1_5_lejepa_cpu_binary_preprocess/phase1_encoder_best.pth"
+PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco_preprocess/class_prototypes.csv"
+
+# ------------------------------------------------------------
+# Sanity checks
+# ------------------------------------------------------------
 
 echo "Checking required inputs..."
 test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
@@ -46,7 +51,7 @@ echo "All required inputs found."
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "EXP 1: prototype phase3 (ppv2) | beta=0.0002"
+echo "EXP 1: prototype phase3 (preprocess v1) | beta=0.0002"
 echo "============================================================"
 
 python run_pipeline.py \
@@ -54,7 +59,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -73,15 +78,15 @@ python run_pipeline.py \
   --no_amp
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_refined.csv" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_evaluated.csv"
+  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002_evaluated.csv"
 
 # ------------------------------------------------------------
 # EXP 2: beta = 0.002
 # ------------------------------------------------------------
 
 echo "============================================================"
-echo "EXP 2: prototype phase3 (ppv2) | beta=0.002"
+echo "EXP 2: prototype phase3 (preprocess v1) | beta=0.002"
 echo "============================================================"
 
 python run_pipeline.py \
@@ -89,7 +94,7 @@ python run_pipeline.py \
   --prototypes_csv "$PROTOTYPES_CSV" \
   --points_csv "$POINTS_CSV" \
   --imagery_root "$IMAGERY_ROOT" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002b_refined.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
@@ -108,8 +113,8 @@ python run_pipeline.py \
   --no_amp
 
 python eval_direct_gt.py \
-  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_refined.csv" \
-  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_evaluated.csv"
+  --input_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002b_refined.csv" \
+  --output_csv "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002b_evaluated.csv"
 
 # ------------------------------------------------------------
 # Summary
@@ -119,8 +124,8 @@ python - <<'PY'
 import pandas as pd
 
 files = [
-    "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002_evaluated.csv",
-    "./outputs/evaluation/phase3_binary_cpu_proto_ppv2_beta0002b_evaluated.csv",
+    "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002_evaluated.csv",
+    "./outputs/evaluation/phase3_binary_cpu_proto_ppv1_beta0002b_evaluated.csv",
 ]
 
 print("=" * 100)
