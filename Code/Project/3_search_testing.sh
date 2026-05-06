@@ -1,6 +1,9 @@
 #!/bin/bash
 
 #SBATCH --job-name=one_tiff
+#SBATCH --partition=gpu-h100
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
