@@ -1,0 +1,69 @@
+====================================================================================================
+Recursive TIFF scan
+Train root        : /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023
+Found TIFF files  : 179
+====================================================================================================
+First 10 TIFF files:
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_18032023_001_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_20032023_003_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_23032023_004_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_002_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_005_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_006_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-01/25-PUC-C-DE-CPC-002-12_26032023_007_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_02042023_01_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_02_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-02/06-CAJ-PER-FMC-2021-001_03042023_03_IDW_transparent_mosaic_group1.tif
+====================================================================================================
+[WARN] Skipping unreadable TIFF in training set: /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif
+[WARN] Skipping unreadable TIFF in extraction set: /mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023/2023-19/25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif | 25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif: TIFFReadDirectory:Failed to read directory at offset 1529645938
+====================================================================================================
+Phase 1 started
+Backbone              : resnet50
+Pretrained backbone   : True
+Device                : cuda
+AMP enabled           : True
+Train TIFF files      : 179
+Patches per image     : 10
+Train samples         : 1780
+SSL epochs            : 20
+Patch size            : 224
+Global image size     : 224
+Local image size      : 224
+Extraction enabled    : True
+Extraction stride     : 1024
+Extraction samples    : 3560
+====================================================================================================
+[SSL][Epoch 1/20] total=17.4434 align=0.0036 var=0.5466 cov=2.8135 slice=0.9620 proxy_eval=17.1512 lr=3.33e-04
+[INFO] Saved best checkpoint: proxy_loss=17.151170
+[SSL][Epoch 2/20] total=16.6981 align=0.0035 var=0.5016 cov=3.2141 slice=0.9407 proxy_eval=17.0037 lr=5.00e-04
+[INFO] Saved best checkpoint: proxy_loss=17.003691
+[SSL][Epoch 3/20] total=16.7424 align=0.0036 var=0.5027 cov=3.2296 slice=0.9403 proxy_eval=17.1677 lr=5.00e-04
+[SSL][Epoch 4/20] total=16.7039 align=0.0037 var=0.5024 cov=3.1982 slice=0.9415 proxy_eval=17.3424 lr=4.96e-04
+[SSL][Epoch 5/20] total=16.6225 align=0.0037 var=0.4987 cov=3.2118 slice=0.9402 proxy_eval=17.5475 lr=4.83e-04
+[SSL][Epoch 6/20] total=16.4944 align=0.0037 var=0.4917 cov=3.2610 slice=0.9367 proxy_eval=17.6970 lr=4.63e-04
+[SSL][Epoch 7/20] total=16.3256 align=0.0038 var=0.4843 cov=3.2837 slice=0.9309 proxy_eval=18.1284 lr=4.35e-04
+[SSL][Epoch 8/20] total=16.2174 align=0.0038 var=0.4799 cov=3.2885 slice=0.9272 proxy_eval=18.2552 lr=4.01e-04
+[SSL][Epoch 9/20] total=16.0897 align=0.0038 var=0.4742 cov=3.3078 slice=0.9223 proxy_eval=19.0222 lr=3.62e-04
+[SSL][Epoch 10/20] total=16.0193 align=0.0038 var=0.4711 cov=3.3170 slice=0.9203 proxy_eval=19.0778 lr=3.19e-04
+[SSL][Epoch 11/20] total=15.9755 align=0.0038 var=0.4686 cov=3.3378 slice=0.9190 proxy_eval=18.8534 lr=2.73e-04
+[SSL][Epoch 12/20] total=15.9080 align=0.0038 var=0.4658 cov=3.3397 slice=0.9185 proxy_eval=18.7268 lr=2.27e-04
+[SSL][Epoch 13/20] total=15.9238 align=0.0038 var=0.4667 cov=3.3358 slice=0.9179 proxy_eval=20.1934 lr=1.82e-04
+[SSL][Epoch 14/20] total=15.9223 align=0.0038 var=0.4664 cov=3.3406 slice=0.9173 proxy_eval=20.1620 lr=1.39e-04
+[SSL][Epoch 15/20] total=15.8696 align=0.0038 var=0.4634 cov=3.3633 slice=0.9169 proxy_eval=18.8395 lr=9.97e-05
+[SSL][Epoch 16/20] total=15.8660 align=0.0038 var=0.4640 cov=3.3453 slice=0.9167 proxy_eval=18.5982 lr=6.57e-05
+[SSL][Epoch 17/20] total=15.8281 align=0.0038 var=0.4617 cov=3.3661 slice=0.9164 proxy_eval=19.5720 lr=3.79e-05
+[SSL][Epoch 18/20] total=15.8283 align=0.0038 var=0.4619 cov=3.3608 slice=0.9164 proxy_eval=19.4688 lr=1.74e-05
+[SSL][Epoch 19/20] total=15.8446 align=0.0038 var=0.4629 cov=3.3526 slice=0.9164 proxy_eval=19.4913 lr=4.75e-06
+[SSL][Epoch 20/20] total=15.8158 align=0.0038 var=0.4607 cov=3.3778 slice=0.9163 proxy_eval=19.9548 lr=5.00e-07
+
+[Stage 2/2] Embedding extraction
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_resnet50_cpu/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_resnet50_cpu/phase1_encoder_last.pth
+Embedding CSV        : ./outputs/phase1_resnet50_cpu/phase1_embeddings.csv
+Best proxy loss      : 17.0037
+Total elapsed        : 29:52
+====================================================================================================

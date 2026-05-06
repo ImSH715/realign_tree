@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/users/aca21jo/project/realign_tree/Code/Project/train_encoder.py", line 32, in <module>
+    from src.models.encoder import SSLImageEncoder, LeJEPALikeLoss
+  File "/users/aca21jo/project/realign_tree/Code/Project/src/models/encoder.py", line 20, in <module>
+    from src.models.backbones import create_backbone
+  File "/users/aca21jo/project/realign_tree/Code/Project/src/models/backbones.py", line 17, in <module>
+    import timm
+ModuleNotFoundError: No module named 'timm'

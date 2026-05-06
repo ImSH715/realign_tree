@@ -1,0 +1,5 @@
+
+EnvironmentNameNotFound: Could not find conda environment: lejepa
+You can list all discoverable environments with `conda info --envs`.
+
+
