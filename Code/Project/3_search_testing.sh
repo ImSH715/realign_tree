@@ -1,23 +1,20 @@
 #!/bin/bash
 
-#SBATCH --job-name=one_tiff
-#SBATCH --partition=gpu-h100
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --job-name=all_tiff
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/testing/phase1_5/one_tiff_%j.out
-#SBATCH --error=logs/testing/phase1_5/one_tiff_%j.err
+#SBATCH --output=logs/testing/phase1_5/search_all_tiff_%j.out
+#SBATCH --error=logs/testing/phase1_5/search_all_tiff_%j.err
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
 conda activate lejepa
 
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
-POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_top1tif.csv"
+POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_uid.csv"
 
 ENCODER_CKPT="./outputs/binary_lejepa/phase1_encoder_best.pth"
 PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco/class_prototypes.csv"
