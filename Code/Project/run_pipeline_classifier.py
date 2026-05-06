@@ -16,7 +16,7 @@ import argparse
 import os
 import time
 from dataclasses import dataclass
-
+from src.data.preprocess import preprocess
 import numpy as np
 import pandas as pd
 import rasterio
@@ -96,7 +96,7 @@ def read_patch(image_path, x, y, patch_size):
         arr = np.clip((arr - lo) / (hi - lo + 1e-6), 0, 1)
         arr = (arr * 255).astype(np.uint8)
 
-    return Image.fromarray(arr)
+    return preprocess(Image.fromarray(arr))
 
 
 def build_transform(image_size):

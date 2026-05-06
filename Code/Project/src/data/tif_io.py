@@ -1,6 +1,7 @@
 import os
 import glob
 from typing import Dict, List, Tuple
+from src.data.preprocess import preprocess
 
 import numpy as np
 import rasterio
@@ -69,7 +70,7 @@ def read_patch_as_pil(path: str, left: int, top: int, width: int, height: int) -
             rgb = (rgb - min_val) / (max_val - min_val)
         rgb = (rgb * 255.0).clip(0, 255).astype(np.uint8)
 
-    return Image.fromarray(rgb)
+    return preprocess(Image.fromarray(rgb))
 
 
 class TileCache:

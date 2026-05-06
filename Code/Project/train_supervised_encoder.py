@@ -9,7 +9,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Tuple
 from collections import Counter
-
+from src.data.preprocess import preprocess
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -218,7 +218,7 @@ def read_patch(image_path, x, y, patch_size, coord_mode="auto", return_debug=Fal
             "row0": int(row0),
         }
 
-    return img
+    return preprocess(img)
 
 
 class GTPointDataset(Dataset):
