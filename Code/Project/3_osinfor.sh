@@ -1,17 +1,14 @@
 #!/bin/bash
 
 # --- 1. Slurm Resource Configuration ---
-#SBATCH --job-name=osinfor_1200
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --job-name=cpu_osinfor
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/osinfor/phase3_1200px_censo_%j.out
-#SBATCH --error=logs/osinfor/phase3_1200px_censo_%j.err
+#SBATCH --output=logs/osinfor/cpu_phase3_1200px_censo_%j.out
+#SBATCH --error=logs/osinfor/cpu_phase3_1200px_censo_%j.err
 
 # --- 2. Email Notification Settings ---
 #SBATCH --mail-type=END,FAIL
@@ -30,7 +27,7 @@ python run_pipeline.py \
   --prototypes_csv "./outputs/phase2_binary_shihuahuaco/class_prototypes_named.csv" \
   --points_csv "Project/data/Censo_Forestal_shihuahuaco_phase3.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "./outputs/phase3/censo_shihuahuaco_refined.csv" \
+  --output_csv "./outputs/phase3/censo_shihuahuaco_refined_cpu.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
