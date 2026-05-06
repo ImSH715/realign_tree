@@ -30,7 +30,7 @@ python run_pipeline.py \
   --prototypes_csv "./outputs/phase2_binary_shihuahuaco/class_prototypes_named.csv" \
   --points_csv "Project/data/Censo_Forestal_shihuahuaco_overlap_only.csv" \
   --imagery_root "/mnt/parscratch/users/acb20si/2025_Turing_L/datasets/Osinfor/Ortomosaicos" \
-  --output_csv "./outputs/phase3/censo_shihuahuaco_refined_gpu.csv" \
+  --output_csv "./outputs/phase3/censo_shihuahuaco_refined_gpu_1200px.csv" \
   --tile_column "matched_tif" \
   --point_id_column "point_id" \
   --x_column "original_east" \
