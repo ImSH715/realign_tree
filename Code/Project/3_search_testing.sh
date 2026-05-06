@@ -15,14 +15,9 @@ conda activate lejepa
 
 IMAGERY_ROOT="/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 POINTS_CSV="./outputs/evaluation/valid_points_recovery_20m_shihuahuaco_top1tif.csv"
-ENCODER_CKPT="./outputs/phase1_5_lejepa_cpu_binary_preprocess/phase1_encoder_best.pth"
-PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco_preprocess/class_prototypes.csv"
 
-echo "Checking required inputs..."
-test -d "$IMAGERY_ROOT" || { echo "Missing imagery root: $IMAGERY_ROOT"; exit 1; }
-test -f "$POINTS_CSV" || { echo "Missing points csv: $POINTS_CSV"; exit 1; }
-test -f "$ENCODER_CKPT" || { echo "Missing encoder ckpt: $ENCODER_CKPT"; exit 1; }
-test -f "$PROTOTYPES_CSV" || { echo "Missing prototypes csv: $PROTOTYPES_CSV"; exit 1; }
+ENCODER_CKPT="./outputs/binary_lejepa/phase1_encoder_best.pth"
+PROTOTYPES_CSV="./outputs/phase2_binary_shihuahuaco/class_prototypes.csv"
 
 # beta 0.0002
 python run_pipeline.py \
