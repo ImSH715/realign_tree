@@ -9,7 +9,6 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Tuple
 from collections import Counter
-from src.data.preprocess import preprocess
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -63,6 +62,10 @@ class Config:
     monitor_metric: str = "val_macro_f1"
     debug_patches: int = 32
     image_mode: str = "rgb"
+    max_black_fraction: float = 1.0
+    max_bright_fraction: float = 1.0
+    train_repeat_factor: int = 1
+    label_smoothing: float = 0.0
 
 
 def set_seed(seed: int):
@@ -218,7 +221,14 @@ def read_patch(image_path, x, y, patch_size, coord_mode="auto", return_debug=Fal
             "row0": int(row0),
         }
 
-    return preprocess(img)
+    return img
+
+
+def patch_quality_fractions(img: Image.Image) -> Tuple[float, float]:
+    arr = np.asarray(img.convert("RGB"), dtype=np.uint8)
+    black_fraction = float((arr.max(axis=2) <= 5).mean())
+    bright_fraction = float((arr.min(axis=2) >= 245).mean())
+    return black_fraction, bright_fraction
 
 
 class GTPointDataset(Dataset):
@@ -238,6 +248,9 @@ class GTPointDataset(Dataset):
         folder_to_paths=None,
         debug_dir=None,
         debug_patches=0,
+        max_black_fraction=1.0,
+        max_bright_fraction=1.0,
+        repeat_factor=1,
     ):
         self.gdf = gpd.read_file(shp_path)
         self.gdf = self.gdf[self.gdf[label_field].notna()].copy()
@@ -254,6 +267,9 @@ class GTPointDataset(Dataset):
         self.coord_mode = coord_mode
         self.debug_dir = debug_dir
         self.debug_patches = debug_patches
+        self.max_black_fraction = max_black_fraction
+        self.max_bright_fraction = max_bright_fraction
+        self.repeat_factor = max(1, int(repeat_factor))
 
         required = [label_field, folder_field, file_field, fx_field, fy_field]
         for c in required:
@@ -293,6 +309,25 @@ class GTPointDataset(Dataset):
 
                 rec = row.copy()
                 rec["_image_path"] = image_path
+
+                if self.max_black_fraction < 1.0 or self.max_bright_fraction < 1.0:
+                    patch = read_patch(
+                        image_path=image_path,
+                        x=float(row[self.fx_field]),
+                        y=float(row[self.fy_field]),
+                        patch_size=self.patch_size_px,
+                        coord_mode=self.coord_mode,
+                    )
+                    black_fraction, bright_fraction = patch_quality_fractions(patch)
+                    rec["_black_fraction"] = black_fraction
+                    rec["_bright_fraction"] = bright_fraction
+                    if black_fraction > self.max_black_fraction:
+                        self.failed_rows.append((i, f"black_fraction={black_fraction:.3f}"))
+                        continue
+                    if bright_fraction > self.max_bright_fraction:
+                        self.failed_rows.append((i, f"bright_fraction={bright_fraction:.3f}"))
+                        continue
+
                 self.rows.append(rec)
 
             except Exception as e:
@@ -310,14 +345,15 @@ class GTPointDataset(Dataset):
             self.save_debug_patches()
 
     def __len__(self):
-        return len(self.rows)
+        return len(self.rows) * self.repeat_factor
 
     def label_counts(self):
         labels = [str(r[self.label_field]).strip() for r in self.rows]
         return pd.Series(labels).value_counts().to_dict()
 
     def targets(self):
-        return [self.class_to_idx[str(r[self.label_field]).strip()] for r in self.rows]
+        targets = [self.class_to_idx[str(r[self.label_field]).strip()] for r in self.rows]
+        return targets * self.repeat_factor
 
     def save_debug_patches(self):
         safe_mkdir(self.debug_dir)
@@ -384,6 +420,7 @@ class GTPointDataset(Dataset):
         )
 
     def __getitem__(self, idx):
+        idx = idx % len(self.rows)
         row = self.rows[idx]
 
         patch = read_patch(
@@ -684,6 +721,10 @@ def parse_args():
 
     parser.add_argument("--debug_patches", type=int, default=32)
     parser.add_argument("--image_mode", default="rgb", choices=["rgb", "grayscale"])
+    parser.add_argument("--max_black_fraction", type=float, default=1.0)
+    parser.add_argument("--max_bright_fraction", type=float, default=1.0)
+    parser.add_argument("--train_repeat_factor", type=int, default=1)
+    parser.add_argument("--label_smoothing", type=float, default=0.0)
 
     parser.add_argument("--no_amp", action="store_true")
     parser.add_argument("--no_class_weights", action="store_true")
@@ -730,6 +771,10 @@ def main():
         monitor_metric=args.monitor_metric,
         debug_patches=args.debug_patches,
         image_mode=args.image_mode,
+        max_black_fraction=args.max_black_fraction,
+        max_bright_fraction=args.max_bright_fraction,
+        train_repeat_factor=args.train_repeat_factor,
+        label_smoothing=args.label_smoothing,
     )
 
     set_seed(cfg.seed)
@@ -762,6 +807,9 @@ def main():
         folder_to_paths=folder_to_paths,
         debug_dir=os.path.join(debug_root, "train"),
         debug_patches=cfg.debug_patches,
+        max_black_fraction=cfg.max_black_fraction,
+        max_bright_fraction=cfg.max_bright_fraction,
+        repeat_factor=cfg.train_repeat_factor,
     )
 
     val_ds = GTPointDataset(
@@ -779,6 +827,8 @@ def main():
         folder_to_paths=folder_to_paths,
         debug_dir=os.path.join(debug_root, "val"),
         debug_patches=cfg.debug_patches,
+        max_black_fraction=cfg.max_black_fraction,
+        max_bright_fraction=cfg.max_bright_fraction,
     )
 
     with open(os.path.join(cfg.output_dir, "class_to_idx.json"), "w", encoding="utf-8") as f:
@@ -805,6 +855,10 @@ def main():
     print("Class weights:", cfg.use_class_weights)
     print("Balanced sampler:", cfg.use_balanced_sampler)
     print("Image mode:", cfg.image_mode)
+    print("Max black fraction:", cfg.max_black_fraction)
+    print("Max bright fraction:", cfg.max_bright_fraction)
+    print("Train repeat factor:", cfg.train_repeat_factor)
+    print("Label smoothing:", cfg.label_smoothing)
     print("Debug patches:", debug_root)
     print("=" * 80)
 
@@ -838,7 +892,7 @@ def main():
     else:
         class_weights = None
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=cfg.label_smoothing)
 
     optimizer = torch.optim.AdamW(
         [
