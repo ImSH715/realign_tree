@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=99:00:00
+#SBATCH --time=90:00:00
 #SBATCH --output=logs/osinfor/phase3_new_censo_%j.out
 #SBATCH --error=logs/osinfor/phase3_new_censo_%j.err
 
