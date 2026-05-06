@@ -1,16 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=gpu_ppv2_phase_1
-#SBATCH --partition=gpu-h100
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --job-name=ppv_2_phase1.5
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/preprocessing/phase_1_1_5_2/gpu_ppv2_%j.out
-#SBATCH --error=logs/preprocessing/phase_1_1_5_2/gpu_ppv2_%j.err
+#SBATCH --output=logs/preprocessing/phase_1_5_2/phase_1_5_ppv2_%j.out
+#SBATCH --error=logs/preprocessing/phase_1_5_2/phase_1_5_ppv2_%j.err
 #SBATCH --mail-type=END,FAIL
 
 mkdir -p logs
@@ -55,28 +52,6 @@ echo "All required inputs found."
 # Phase 1
 # ------------------------------------------------------------
 
-echo "============================================================"
-echo "PHASE 1: SSL encoder training"
-echo "============================================================"
-
-python train_encoder.py \
-  --train_root "$IMAGERY_ROOT" \
-  --output_dir "$PHASE1_OUT" \
-  --backbone_name "vit_base_patch16_224" \
-  --ssl_epochs 30 \
-  --batch_size_ssl 8 \
-  --patches_per_image 10 \
-  --num_workers 8 \
-  --device cpu \
-  --no_amp \
-  --extract_stride_px 1024 \
-  --extract_batch_size 16 \
-  --image_size_global 224 \
-  --image_size_local 224 \
-  --max_extract_patches_per_image 20
-
-echo "[DONE] Phase 1"
-
 # ------------------------------------------------------------
 # Phase 1.5
 # ------------------------------------------------------------
@@ -100,7 +75,7 @@ python train_supervised_encoder.py \
   --image_size 224 \
   --patch_size_px 224 \
   --batch_size 8 \
-  --epochs 40 \
+  --epochs 20 \
   --lr_encoder 1e-7 \
   --lr_head 1e-4 \
   --weight_decay 5e-4 \
