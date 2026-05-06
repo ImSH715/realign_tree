@@ -10,14 +10,7 @@
 #SBATCH --error=logs/preprocessing/p_lejepa_%j.err
 #SBATCH --mail-type=END,FAIL
 
-set -euo pipefail
-
 mkdir -p logs
-mkdir -p logs/phase1
-mkdir -p logs/phase_1_5
-mkdir -p logs/phase2
-mkdir -p outputs
-mkdir -p outputs/evaluation
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -25,12 +18,10 @@ conda activate lejepa
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-echo "============================================================"
-echo "Job started at: $(date)"
-echo "Running on node: $(hostname)"
-echo "Python: $(which python)"
+echo "Using Python from: $(which python)"
 python --version
-echo "============================================================"
+echo "Job started at $(date)"
+echo "Running on node: $(hostname)"
 
 # ------------------------------------------------------------
 # Paths
