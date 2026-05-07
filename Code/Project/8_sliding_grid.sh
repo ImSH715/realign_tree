@@ -16,6 +16,8 @@ export GEOTIFF_CSV=""
 cd /mnt/parscratch/users/acb20si/realign_tree/Code/Project
 
 mkdir -p logs
+mkdir -p logs/mil
+mkdir -p logs/mil/phase4_sliding_grid
 mkdir -p outputs/evaluation
 
 module load Anaconda3
@@ -24,7 +26,6 @@ conda activate lejepa
 
 echo "Using Python from: $(which python)"
 python --version
-nvidia-smi
 echo "Job started at $(date)"
 
 python run_slide_grid_classifier.py \
@@ -47,7 +48,7 @@ python run_slide_grid_classifier.py \
   --positive_class 1 \
   --patch_size_px 224 \
   --image_size 224 \
-  --device cuda \
+  --device cpu \
   --path_rewrite_from "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --path_rewrite_to "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 
