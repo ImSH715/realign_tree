@@ -1,9 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=phase4_slide_mil
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --job-name=binary_resnet50
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
@@ -51,7 +49,7 @@ python run_slide_grid_classifier.py \
   --positive_class 1 \
   --patch_size_px 224 \
   --image_size 224 \
-  --device cuda \
+  --device cpu \
   --path_rewrite_from "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
   --path_rewrite_to "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023"
 
