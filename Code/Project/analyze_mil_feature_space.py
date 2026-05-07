@@ -190,6 +190,9 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
                     "file": sample["file"],
                     "image_path": sample["image_path"],
                     "label": sample["label"],
+                    "patch_size_px": int(cfg.patch_size_px),
+                    "bag_radius_m": float(cfg.bag_radius_m),
+                    "image_mode": str(cfg.eval_image_mode),
                 }
                 if save_embeddings:
                     for k, v in enumerate(feat_np[j, i]):

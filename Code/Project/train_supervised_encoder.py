@@ -24,7 +24,21 @@ from tqdm import tqdm
 from src.models.checkpoint import load_encoder_from_checkpoint
 
 
-VALID_IMAGE_MODES = ["rgb", "grayscale", "rgb_no_green", "rgb_green_mean", "rgb_green_dropout"]
+VALID_IMAGE_MODES = [
+    "rgb",
+    "grayscale",
+    "rgb_no_green",
+    "rgb_green_mean",
+    "rgb_green_dropout",
+    "rgb_green_keep_75",
+    "rgb_green_keep_50",
+    "rgb_green_keep_25",
+    "rgb_sat_75",
+    "rgb_sat_50",
+    "rgb_sat_25",
+    "rgb_green_keep_50_sat_50",
+    "rgb_green_keep_25_sat_50",
+]
 IMAGENET_GREEN_MEAN = 0.456
 
 
@@ -461,6 +475,8 @@ def build_train_transform(image_size, image_mode="rgb"):
         steps.append(transforms.Lambda(mute_green_to_zero))
     elif image_mode == "rgb_green_mean":
         steps.append(transforms.Lambda(mute_green_to_mean))
+    elif image_mode in IMAGE_MODE_TRANSFORMS:
+        steps.append(transforms.Lambda(lambda img: apply_rgb_mode(img, image_mode)))
 
     steps.extend([
         transforms.ToTensor(),
@@ -485,6 +501,8 @@ def build_eval_transform(image_size, image_mode="rgb"):
         steps.append(transforms.Lambda(mute_green_to_zero))
     elif image_mode == "rgb_green_mean":
         steps.append(transforms.Lambda(mute_green_to_mean))
+    elif image_mode in IMAGE_MODE_TRANSFORMS:
+        steps.append(transforms.Lambda(lambda img: apply_rgb_mode(img, image_mode)))
 
     steps.extend([
         transforms.ToTensor(),
@@ -503,6 +521,40 @@ def mute_green_to_zero(img):
 def mute_green_to_mean(img):
     arr = np.array(img.convert("RGB"), copy=True)
     arr[:, :, 1] = int(round(IMAGENET_GREEN_MEAN * 255))
+    return Image.fromarray(arr)
+
+
+IMAGE_MODE_TRANSFORMS = {
+    "rgb_green_keep_75": {"green_keep": 0.75, "sat_keep": 1.0},
+    "rgb_green_keep_50": {"green_keep": 0.50, "sat_keep": 1.0},
+    "rgb_green_keep_25": {"green_keep": 0.25, "sat_keep": 1.0},
+    "rgb_sat_75": {"green_keep": 1.0, "sat_keep": 0.75},
+    "rgb_sat_50": {"green_keep": 1.0, "sat_keep": 0.50},
+    "rgb_sat_25": {"green_keep": 1.0, "sat_keep": 0.25},
+    "rgb_green_keep_50_sat_50": {"green_keep": 0.50, "sat_keep": 0.50},
+    "rgb_green_keep_25_sat_50": {"green_keep": 0.25, "sat_keep": 0.50},
+}
+
+
+def apply_rgb_mode(img, image_mode):
+    cfg = IMAGE_MODE_TRANSFORMS[image_mode]
+    arr = np.asarray(img.convert("RGB"), dtype=np.float32)
+
+    green_keep = float(cfg["green_keep"])
+    if green_keep < 1.0:
+        mean_green = IMAGENET_GREEN_MEAN * 255.0
+        arr[:, :, 1] = mean_green + green_keep * (arr[:, :, 1] - mean_green)
+
+    sat_keep = float(cfg["sat_keep"])
+    if sat_keep < 1.0:
+        gray = (
+            0.299 * arr[:, :, 0]
+            + 0.587 * arr[:, :, 1]
+            + 0.114 * arr[:, :, 2]
+        )
+        arr = gray[:, :, None] + sat_keep * (arr - gray[:, :, None])
+
+    arr = np.clip(arr, 0, 255).astype(np.uint8)
     return Image.fromarray(arr)
 
 

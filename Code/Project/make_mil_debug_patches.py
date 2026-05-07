@@ -127,13 +127,14 @@ def crop_panel(src, px, py, patch_size_px, output_size, label, color):
 
 def compose_debug_image(group, selected, args, out_path):
     image_path = str(selected["image_path"])
+    patch_size_px = int(args.patch_size_px) if args.patch_size_px > 0 else int(selected.get("patch_size_px", 224))
     with rasterio.open(image_path) as src:
         context = context_panel(src, group, selected, args.context_size_m, args.panel_size)
         original = crop_panel(
             src,
             float(selected["center_px"]),
             float(selected["center_py"]),
-            args.patch_size_px,
+            patch_size_px,
             args.panel_size,
             "original point",
             (255, 45, 85, 255),
@@ -142,7 +143,7 @@ def compose_debug_image(group, selected, args, out_path):
             src,
             float(selected["px"]),
             float(selected["py"]),
-            args.patch_size_px,
+            patch_size_px,
             args.panel_size,
             "selected correction",
             (0, 220, 255, 255),
@@ -267,7 +268,7 @@ def parse_args():
     p.add_argument("--true_label", default="")
     p.add_argument("--pred_label", default="")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--patch_size_px", type=int, default=224)
+    p.add_argument("--patch_size_px", type=int, default=0, help="Use 0 to read patch_size_px from the instance CSV.")
     p.add_argument("--context_size_m", type=float, default=50.0)
     p.add_argument("--panel_size", type=int, default=256)
     return p.parse_args()
