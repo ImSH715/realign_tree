@@ -1,16 +1,13 @@
 #!/bin/bash
 
 #SBATCH --job-name=phase4_slide_mil
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/phase4_slide_mil_%j.out
-#SBATCH --error=logs/phase4_slide_mil_%j.err
+#SBATCH --output=logs/mil/phase4_sliding_grid/phase4_slide_mil_%j.out
+#SBATCH --error=logs/mil/phase4_sliding_grid/phase4_slide_mil_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -eo pipefail
