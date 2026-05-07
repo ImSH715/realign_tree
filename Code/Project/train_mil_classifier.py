@@ -474,6 +474,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
         y = y.to(device, non_blocking=True)
         bag_logits, instance_logits = forward_bags(model, head, bags, cfg.pooling, cfg.lse_tau, cfg.topk)
         probs = torch.sigmoid(bag_logits)
+        instance_probs = torch.sigmoid(instance_logits)
         preds = (probs >= 0.5).long()
         best_instance = instance_logits.argmax(dim=1).detach().cpu()
 
@@ -482,6 +483,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
         preds_cpu = preds.detach().cpu()
         idxs_cpu = idxs.detach().cpu()
         offsets_cpu = offsets.detach().cpu()
+        instance_probs_cpu = instance_probs.detach().cpu()
 
         for j in range(len(y_true_batch)):
             sample = dataset.samples[int(idxs_cpu[j])]
@@ -489,6 +491,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
             dx_px = float(offsets_cpu[j, best_i, 0])
             dy_px = float(offsets_cpu[j, best_i, 1])
             prob_1 = float(probs_cpu[j])
+            best_instance_prob_1 = float(instance_probs_cpu[j, best_i])
             true_label = int(y_true_batch[j])
             pred_label = int(preds_cpu[j])
             y_true.append(true_label)
@@ -499,6 +502,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
                 "y_pred": pred_label,
                 "prob_0": 1.0 - prob_1,
                 "prob_1": prob_1,
+                "best_instance_prob_1": best_instance_prob_1,
                 "best_instance": best_i,
                 "best_dx_px": dx_px,
                 "best_dy_px": dy_px,
