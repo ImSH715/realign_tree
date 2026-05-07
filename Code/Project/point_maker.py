@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 # =========================================================
 # SETTINGS
 # =========================================================
-CSV_PATH = "./outputs/evaluation/single_tif_beta0002_refined.csv"
-POINT_ID = "1"
+CSV_PATH = "./outputs/evaluation/single_tif_beta0002b_refined.csv"
+POINT_ID = "shihuahuaco_top1_0000"
 OUTPUT_DIR = "./outputs/evaluation/point_visualization"
 
 PATCH_SIZE = 224  
