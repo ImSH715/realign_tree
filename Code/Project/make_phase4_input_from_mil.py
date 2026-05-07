@@ -15,11 +15,7 @@ def main():
     p.add_argument("--input_csv", required=True)
     p.add_argument("--output_csv", required=True)
     p.add_argument("--target_label", default="Shihuahuaco")
-    p.add_argument(
-        "--use_selected_point",
-        action="store_true",
-        help="Use MIL selected point (px, py). Otherwise use original center (center_px, center_py).",
-    )
+    p.add_argument("--use_selected_point", action="store_true")
     args = p.parse_args()
 
     df = pd.read_csv(args.input_csv).copy()
@@ -32,7 +28,7 @@ def main():
     if args.use_selected_point:
         for c in ["px", "py"]:
             if c not in df.columns:
-                raise ValueError(f"Missing required selected-point column: {c}")
+                raise ValueError(f"Missing selected-point column: {c}")
 
     rows = []
     for i, row in df.iterrows():
