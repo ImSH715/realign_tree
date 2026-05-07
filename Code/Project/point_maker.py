@@ -79,13 +79,15 @@ def read_bbox_rgb(src, col_min, row_min, col_max, row_max):
 df = pd.read_csv(CSV_PATH).copy()
 df["point_id"] = df["point_id"].astype(str)
 
-row = df[df["point_id"] == str(POINT_ID)]
-if len(row) == 0:
-    print("Available point_id examples:")
-    print(df["point_id"].head(20).tolist())
-    raise ValueError(f"point_id={POINT_ID} not found in {CSV_PATH}")
-
-row = row.iloc[0]
+if POINT_ID is None:
+    row = df.iloc[0]
+else:
+    row_df = df[df["point_id"] == str(POINT_ID)]
+    if len(row_df) == 0:
+        print("Available point_id examples:")
+        print(df["point_id"].head(20).tolist())
+        raise ValueError(f"point_id={POINT_ID} not found in {CSV_PATH}")
+    row = row_df.iloc[0]
 
 image_path = row["image_path"] if "image_path" in row else row["matched_tif"]
 
