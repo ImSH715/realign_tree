@@ -1,14 +1,11 @@
 #!/bin/bash
 
 #SBATCH --job-name=lejepa_ssl_large
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu-h100-nvl
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --time=12:00:00
+#SBATCH --mem=96G
+#SBATCH --time=15:00:00
 #SBATCH --output=logs/mil/phase1/lejepa_ssl_large_%j.out
 #SBATCH --error=logs/mil/phase1/lejepa_ssl_large_%j.err
 #SBATCH --mail-type=END,FAIL
@@ -79,8 +76,8 @@ echo "Phase 1: LEJEPA SSL pretraining on expanded imagery"
 echo "============================================================"
 
 python train_encoder.py \
-  --train_root "${TRAIN_ROOTS[@]}" \
-  --output_dir "$PHASE1_OUT_LINK" \
+  --train_root "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023" \
+  --output_dir "./outputs/phase1_lejepa_ssl_large_gpu" \
   --backbone_name "vit_base_patch16_224" \
   --pretrained_backbone \
   --ssl_epochs 20 \
@@ -101,7 +98,7 @@ python train_encoder.py \
   --debug_patches 32 \
   --skip_extract \
   --cudnn_benchmark \
-  --device cpu
+  --device cuda
 
 echo "============================================================"
 echo "LEJEPA SSL phase finished at: $(date)"
