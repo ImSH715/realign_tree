@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=90:00:00s
+#SBATCH --time=90:00:00
 #SBATCH --output=logs/mil/phase1/lejepa_ssl_large_%j.out
 #SBATCH --error=logs/mil/phase1/lejepa_ssl_large_%j.err
 #SBATCH --mail-type=END,FAIL
