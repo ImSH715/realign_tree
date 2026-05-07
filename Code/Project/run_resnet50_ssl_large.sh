@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=lejepa_ssl_large
+#SBATCH --job-name=resnet50_ssl_large
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
@@ -8,9 +8,9 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=40:00:00
-#SBATCH --output=logs/mil/lejepa/phase1/lejepa_ssl_large_%j.out
-#SBATCH --error=logs/mil/lejepa/phase1/lejepa_ssl_large_%j.err
+#SBATCH --time=90:00:00
+#SBATCH --output=logs/mil/resnet50/phase1/resnet50_ssl_large_%j.out
+#SBATCH --error=logs/mil/resnet50/phase1/resnet50_ssl_large_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
@@ -22,6 +22,8 @@ else
 fi
 
 mkdir -p logs
+mkdir -p logs/mil
+mkdir -p logs/mil/phase1
 mkdir -p outputs
 
 module load Anaconda3
@@ -40,8 +42,8 @@ command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || true
 echo "============================================================"
 
 SCRATCH_OUT_ROOT="/mnt/parscratch/users/aca21jo/realign_outputs"
-PHASE1_OUT_ABS="$SCRATCH_OUT_ROOT/phase1_lejepa_ssl_large_gpu"
-PHASE1_OUT_LINK="./outputs/phase1_lejepa_ssl_large_gpu"
+PHASE1_OUT_ABS="$SCRATCH_OUT_ROOT/phase1_resnet50_ssl_large_gpu"
+PHASE1_OUT_LINK="./outputs/phase1_resnet50_ssl_large_gpu"
 
 mkdir -p "$SCRATCH_OUT_ROOT"
 mkdir -p "$PHASE1_OUT_ABS"
@@ -75,13 +77,13 @@ echo "Training roots:"
 printf '  %s\n' "${TRAIN_ROOTS[@]}"
 
 echo "============================================================"
-echo "Phase 1: LEJEPA SSL pretraining on expanded imagery"
+echo "Phase 1: ResNet50 SSL pretraining on expanded imagery"
 echo "============================================================"
 
 python train_encoder.py \
   --train_root "${TRAIN_ROOTS[@]}" \
   --output_dir "$PHASE1_OUT_LINK" \
-  --backbone_name "vit_base_patch16_224" \
+  --backbone_name "resnet50" \
   --pretrained_backbone \
   --ssl_epochs 20 \
   --batch_size_ssl 8 \
@@ -104,6 +106,6 @@ python train_encoder.py \
   --device cuda
 
 echo "============================================================"
-echo "LEJEPA SSL phase finished at: $(date)"
-echo "Output dir: $PHASE1_OUT_LINK"
+echo "Job finished at: $(date)"
+echo "ResNet50 SSL output: $PHASE1_OUT_LINK -> $PHASE1_OUT_ABS"
 echo "============================================================"
