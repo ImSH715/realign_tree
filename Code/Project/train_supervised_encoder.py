@@ -38,6 +38,12 @@ VALID_IMAGE_MODES = [
     "rgb_sat_25",
     "rgb_green_keep_50_sat_50",
     "rgb_green_keep_25_sat_50",
+    "rgb_white_boost",
+    "rgb_green_mean_white_boost",
+    "rgb_green_keep_50_white_boost",
+    "rgb_green_keep_25_white_boost",
+    "rgb_green_keep_50_sat_50_white_boost",
+    "rgb_green_keep_25_sat_50_white_boost",
 ]
 IMAGENET_GREEN_MEAN = 0.456
 
@@ -533,12 +539,19 @@ IMAGE_MODE_TRANSFORMS = {
     "rgb_sat_25": {"green_keep": 1.0, "sat_keep": 0.25},
     "rgb_green_keep_50_sat_50": {"green_keep": 0.50, "sat_keep": 0.50},
     "rgb_green_keep_25_sat_50": {"green_keep": 0.25, "sat_keep": 0.50},
+    "rgb_white_boost": {"green_keep": 1.0, "sat_keep": 1.0, "white_boost": 0.65},
+    "rgb_green_mean_white_boost": {"green_keep": 0.0, "sat_keep": 1.0, "white_boost": 0.65},
+    "rgb_green_keep_50_white_boost": {"green_keep": 0.50, "sat_keep": 1.0, "white_boost": 0.65},
+    "rgb_green_keep_25_white_boost": {"green_keep": 0.25, "sat_keep": 1.0, "white_boost": 0.65},
+    "rgb_green_keep_50_sat_50_white_boost": {"green_keep": 0.50, "sat_keep": 0.50, "white_boost": 0.65},
+    "rgb_green_keep_25_sat_50_white_boost": {"green_keep": 0.25, "sat_keep": 0.50, "white_boost": 0.65},
 }
 
 
 def apply_rgb_mode(img, image_mode):
     cfg = IMAGE_MODE_TRANSFORMS[image_mode]
     arr = np.asarray(img.convert("RGB"), dtype=np.float32)
+    original = arr.copy()
 
     green_keep = float(cfg["green_keep"])
     if green_keep < 1.0:
@@ -554,8 +567,22 @@ def apply_rgb_mode(img, image_mode):
         )
         arr = gray[:, :, None] + sat_keep * (arr - gray[:, :, None])
 
+    white_boost = float(cfg.get("white_boost", 0.0))
+    if white_boost > 0.0:
+        white_score = white_branch_score(original)
+        arr = arr + white_boost * white_score[:, :, None] * (255.0 - arr)
+
     arr = np.clip(arr, 0, 255).astype(np.uint8)
     return Image.fromarray(arr)
+
+
+def white_branch_score(arr):
+    arr = arr.astype(np.float32) / 255.0
+    maxc = arr.max(axis=2)
+    minc = arr.min(axis=2)
+    saturation = (maxc - minc) / (maxc + 1e-6)
+    whiteness = maxc * (1.0 - saturation)
+    return np.clip((whiteness - 0.52) / 0.38, 0.0, 1.0)
 
 
 def forward_features(model, x):
