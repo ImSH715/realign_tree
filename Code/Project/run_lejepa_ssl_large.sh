@@ -1,16 +1,13 @@
 #!/bin/bash
 
 #SBATCH --job-name=lejepa_ssl_large
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=90:00:00
-#SBATCH --output=logs/lejepa_ssl_large_%j.out
-#SBATCH --error=logs/lejepa_ssl_large_%j.err
+#SBATCH --time=90:00:00s
+#SBATCH --output=logs/mil/phase1/lejepa_ssl_large_%j.out
+#SBATCH --error=logs/mil/phase1/lejepa_ssl_large_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
