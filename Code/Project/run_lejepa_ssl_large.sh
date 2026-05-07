@@ -57,11 +57,11 @@ TRAIN_ROOTS=(
 )
 
 OPTIONAL_ROOTS=(
-  "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
-  "/mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
-  "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/02. Non-curated"
-  "/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/non_curated"
-  "/mnt/parscratch/users/aca21jo/2025_Forge/non_curated"
+  "/mnt/parscratch/users/acb20si/ai4eo/Shared/2025_Forge/OSINFOR_data/2023"
+  "/mnt/parscratch/users/acb20si/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos"
+  "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/02. Non-curated"
+  "/mnt/parscratch/users/acb20si/2025_Forge/OSINFOR_data/non_curated"
+  "/mnt/parscratch/users/acb20si/2025_Forge/non_curated"
 )
 
 for root in "${OPTIONAL_ROOTS[@]}"; do
