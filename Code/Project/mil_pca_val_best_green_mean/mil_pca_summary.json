@@ -1,0 +1,41 @@
+{
+  "num_instances": 3706,
+  "num_bags": 218,
+  "pca_explained_variance_ratio": [
+    0.1501341611146927,
+    0.0978115126490593
+  ],
+  "pca_explained_variance_ratio_sum": 0.2479456663131714,
+  "selected_average_precision": 0.5733504870912842,
+  "selected_roc_auc": 0.8614612381483547,
+  "selected_instance_average_precision": 0.7692939834797502,
+  "selected_instance_roc_auc": 0.9332961517010597,
+  "selected_status_counts": {
+    "TN": 128,
+    "TP": 46,
+    "FP": 35,
+    "FN": 9
+  },
+  "selected_offset_m_by_true_class": {
+    "0": {
+      "count": 163.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 0.0,
+      "75%": 0.0,
+      "max": 0.0
+    },
+    "1": {
+      "count": 55.0,
+      "mean": 15.4545456698,
+      "std": 5.7148869869,
+      "min": 0.0,
+      "25%": 10.0000003073,
+      "50%": 19.999999401,
+      "75%": 20.0000006146,
+      "max": 20.0000009424
+    }
+  }
+}
