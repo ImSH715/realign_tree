@@ -1,6 +1,9 @@
 #!/bin/bash
 
 #SBATCH --job-name=lejepa_ssl_large
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
@@ -37,8 +40,8 @@ command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || true
 echo "============================================================"
 
 SCRATCH_OUT_ROOT="/mnt/parscratch/users/acb20si/realign_outputs"
-PHASE1_OUT_ABS="$SCRATCH_OUT_ROOT/phase1_lejepa_ssl_large"
-PHASE1_OUT_LINK="./outputs/phase1_lejepa_ssl_large"
+PHASE1_OUT_ABS="$SCRATCH_OUT_ROOT/phase1_lejepa_ssl_large_gpu"
+PHASE1_OUT_LINK="./outputs/phase1_lejepa_ssl_large_gpu"
 
 mkdir -p "$SCRATCH_OUT_ROOT"
 mkdir -p "$PHASE1_OUT_ABS"
