@@ -1,7 +1,6 @@
 #!/bin/bash
 
 #SBATCH --job-name=phase4_slide_mil
-#SBATCH --job-name=binary_resnet50
 #SBATCH --mem=82G
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
