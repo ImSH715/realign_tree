@@ -57,6 +57,8 @@ BAG_INSTANCES="${BAG_INSTANCES:-17}"
 POOLING="${POOLING:-lse}"
 LSE_TAU="${LSE_TAU:-1.0}"
 TOPK="${TOPK:-3}"
+IMAGE_SIZE="${IMAGE_SIZE:-224}"
+PATCH_SIZE_PX="${PATCH_SIZE_PX:-224}"
 
 EPOCHS="${EPOCHS:-50}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
@@ -109,6 +111,8 @@ echo "Eval image mode       : $EVAL_IMAGE_MODE"
 echo "Positive bag radius m : $BAG_RADIUS_M"
 echo "Negative bag radius m : $NEGATIVE_BAG_RADIUS_M"
 echo "Bag instances         : $BAG_INSTANCES"
+echo "Patch size px         : $PATCH_SIZE_PX"
+echo "Model image size      : $IMAGE_SIZE"
 echo "Pooling               : $POOLING"
 echo "Epochs                : $EPOCHS"
 echo "Batch size            : $BATCH_SIZE"
@@ -137,8 +141,8 @@ python train_mil_classifier.py \
   --positive_class 1 \
   --image_mode "$TRAIN_IMAGE_MODE" \
   --eval_image_mode "$EVAL_IMAGE_MODE" \
-  --image_size 224 \
-  --patch_size_px 224 \
+  --image_size "$IMAGE_SIZE" \
+  --patch_size_px "$PATCH_SIZE_PX" \
   --bag_radius_m "$BAG_RADIUS_M" \
   --negative_bag_radius_m "$NEGATIVE_BAG_RADIUS_M" \
   --bag_instances "$BAG_INSTANCES" \
