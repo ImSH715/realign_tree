@@ -72,3 +72,20 @@ This writes:
 
 The summary table includes default-threshold metrics, PR-AUC, ROC-AUC, and the
 best Shihuahuaco F1 found by `tune_binary_threshold.py`.
+
+## Monitor Runs
+
+From the cluster login node:
+
+```bash
+bash experiments/mil_shihuaco_factorial/monitor_factorial.sh
+```
+
+To keep it refreshing:
+
+```bash
+watch -n 60 bash experiments/mil_shihuaco_factorial/monitor_factorial.sh
+```
+
+The monitor shows active SLURM jobs, recent job history, completed result-file
+counts, and the current top rows from `summary.md`.
