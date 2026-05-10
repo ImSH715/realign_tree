@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from sklearn.decomposition import PCA
 from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.utils.data import DataLoader
@@ -29,7 +28,8 @@ from src.models.checkpoint import load_encoder_from_checkpoint
 from train_mil_classifier import (
     MILPointBagDataset,
     Config,
-    forward_bags,
+    build_mil_head,
+    head_logits,
     pool_instance_logits,
 )
 from train_supervised_encoder import (
@@ -57,9 +57,9 @@ def make_runtime_config(raw: dict, output_dir: Path, split: str) -> Config:
     return cfg
 
 
-def load_head(head_path: Path, feat_dim: int, device):
+def load_head(head_path: Path, feat_dim: int, device, cfg: Config):
     state = torch.load(head_path, map_location=device)
-    head = nn.Linear(feat_dim, 1).to(device)
+    head = build_mil_head(feat_dim, cfg, device)
     head.load_state_dict(state["head_state_dict"])
     head.eval()
     return head, state
@@ -144,10 +144,11 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
         b, n, c, h, w = bags.shape
         flat = bags.reshape(b * n, c, h, w)
         feats = forward_features(model, flat)
-        instance_logits = head(feats).view(b, n)
+        raw_instance_logits, instance_logits = head_logits(head, feats, b, n)
         bag_logits = pool_instance_logits(instance_logits, cfg.pooling, cfg.lse_tau, cfg.topk)
 
         instance_probs = torch.sigmoid(instance_logits).detach().cpu().numpy()
+        raw_instance_probs = torch.sigmoid(raw_instance_logits).detach().cpu().numpy()
         bag_probs = torch.sigmoid(bag_logits).detach().cpu().numpy()
         bag_preds = (bag_probs >= 0.5).astype(np.int64)
         best_instances = instance_logits.argmax(dim=1).detach().cpu().numpy()
@@ -175,7 +176,9 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
                     "status": selected_status({"y_true": int(y_np[j]), "y_pred": int(bag_preds[j])}),
                     "bag_prob_1": float(bag_probs[j]),
                     "instance_prob_1": float(instance_probs[j, i]),
+                    "raw_instance_prob_1": float(raw_instance_probs[j, i]),
                     "selected_instance_prob_1": float(instance_probs[j, best_i]),
+                    "selected_raw_instance_prob_1": float(raw_instance_probs[j, best_i]),
                     "selected_instance": best_i,
                     "dx_px": dx_px,
                     "dy_px": dy_px,
@@ -269,7 +272,7 @@ def main():
 
     model, _ = load_encoder_from_checkpoint(str(encoder_path), device)
     feat_dim = infer_feature_dim(model, device, cfg.image_size)
-    head, _ = load_head(head_path, feat_dim, device)
+    head, _ = load_head(head_path, feat_dim, device, cfg)
 
     folder_to_paths = build_tif_index(cfg.imagery_root)
     shp_path = cfg.val_shp if args.split == "val" else cfg.train_shp
@@ -290,6 +293,7 @@ def main():
         bag_radius_m=cfg.bag_radius_m,
         negative_bag_radius_m=cfg.negative_bag_radius_m,
         bag_instances=cfg.bag_instances,
+        bag_layout=cfg.bag_layout,
         max_black_fraction=cfg.max_black_fraction,
         max_bright_fraction=cfg.max_bright_fraction,
         folder_to_paths=folder_to_paths,

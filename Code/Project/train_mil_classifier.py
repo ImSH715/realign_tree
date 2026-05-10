@@ -74,9 +74,11 @@ class Config:
     bag_radius_m: float = 20.0
     negative_bag_radius_m: float = 0.0
     bag_instances: int = 17
+    bag_layout: str = "rings"
     pooling: str = "lse"
     lse_tau: float = 1.0
     topk: int = 3
+    conv_kernel_size: int = 3
 
     batch_size: int = 2
     epochs: int = 50
@@ -154,6 +156,33 @@ def fixed_offsets(n: int, radius_px_x: float, radius_px_y: float) -> np.ndarray:
     return np.asarray(offsets[:n], dtype=np.float32)
 
 
+def grid_side_for_instances(n: int) -> int:
+    side = int(round(math.sqrt(int(n))))
+    if side * side != int(n):
+        raise ValueError(
+            f"Grid bag layout requires bag_instances to be a square number, got {n}. "
+            "Use 9, 25, 49, ..."
+        )
+    if side < 3 or side % 2 == 0:
+        raise ValueError(
+            f"Grid bag layout requires an odd side length >= 3, got {side}x{side}."
+        )
+    return side
+
+
+def grid_offsets(n: int, radius_px_x: float, radius_px_y: float) -> np.ndarray:
+    if n <= 0:
+        raise ValueError("bag_instances must be positive")
+    side = grid_side_for_instances(n)
+    if radius_px_x <= 0 or radius_px_y <= 0:
+        return np.zeros((n, 2), dtype=np.float32)
+
+    xs = np.linspace(-radius_px_x, radius_px_x, side, dtype=np.float32)
+    ys = np.linspace(-radius_px_y, radius_px_y, side, dtype=np.float32)
+    offsets = [(float(x), float(y)) for y in ys for x in xs]
+    return np.asarray(offsets, dtype=np.float32)
+
+
 def random_offsets(n: int, radius_px_x: float, radius_px_y: float) -> np.ndarray:
     if n <= 0:
         raise ValueError("bag_instances must be positive")
@@ -188,6 +217,7 @@ class MILPointBagDataset(Dataset):
         bag_instances: int,
         max_black_fraction: float,
         max_bright_fraction: float,
+        bag_layout: str = "rings",
         folder_to_paths: Dict[str, List[str]] = None,
         repeat_factor: int = 1,
         train: bool = True,
@@ -209,10 +239,16 @@ class MILPointBagDataset(Dataset):
         self.bag_radius_m = float(bag_radius_m)
         self.negative_bag_radius_m = float(negative_bag_radius_m)
         self.bag_instances = int(bag_instances)
+        self.bag_layout = str(bag_layout)
         self.max_black_fraction = float(max_black_fraction)
         self.max_bright_fraction = float(max_bright_fraction)
         self.repeat_factor = max(1, int(repeat_factor))
         self.train = bool(train)
+
+        if self.bag_layout not in {"rings", "grid"}:
+            raise ValueError("bag_layout must be one of: rings, grid")
+        if self.bag_layout == "grid":
+            grid_side_for_instances(self.bag_instances)
 
         required = [label_field, folder_field, file_field, fx_field, fy_field]
         for c in required:
@@ -282,6 +318,8 @@ class MILPointBagDataset(Dataset):
         radius_m = self.bag_radius_m if sample["bag_label"] == 1 else self.negative_bag_radius_m
         radius_px_x = radius_m / max(sample["pixel_size_x"], 1e-6)
         radius_px_y = radius_m / max(sample["pixel_size_y"], 1e-6)
+        if self.bag_layout == "grid":
+            return grid_offsets(self.bag_instances, radius_px_x, radius_px_y)
         if self.train:
             return random_offsets(self.bag_instances, radius_px_x, radius_px_y)
         return fixed_offsets(self.bag_instances, radius_px_x, radius_px_y)
@@ -341,7 +379,82 @@ def build_balanced_sampler(dataset: MILPointBagDataset):
     )
 
 
+def is_conv_pooling(pooling: str) -> bool:
+    return str(pooling).startswith("conv_")
+
+
+def base_pooling_name(pooling: str) -> str:
+    pooling = str(pooling)
+    return pooling[5:] if is_conv_pooling(pooling) else pooling
+
+
+class ConvolutionalMILHead(nn.Module):
+    def __init__(self, feat_dim: int, bag_instances: int, kernel_size: int = 3):
+        super().__init__()
+        side = grid_side_for_instances(bag_instances)
+        kernel_size = int(kernel_size)
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError("conv_kernel_size must be a positive odd integer")
+        if kernel_size > side:
+            raise ValueError(
+                f"conv_kernel_size={kernel_size} is larger than the {side}x{side} bag grid"
+            )
+
+        self.instance_head = nn.Linear(feat_dim, 1)
+        self.side = side
+        self.bag_instances = int(bag_instances)
+        self.context_conv = nn.Conv2d(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            padding_mode="replicate",
+            bias=True,
+        )
+        self.reset_context_conv()
+
+    def reset_context_conv(self):
+        nn.init.zeros_(self.context_conv.weight)
+        nn.init.zeros_(self.context_conv.bias)
+        center = self.context_conv.kernel_size[0] // 2
+        with torch.no_grad():
+            self.context_conv.weight[0, 0, center, center] = 1.0
+
+    def forward(self, z, batch_size: int, bag_instances: int):
+        if int(bag_instances) != self.bag_instances:
+            raise ValueError(
+                f"ConvolutionalMILHead was built for {self.bag_instances} instances, "
+                f"but received {bag_instances}"
+            )
+        raw_logits = self.instance_head(z).view(batch_size, bag_instances)
+        grid_logits = raw_logits.view(batch_size, 1, self.side, self.side)
+        context_logits = self.context_conv(grid_logits).view(batch_size, bag_instances)
+        return raw_logits, context_logits
+
+
+def build_mil_head(feat_dim: int, cfg: Config, device):
+    if is_conv_pooling(cfg.pooling):
+        if cfg.bag_layout != "grid":
+            raise ValueError("Convolutional pooling requires --bag_layout grid")
+        head = ConvolutionalMILHead(
+            feat_dim=feat_dim,
+            bag_instances=cfg.bag_instances,
+            kernel_size=cfg.conv_kernel_size,
+        )
+    else:
+        head = nn.Linear(feat_dim, 1)
+    return head.to(device)
+
+
+def head_logits(head, z, batch_size: int, bag_instances: int):
+    if isinstance(head, ConvolutionalMILHead):
+        return head(z, batch_size, bag_instances)
+    raw_logits = head(z).view(batch_size, bag_instances)
+    return raw_logits, raw_logits
+
+
 def pool_instance_logits(instance_logits, pooling: str, lse_tau: float, topk: int):
+    pooling = base_pooling_name(pooling)
     if pooling == "max":
         return instance_logits.max(dim=1).values
     if pooling == "lse":
@@ -358,9 +471,9 @@ def forward_bags(model, head, bags, pooling: str, lse_tau: float, topk: int):
     b, n, c, h, w = bags.shape
     flat = bags.reshape(b * n, c, h, w)
     z = forward_features(model, flat)
-    instance_logits = head(z).view(b, n)
-    bag_logits = pool_instance_logits(instance_logits, pooling, lse_tau, topk)
-    return bag_logits, instance_logits
+    raw_instance_logits, scoring_instance_logits = head_logits(head, z, b, n)
+    bag_logits = pool_instance_logits(scoring_instance_logits, pooling, lse_tau, topk)
+    return bag_logits, scoring_instance_logits, raw_instance_logits
 
 
 def metric_from_row(row, name):
@@ -423,7 +536,7 @@ def run_epoch(
 
         with torch.set_grad_enabled(train):
             with torch.amp.autocast(device_type=device.type, enabled=(cfg.use_amp and device.type == "cuda")):
-                bag_logits, _ = forward_bags(model, head, bags, cfg.pooling, cfg.lse_tau, cfg.topk)
+                bag_logits, _, _ = forward_bags(model, head, bags, cfg.pooling, cfg.lse_tau, cfg.topk)
                 loss = criterion(bag_logits, y)
 
             if train:
@@ -472,9 +585,12 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
     for bags, y, idxs, offsets in tqdm(loader, desc="Predict", dynamic_ncols=True):
         bags = bags.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
-        bag_logits, instance_logits = forward_bags(model, head, bags, cfg.pooling, cfg.lse_tau, cfg.topk)
+        bag_logits, instance_logits, raw_instance_logits = forward_bags(
+            model, head, bags, cfg.pooling, cfg.lse_tau, cfg.topk
+        )
         probs = torch.sigmoid(bag_logits)
         instance_probs = torch.sigmoid(instance_logits)
+        raw_instance_probs = torch.sigmoid(raw_instance_logits)
         preds = (probs >= 0.5).long()
         best_instance = instance_logits.argmax(dim=1).detach().cpu()
 
@@ -484,6 +600,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
         idxs_cpu = idxs.detach().cpu()
         offsets_cpu = offsets.detach().cpu()
         instance_probs_cpu = instance_probs.detach().cpu()
+        raw_instance_probs_cpu = raw_instance_probs.detach().cpu()
 
         for j in range(len(y_true_batch)):
             sample = dataset.samples[int(idxs_cpu[j])]
@@ -492,6 +609,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
             dy_px = float(offsets_cpu[j, best_i, 1])
             prob_1 = float(probs_cpu[j])
             best_instance_prob_1 = float(instance_probs_cpu[j, best_i])
+            best_raw_instance_prob_1 = float(raw_instance_probs_cpu[j, best_i])
             true_label = int(y_true_batch[j])
             pred_label = int(preds_cpu[j])
             y_true.append(true_label)
@@ -503,6 +621,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
                 "prob_0": 1.0 - prob_1,
                 "prob_1": prob_1,
                 "best_instance_prob_1": best_instance_prob_1,
+                "best_raw_instance_prob_1": best_raw_instance_prob_1,
                 "best_instance": best_i,
                 "best_dx_px": dx_px,
                 "best_dy_px": dy_px,
@@ -553,6 +672,8 @@ def save_mil_checkpoint(cfg, model, head, feat_dim, epoch, metric_value, name):
         "bag_radius_m": cfg.bag_radius_m,
         "negative_bag_radius_m": cfg.negative_bag_radius_m,
         "bag_instances": cfg.bag_instances,
+        "bag_layout": cfg.bag_layout,
+        "conv_kernel_size": cfg.conv_kernel_size,
         "image_mode": cfg.image_mode,
         "eval_image_mode": cfg.eval_image_mode,
     }
@@ -572,6 +693,8 @@ def save_mil_checkpoint(cfg, model, head, feat_dim, epoch, metric_value, name):
             "bag_radius_m": cfg.bag_radius_m,
             "negative_bag_radius_m": cfg.negative_bag_radius_m,
             "bag_instances": cfg.bag_instances,
+            "bag_layout": cfg.bag_layout,
+            "conv_kernel_size": cfg.conv_kernel_size,
         },
         head_path,
     )
@@ -601,9 +724,11 @@ def parse_args():
     p.add_argument("--bag_radius_m", type=float, default=20.0)
     p.add_argument("--negative_bag_radius_m", type=float, default=0.0)
     p.add_argument("--bag_instances", type=int, default=17)
-    p.add_argument("--pooling", default="lse", choices=["max", "lse", "topk"])
+    p.add_argument("--bag_layout", default="rings", choices=["rings", "grid"])
+    p.add_argument("--pooling", default="lse", choices=["max", "lse", "topk", "conv_max", "conv_lse", "conv_topk"])
     p.add_argument("--lse_tau", type=float, default=1.0)
     p.add_argument("--topk", type=int, default=3)
+    p.add_argument("--conv_kernel_size", type=int, default=3)
 
     p.add_argument("--batch_size", type=int, default=2)
     p.add_argument("--epochs", type=int, default=50)
@@ -657,9 +782,11 @@ def main():
         bag_radius_m=args.bag_radius_m,
         negative_bag_radius_m=args.negative_bag_radius_m,
         bag_instances=args.bag_instances,
+        bag_layout=args.bag_layout,
         pooling=args.pooling,
         lse_tau=args.lse_tau,
         topk=args.topk,
+        conv_kernel_size=args.conv_kernel_size,
         batch_size=args.batch_size,
         epochs=args.epochs,
         lr_encoder=args.lr_encoder,
@@ -682,6 +809,12 @@ def main():
 
     safe_mkdir(cfg.output_dir)
     set_seed(cfg.seed)
+    if is_conv_pooling(cfg.pooling):
+        if cfg.bag_layout != "grid":
+            raise ValueError("Convolutional MIL pooling requires --bag_layout grid")
+        grid_side_for_instances(cfg.bag_instances)
+        if cfg.conv_kernel_size <= 0 or cfg.conv_kernel_size % 2 == 0:
+            raise ValueError("--conv_kernel_size must be a positive odd integer")
     with open(os.path.join(cfg.output_dir, "mil_config.json"), "w", encoding="utf-8") as f:
         json.dump(asdict(cfg), f, indent=2)
 
@@ -707,6 +840,7 @@ def main():
         bag_radius_m=cfg.bag_radius_m,
         negative_bag_radius_m=cfg.negative_bag_radius_m,
         bag_instances=cfg.bag_instances,
+        bag_layout=cfg.bag_layout,
         max_black_fraction=cfg.max_black_fraction,
         max_bright_fraction=cfg.max_bright_fraction,
         folder_to_paths=folder_to_paths,
@@ -729,6 +863,7 @@ def main():
         bag_radius_m=cfg.bag_radius_m,
         negative_bag_radius_m=cfg.negative_bag_radius_m,
         bag_instances=cfg.bag_instances,
+        bag_layout=cfg.bag_layout,
         max_black_fraction=cfg.max_black_fraction,
         max_bright_fraction=cfg.max_bright_fraction,
         folder_to_paths=folder_to_paths,
@@ -756,7 +891,7 @@ def main():
     )
 
     feat_dim = infer_feature_dim(model, device, cfg.image_size)
-    head = nn.Linear(feat_dim, 1).to(device)
+    head = build_mil_head(feat_dim, cfg, device)
 
     targets = np.asarray(train_ds.targets(), dtype=np.float32)
     pos_count = max(1.0, float(targets.sum()))
@@ -782,7 +917,10 @@ def main():
     print(f"Positive radius (m)   : {cfg.bag_radius_m}")
     print(f"Negative radius (m)   : {cfg.negative_bag_radius_m}")
     print(f"Bag instances         : {cfg.bag_instances}")
+    print(f"Bag layout            : {cfg.bag_layout}")
     print(f"Pooling               : {cfg.pooling}")
+    if is_conv_pooling(cfg.pooling):
+        print(f"Conv kernel size      : {cfg.conv_kernel_size}")
     print(f"Train image mode      : {cfg.image_mode}")
     print(f"Eval image mode       : {cfg.eval_image_mode}")
     print(f"Balanced sampler      : {cfg.use_balanced_sampler}")
@@ -856,7 +994,7 @@ def main():
     best_encoder_path = os.path.join(cfg.output_dir, "phase1_encoder_best.pth")
     best_head_path = os.path.join(cfg.output_dir, "mil_head_best.pth")
     best_model, _ = load_encoder_from_checkpoint(best_encoder_path, device)
-    best_head = nn.Linear(feat_dim, 1).to(device)
+    best_head = build_mil_head(feat_dim, cfg, device)
     best_head.load_state_dict(torch.load(best_head_path, map_location=device)["head_state_dict"])
     evaluate_to_files(best_model, best_head, val_ds, val_loader, device, cfg)
 

@@ -54,9 +54,11 @@ fi
 BAG_RADIUS_M="${BAG_RADIUS_M:-20}"
 NEGATIVE_BAG_RADIUS_M="${NEGATIVE_BAG_RADIUS_M:-0}"
 BAG_INSTANCES="${BAG_INSTANCES:-17}"
+BAG_LAYOUT="${BAG_LAYOUT:-rings}"
 POOLING="${POOLING:-lse}"
 LSE_TAU="${LSE_TAU:-1.0}"
 TOPK="${TOPK:-3}"
+CONV_KERNEL_SIZE="${CONV_KERNEL_SIZE:-3}"
 IMAGE_SIZE="${IMAGE_SIZE:-224}"
 PATCH_SIZE_PX="${PATCH_SIZE_PX:-224}"
 
@@ -111,9 +113,11 @@ echo "Eval image mode       : $EVAL_IMAGE_MODE"
 echo "Positive bag radius m : $BAG_RADIUS_M"
 echo "Negative bag radius m : $NEGATIVE_BAG_RADIUS_M"
 echo "Bag instances         : $BAG_INSTANCES"
+echo "Bag layout            : $BAG_LAYOUT"
 echo "Patch size px         : $PATCH_SIZE_PX"
 echo "Model image size      : $IMAGE_SIZE"
 echo "Pooling               : $POOLING"
+echo "Conv kernel size      : $CONV_KERNEL_SIZE"
 echo "Epochs                : $EPOCHS"
 echo "Batch size            : $BATCH_SIZE"
 
@@ -146,9 +150,11 @@ python train_mil_classifier.py \
   --bag_radius_m "$BAG_RADIUS_M" \
   --negative_bag_radius_m "$NEGATIVE_BAG_RADIUS_M" \
   --bag_instances "$BAG_INSTANCES" \
+  --bag_layout "$BAG_LAYOUT" \
   --pooling "$POOLING" \
   --lse_tau "$LSE_TAU" \
   --topk "$TOPK" \
+  --conv_kernel_size "$CONV_KERNEL_SIZE" \
   --batch_size "$BATCH_SIZE" \
   --epochs "$EPOCHS" \
   --lr_encoder "$LR_ENCODER" \
