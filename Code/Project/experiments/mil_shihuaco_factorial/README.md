@@ -96,3 +96,10 @@ For instant failures, inspect the first failing line from the SLURM logs:
 ```bash
 bash experiments/mil_shihuaco_factorial/diagnose_failed_jobs.sh 10152392 10152399
 ```
+
+To cancel the queued/running factorial jobs only:
+
+```bash
+bash experiments/mil_shihuaco_factorial/cancel_factorial_jobs.sh
+DRY_RUN=0 bash experiments/mil_shihuaco_factorial/cancel_factorial_jobs.sh
+```

@@ -19,8 +19,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 
-mkdir -p logs/mil_factorial
-mkdir -p outputs
+# Some cluster project mounts are readable from compute nodes but do not allow
+# creating new top-level directories from batch jobs. All required run outputs
+# are written to scratch below; project-side result links are best-effort.
+mkdir -p logs/mil_factorial 2>/dev/null || true
 
 normalise_name() {
   printf "%s" "$1" | tr "[:upper:]" "[:lower:]"
@@ -174,19 +176,23 @@ export GEOTIFF_CSV="${GEOTIFF_CSV:-}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
 mkdir -p "$SCRATCH_EXP_ROOT"
-mkdir -p "$LOCAL_RESULTS_ROOT"
 
 BASE_RUN_NAME="${ENCODER}_${TRAIN_IMAGE_MODE}_patch${PATCH_SIZE_PX}_${POOLING}_bag${BAG_INSTANCES}_seed${SEED}${RUN_TAG}"
 RUN_NAME="${RUN_NAME:-$BASE_RUN_NAME}"
 SCRATCH_OUT_DIR="$SCRATCH_EXP_ROOT/$RUN_NAME"
-OUT_DIR="$LOCAL_RESULTS_ROOT/$RUN_NAME"
+LOCAL_LINK="$LOCAL_RESULTS_ROOT/$RUN_NAME"
+OUT_DIR="$SCRATCH_OUT_DIR"
 
 mkdir -p "$SCRATCH_OUT_DIR"
-if [ -e "$OUT_DIR" ] && [ ! -L "$OUT_DIR" ]; then
-  echo "Refusing to overwrite non-symlink output path: $OUT_DIR"
-  exit 1
+if mkdir -p "$LOCAL_RESULTS_ROOT" 2>/dev/null; then
+  if [ -e "$LOCAL_LINK" ] && [ ! -L "$LOCAL_LINK" ]; then
+    echo "Project result link path exists and is not a symlink, leaving it untouched: $LOCAL_LINK"
+  else
+    ln -sfn "$SCRATCH_OUT_DIR" "$LOCAL_LINK" || echo "Could not create project result link: $LOCAL_LINK"
+  fi
+else
+  echo "Could not create project result directory, using scratch only: $LOCAL_RESULTS_ROOT"
 fi
-ln -sfn "$SCRATCH_OUT_DIR" "$OUT_DIR"
 
 {
   echo "experiment_name=$EXPERIMENT_NAME"
@@ -203,6 +209,7 @@ ln -sfn "$SCRATCH_OUT_DIR" "$OUT_DIR"
   echo "seed=$SEED"
   echo "init_ckpt=$INIT_ENCODER_CKPT"
   echo "scratch_out_dir=$SCRATCH_OUT_DIR"
+  echo "local_link=$LOCAL_LINK"
   echo "out_dir=$OUT_DIR"
   echo "slurm_job_id=${SLURM_JOB_ID:-}"
 } > "$OUT_DIR/run_metadata.txt"
