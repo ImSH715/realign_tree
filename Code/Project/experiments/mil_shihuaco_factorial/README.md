@@ -33,6 +33,7 @@ Default total: 36 SLURM jobs.
 From `realign_tree/Code/Project`:
 
 ```bash
+bash experiments/mil_shihuaco_factorial/preflight_factorial.sh
 bash experiments/mil_shihuaco_factorial/submit_factorial.sh
 ```
 
@@ -89,3 +90,9 @@ watch -n 60 bash experiments/mil_shihuaco_factorial/monitor_factorial.sh
 
 The monitor shows active SLURM jobs, recent job history, completed result-file
 counts, and the current top rows from `summary.md`.
+
+For instant failures, inspect the first failing line from the SLURM logs:
+
+```bash
+bash experiments/mil_shihuaco_factorial/diagnose_failed_jobs.sh 10152392 10152399
+```

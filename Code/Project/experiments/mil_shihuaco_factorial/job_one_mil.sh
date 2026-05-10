@@ -144,11 +144,27 @@ if [ "$BAG_LAYOUT" = "grid" ]; then
 fi
 
 if [ "${SKIP_MODULE_LOAD:-0}" != "1" ]; then
+  if ! command -v module >/dev/null 2>&1; then
+    if [ -f /etc/profile.d/modules.sh ]; then
+      # Some SLURM batch shells do not initialise Environment Modules.
+      # Source the standard init script before loading Anaconda.
+      . /etc/profile.d/modules.sh
+    elif [ -f /usr/share/Modules/init/bash ]; then
+      . /usr/share/Modules/init/bash
+    fi
+  fi
+
   if command -v module >/dev/null 2>&1; then
     module load Anaconda3
   else
     echo "module command not found; assuming conda is already available."
   fi
+fi
+
+if ! command -v conda >/dev/null 2>&1; then
+  echo "conda command not found after module setup."
+  echo "Set SKIP_MODULE_LOAD=1 only if conda is already on PATH, or set CONDA_ENV for the cluster environment."
+  exit 1
 fi
 
 eval "$(conda shell.bash hook)"

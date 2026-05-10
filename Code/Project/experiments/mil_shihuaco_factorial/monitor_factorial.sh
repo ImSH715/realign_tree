@@ -11,6 +11,8 @@ SUMMARY_CSV="${SUMMARY_CSV:-$SCRIPT_DIR/summary.csv}"
 SUMMARY_MD="${SUMMARY_MD:-$SCRIPT_DIR/summary.md}"
 JOB_MATCH="${JOB_MATCH:-mf_|mil_fact}"
 SACCT_DAYS="${SACCT_DAYS:-3}"
+FAILED_LOG_TAIL="${FAILED_LOG_TAIL:-1}"
+TAIL_LINES="${TAIL_LINES:-40}"
 
 python_cmd() {
   if command -v python3 >/dev/null 2>&1; then
@@ -67,6 +69,29 @@ else
   echo "sacct not found; skipping recent job history."
 fi
 
+if [ "$FAILED_LOG_TAIL" = "1" ] && command -v sacct >/dev/null 2>&1; then
+  echo
+  echo "Recent failed-job log tails"
+  start_date="$(date -d "$SACCT_DAYS days ago" +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)"
+  failed_ids="$(sacct -u "${USER:-$LOGNAME}" -S "$start_date" --format=JobIDRaw,JobName%28,State --parsable2 \
+    | grep -E "$JOB_MATCH" \
+    | awk -F'|' '$3 ~ /FAILED|CANCELLED|TIMEOUT|OUT_OF_MEMORY/ {print $1}' \
+    | sort -u \
+    | tail -n 5)"
+  if [ -z "$failed_ids" ]; then
+    echo "No recent failed matching jobs found."
+  else
+    for job_id in $failed_ids; do
+      echo
+      echo "Job $job_id"
+      find logs/mil_factorial -maxdepth 1 -type f \( -name "*_${job_id}.out" -o -name "*_${job_id}.err" \) 2>/dev/null | sort | while read -r log_path; do
+        echo "---- $log_path ----"
+        tail -n "$TAIL_LINES" "$log_path" || true
+      done
+    done
+  fi
+fi
+
 run_dirs="$(count_run_dirs)"
 complete_reports="$(count_matching_files classification_report.json)"
 diagnostics="$(count_matching_files binary_score_diagnostics.json)"
@@ -102,6 +127,7 @@ fi
 
 echo
 echo "Useful follow-ups"
+echo "Diagnose jobs : bash experiments/mil_shihuaco_factorial/diagnose_failed_jobs.sh <job-id> [...]"
 echo "Tail live logs : tail -f logs/mil_factorial/<job-name>_<job-id>.out"
 echo "Refresh watch  : watch -n 60 bash experiments/mil_shihuaco_factorial/monitor_factorial.sh"
 echo "Summary CSV    : $SUMMARY_CSV"
