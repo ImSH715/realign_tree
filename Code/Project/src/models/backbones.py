@@ -4,7 +4,7 @@ Backbone factory for LeJEPA-style training and downstream evaluation.
 This module creates a unified feature extractor interface for multiple backbones:
 - standard ViT backbones from timm,
 - ResNet50 CNN baseline,
-- DINOv2 ViT backbones from timm (when available in the environment).
+- DINO-style ViT backbones from timm when available in the environment.
 
 The goal is to keep Phase 2 and Phase 3 unchanged by exposing a consistent
 forward() output: a [B, D] feature vector for any backbone.
@@ -91,10 +91,11 @@ def create_backbone(
     - "resnet50"                          -> CNN baseline
     - "vit_small_patch14_dinov2.lvd142m" -> DINOv2 small
     - "vit_base_patch14_dinov2.lvd142m"  -> DINOv2 base
+    - any DINOv3 timm name available in the active environment/cache
 
     Notes:
-    - pretrained=True for DINOv2 only works if weights are available in cache
-      or the runtime can download them.
+    - pretrained=True for DINO-style models only works if weights are available
+      in cache or the runtime can download them.
     - For large orthomosaic patch datasets, resnet50 and dino vit-small are
       practical choices.
     """

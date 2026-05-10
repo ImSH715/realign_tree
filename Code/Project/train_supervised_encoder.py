@@ -578,11 +578,48 @@ def apply_rgb_mode(img, image_mode):
 
 def white_branch_score(arr):
     arr = arr.astype(np.float32) / 255.0
+    r = arr[:, :, 0]
+    g = arr[:, :, 1]
+    b = arr[:, :, 2]
     maxc = arr.max(axis=2)
     minc = arr.min(axis=2)
     saturation = (maxc - minc) / (maxc + 1e-6)
     whiteness = maxc * (1.0 - saturation)
-    return np.clip((whiteness - 0.52) / 0.38, 0.0, 1.0)
+    white_score = np.clip((whiteness - 0.52) / 0.38, 0.0, 1.0)
+
+    exg = 2.0 * g - r - b
+    green_ratio = g / (r + g + b + 1e-6)
+    vegetation_mask = (
+        (g > r + 0.03)
+        & (g > b + 0.03)
+        & (exg > 0.05)
+        & (green_ratio > 0.34)
+    )
+
+    patch_vegetation_fraction = float(vegetation_mask.mean())
+    patch_vegetation_gate = np.clip((patch_vegetation_fraction - 0.03) / 0.07, 0.0, 1.0)
+
+    local_radius = max(4, int(round(min(arr.shape[:2]) * 0.04)))
+    local_vegetation = box_filter_mean(vegetation_mask.astype(np.float32), radius=local_radius)
+    local_vegetation_gate = np.clip((local_vegetation - 0.015) / 0.08, 0.0, 1.0)
+
+    yellow_cast = np.clip((((r + g) * 0.5 - b) - 0.10) / 0.25, 0.0, 1.0)
+    red_not_below_green = np.clip((r - g + 0.04) / 0.12, 0.0, 1.0)
+    non_yellow_gate = 1.0 - (yellow_cast * red_not_below_green)
+
+    return white_score * patch_vegetation_gate * local_vegetation_gate * non_yellow_gate
+
+
+def box_filter_mean(arr: np.ndarray, radius: int) -> np.ndarray:
+    radius = int(radius)
+    if radius <= 0:
+        return arr.astype(np.float32)
+
+    padded = np.pad(arr.astype(np.float32), ((radius, radius), (radius, radius)), mode="edge")
+    integral = np.pad(padded, ((1, 0), (1, 0)), mode="constant").cumsum(axis=0).cumsum(axis=1)
+    k = 2 * radius + 1
+    total = integral[k:, k:] - integral[:-k, k:] - integral[k:, :-k] + integral[:-k, :-k]
+    return total / float(k * k)
 
 
 def forward_features(model, x):

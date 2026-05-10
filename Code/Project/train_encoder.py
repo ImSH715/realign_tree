@@ -320,12 +320,11 @@ def parse_args():
     parser.add_argument(
         "--backbone_name",
         default="vit_base_patch16_224",
-        choices=[
-            "vit_base_patch16_224",
-            "resnet50",
-            "vit_small_patch14_dinov2.lvd142m",
-            "vit_base_patch14_dinov2.lvd142m",
-        ],
+        help=(
+            "timm backbone name, for example vit_base_patch16_224, "
+            "resnet50, vit_small_patch14_dinov2.lvd142m, or a DINOv3 "
+            "name available in the active timm environment."
+        ),
     )
 
     parser.add_argument("--pretrained_backbone", action="store_true")
