@@ -10,6 +10,7 @@ IMAGERY_ROOT="${IMAGERY_ROOT:-/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_d
 TRAIN_SHP="${TRAIN_SHP:-./outputs/splits_binary/valid_points_train.shp}"
 VAL_SHP="${VAL_SHP:-./outputs/splits_binary/valid_points_val.shp}"
 SCRATCH_EXP_ROOT="${SCRATCH_EXP_ROOT:-/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial}"
+SCRATCH_LOG_ROOT="${SCRATCH_LOG_ROOT:-$SCRATCH_EXP_ROOT/slurm_logs}"
 
 status=0
 
@@ -58,6 +59,13 @@ if mkdir -p "$SCRATCH_EXP_ROOT" >/dev/null 2>&1; then
   echo "OK   scratch root writable or creatable: $SCRATCH_EXP_ROOT"
 else
   echo "MISS scratch root not writable/creatable: $SCRATCH_EXP_ROOT"
+  status=1
+fi
+
+if mkdir -p "$SCRATCH_LOG_ROOT" >/dev/null 2>&1; then
+  echo "OK   scratch log root writable or creatable: $SCRATCH_LOG_ROOT"
+else
+  echo "MISS scratch log root not writable/creatable: $SCRATCH_LOG_ROOT"
   status=1
 fi
 

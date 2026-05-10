@@ -3,7 +3,6 @@
 This folder queues and collects the MIL runs needed to compare:
 
 - RGB with white boost vs green-mean with white boost.
-- Small/current/large spatial crops.
 - Standard MIL pooling vs neighbourhood convolution over the candidate grid.
 - DINOv2, DINOv3, and LeJEPA encoder checkpoints.
 
@@ -15,18 +14,22 @@ yellow dirt paths.
 
 ## Default Grid
 
-`submit_factorial.sh` expands this default grid:
+`submit_factorial.sh` expands this default run grid:
 
 - `ENCODERS="dino2 dino3 lejepa"`
 - `IMAGE_MODES="rgb_white_boost rgb_green_mean_white_boost"`
-- `PATCH_SIZES="160 224 320"`
+- `PATCH_SIZES="160"`
 - `POOLINGS="lse conv_lse"`
 
 Both `lse` and `conv_lse` use `BAG_LAYOUT=grid` and `BAG_INSTANCES=25`, which
 means each bag is a 5 by 5 neighbourhood. The non-convolution run therefore
 uses the same candidate crops as the convolution run.
 
-Default total: 36 SLURM jobs.
+Default total: 12 training runs grouped into 6 SLURM jobs, one job per
+`encoder x pooling` pair. Each job runs the RGB-vs-green comparison
+sequentially. Patch size is fixed at 160 px because the pulled MIL logs show
+the strongest previous run at `p160`: green-mean plus white boost reached
+about 0.711 validation/selected PR-AUC, ahead of the available 224 px runs.
 
 ## Queue Runs
 
@@ -46,9 +49,18 @@ DRY_RUN=1 bash experiments/mil_shihuaco_factorial/submit_factorial.sh
 Useful overrides:
 
 ```bash
-PATCH_SIZES="160 224" EPOCHS=30 \
+EPOCHS=30 \
   bash experiments/mil_shihuaco_factorial/submit_factorial.sh
 ```
+
+The sweeps skip already completed run folders by default, so if a sweep hits
+the walltime you can submit the same command again and it will continue from
+the missing combinations.
+
+To force the older one-job-per-configuration behaviour, set
+`SUBMIT_MODE=grid`. To merge all pooling/image-mode runs by encoder, set
+`SUBMIT_MODE=encoder_sweep`. The recommended mode is the default
+`model_pooling_sweep`, which submits 6 jobs.
 
 For DINOv3, set `DINO3_INIT_CKPT` unless the checkpoint exists in one of the
 default fallback paths listed in `job_one_mil.sh`.
@@ -73,6 +85,9 @@ This writes:
 
 The summary table includes default-threshold metrics, PR-AUC, ROC-AUC, and the
 best Shihuahuaco F1 found by `tune_binary_threshold.py`.
+
+By default, result collection scans the scratch root
+`/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial`.
 
 ## Monitor Runs
 

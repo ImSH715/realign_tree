@@ -6,13 +6,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 
-RESULTS_ROOT="${RESULTS_ROOT:-$SCRIPT_DIR/results}"
+DEFAULT_SCRATCH_ROOT="/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial"
+RESULTS_ROOT="${RESULTS_ROOT:-$DEFAULT_SCRATCH_ROOT}"
 SUMMARY_CSV="${SUMMARY_CSV:-$SCRIPT_DIR/summary.csv}"
 SUMMARY_MD="${SUMMARY_MD:-$SCRIPT_DIR/summary.md}"
 JOB_MATCH="${JOB_MATCH:-mf_|mil_fact}"
 SACCT_DAYS="${SACCT_DAYS:-3}"
 FAILED_LOG_TAIL="${FAILED_LOG_TAIL:-1}"
 TAIL_LINES="${TAIL_LINES:-40}"
+LOG_ROOT="${LOG_ROOT:-$DEFAULT_SCRATCH_ROOT/slurm_logs}"
 
 python_cmd() {
   if command -v python3 >/dev/null 2>&1; then
@@ -84,7 +86,7 @@ if [ "$FAILED_LOG_TAIL" = "1" ] && command -v sacct >/dev/null 2>&1; then
     for job_id in $failed_ids; do
       echo
       echo "Job $job_id"
-      find logs/mil_factorial -maxdepth 1 -type f \( -name "*_${job_id}.out" -o -name "*_${job_id}.err" \) 2>/dev/null | sort | while read -r log_path; do
+      find "$LOG_ROOT" logs/mil_factorial -maxdepth 1 -type f \( -name "*_${job_id}.out" -o -name "*_${job_id}.err" \) 2>/dev/null | sort | while read -r log_path; do
         echo "---- $log_path ----"
         tail -n "$TAIL_LINES" "$log_path" || true
       done
@@ -128,6 +130,6 @@ fi
 echo
 echo "Useful follow-ups"
 echo "Diagnose jobs : bash experiments/mil_shihuaco_factorial/diagnose_failed_jobs.sh <job-id> [...]"
-echo "Tail live logs : tail -f logs/mil_factorial/<job-name>_<job-id>.out"
+echo "Tail live logs : tail -f $LOG_ROOT/<job-name>_<job-id>.out"
 echo "Refresh watch  : watch -n 60 bash experiments/mil_shihuaco_factorial/monitor_factorial.sh"
 echo "Summary CSV    : $SUMMARY_CSV"

@@ -301,7 +301,9 @@ def write_summary_md(path: Path, rows: List[Dict[str, Any]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect MIL factorial results.")
     default_root = Path(__file__).resolve().parent
-    parser.add_argument("--results_root", default=str(default_root / "results"))
+    scratch_root = Path("/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial")
+    default_results = scratch_root if scratch_root.exists() else default_root / "results"
+    parser.add_argument("--results_root", default=str(default_results))
     parser.add_argument("--output_csv", default=str(default_root / "summary.csv"))
     parser.add_argument("--output_md", default=str(default_root / "summary.md"))
     args = parser.parse_args()
