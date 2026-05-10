@@ -1,0 +1,136 @@
+============================================================
+Job started at: Thu  7 May 23:27:18 BST 2026
+Running on node: gpu13.pri.stanage.alces.network
+MIL output dir : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda
+PCA output dir : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best
+Python 3.10.20
+Thu May  7 23:27:18 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:01:00.0 Off |                    0 |
+| N/A   34C    P0             60W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+============================================================
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving MIL bags for valid_points_val.shp...
+[INFO] Resolved bags: 218
+[INFO] Failed rows  : 0
+[INFO] Bag labels   : {0: 163, 1: 55}
+{
+  "num_instances": 3706,
+  "num_bags": 218,
+  "pca_explained_variance_ratio": [
+    0.18054097890853882,
+    0.08756783604621887
+  ],
+  "pca_explained_variance_ratio_sum": 0.2681088149547577,
+  "selected_average_precision": 0.4805438735600817,
+  "selected_roc_auc": 0.8117122141662019,
+  "selected_instance_average_precision": 0.7423353643720584,
+  "selected_instance_roc_auc": 0.917010596765198,
+  "selected_status_counts": {
+    "TN": 124,
+    "TP": 47,
+    "FP": 39,
+    "FN": 8
+  },
+  "selected_offset_m_by_true_class": {
+    "0": {
+      "count": 163.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 0.0,
+      "75%": 0.0,
+      "max": 0.0
+    },
+    "1": {
+      "count": 55.0,
+      "mean": 14.1818183149,
+      "std": 6.5802481061,
+      "min": 0.0,
+      "25%": 9.9999998671,
+      "50%": 19.999999231,
+      "75%": 20.0000004931,
+      "max": 20.0000009424
+    }
+  }
+}
+Instance PCA CSV : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/mil_instance_pca.csv
+Selected PCA CSV : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/mil_selected_pca.csv
+Output directory : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_top_confident/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_top_confident/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_positives/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_positives/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_negatives/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_negatives/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_largest_offsets/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_largest_offsets/mil_debug_patches.csv
+============================================================
+Analysis finished at: Thu  7 May 23:31:01 BST 2026
+Summary:
+{
+  "num_instances": 3706,
+  "num_bags": 218,
+  "pca_explained_variance_ratio": [
+    0.18054097890853882,
+    0.08756783604621887
+  ],
+  "pca_explained_variance_ratio_sum": 0.2681088149547577,
+  "selected_average_precision": 0.4805438735600817,
+  "selected_roc_auc": 0.8117122141662019,
+  "selected_instance_average_precision": 0.7423353643720584,
+  "selected_instance_roc_auc": 0.917010596765198,
+  "selected_status_counts": {
+    "TN": 124,
+    "TP": 47,
+    "FP": 39,
+    "FN": 8
+  },
+  "selected_offset_m_by_true_class": {
+    "0": {
+      "count": 163.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 0.0,
+      "75%": 0.0,
+      "max": 0.0
+    },
+    "1": {
+      "count": 55.0,
+      "mean": 14.1818183149,
+      "std": 6.5802481061,
+      "min": 0.0,
+      "25%": 9.9999998671,
+      "50%": 19.999999231,
+      "75%": 20.0000004931,
+      "max": 20.0000009424
+    }
+  }
+}
+PCA plots and CSVs: outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best
+Top confident sheet: outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_top_confident/contact_sheet.html
+False positives   : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_positives/contact_sheet.html
+False negatives   : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_false_negatives/contact_sheet.html
+Largest offsets   : outputs/mil_dino_shared_seasonal_20m_rgb_rgb_cuda/pca_val_best/debug_largest_offsets/contact_sheet.html
+============================================================

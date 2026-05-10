@@ -1,0 +1,211 @@
+============================================================
+Job started at: Wed  6 May 21:22:36 BST 2026
+Running on node: gpu06.pri.stanage.alces.network
+Python: /users/aca21jo/.conda/envs/lejepa_gpu/bin/python
+Python 3.10.20
+Wed May  6 21:22:36 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:C1:00.0 Off |                    0 |
+| N/A   29C    P0             63W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+============================================================
+MIL output dir        : ./outputs/mil_dino_shared_seasonal_20m_rgb_no_green_no_green_cuda
+Init encoder          : ./outputs/binary_dino_shared_seasonal_rgb_balanced_cuda_80ep/phase1_encoder_best.pth
+Train image mode      : rgb_no_green
+Eval image mode       : rgb_no_green
+Positive bag radius m : 20
+Negative bag radius m : 0
+Bag instances         : 17
+Pooling               : lse
+Epochs                : 50
+Batch size            : 2
+============================================================
+Step 1: Training 20 m MIL classifier
+============================================================
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving MIL bags for valid_points_train.shp...
+[INFO] Resolved bags: 784
+[INFO] Failed rows  : 0
+[INFO] Bag labels   : {0: 711, 1: 73}
+[INFO] Resolving MIL bags for valid_points_val.shp...
+[INFO] Resolved bags: 218
+[INFO] Failed rows  : 0
+[INFO] Bag labels   : {0: 163, 1: 55}
+====================================================================================================
+MIL binary training setup
+Init checkpoint       : ./outputs/binary_dino_shared_seasonal_rgb_balanced_cuda_80ep/phase1_encoder_best.pth
+Train bags            : 1568
+Val bags              : 218
+Positive radius (m)   : 20.0
+Negative radius (m)   : 0.0
+Bag instances         : 17
+Pooling               : lse
+Train image mode      : rgb_no_green
+Eval image mode       : rgb_no_green
+Balanced sampler      : True
+Positive loss weight  : [9.739726066589355]
+====================================================================================================
+Epoch 001 | frozen=1 | train loss 1.6836 macro_f1 0.3836 pos_f1 0.6678 pr_auc 0.5092 | val loss 2.1238 macro_f1 0.2253 pos_f1 0.4030 pr_auc 0.2798 roc_auc 0.6023
+[INFO] Saved best MIL checkpoint at epoch 1: val_macro_f1=0.225302
+Epoch 002 | frozen=1 | train loss 1.5727 macro_f1 0.3888 pos_f1 0.6858 pr_auc 0.6200 | val loss 1.9973 macro_f1 0.2253 pos_f1 0.4030 pr_auc 0.3236 roc_auc 0.6520
+Epoch 003 | frozen=1 | train loss 1.5802 macro_f1 0.3653 pos_f1 0.6823 pr_auc 0.6456 | val loss 1.9560 macro_f1 0.2015 pos_f1 0.4029 pr_auc 0.3318 roc_auc 0.6595
+Epoch 004 | frozen=0 | train loss 1.4423 macro_f1 0.4713 pos_f1 0.7100 pr_auc 0.6551 | val loss 1.5569 macro_f1 0.5583 pos_f1 0.5340 pr_auc 0.3636 roc_auc 0.7335
+[INFO] Saved best MIL checkpoint at epoch 4: val_macro_f1=0.558295
+Epoch 005 | frozen=0 | train loss 1.1730 macro_f1 0.6822 pos_f1 0.7643 pr_auc 0.7131 | val loss 1.4353 macro_f1 0.6846 pos_f1 0.6108 pr_auc 0.4426 roc_auc 0.8061
+[INFO] Saved best MIL checkpoint at epoch 5: val_macro_f1=0.684571
+Epoch 006 | frozen=0 | train loss 1.0539 macro_f1 0.7429 pos_f1 0.8155 pr_auc 0.7540 | val loss 1.6828 macro_f1 0.7117 pos_f1 0.6164 pr_auc 0.4895 roc_auc 0.8261
+[INFO] Saved best MIL checkpoint at epoch 6: val_macro_f1=0.711667
+Epoch 007 | frozen=0 | train loss 1.1164 macro_f1 0.7452 pos_f1 0.7970 pr_auc 0.7189 | val loss 1.6456 macro_f1 0.7071 pos_f1 0.6184 pr_auc 0.4991 roc_auc 0.8265
+Epoch 008 | frozen=0 | train loss 0.8589 macro_f1 0.8151 pos_f1 0.8570 pr_auc 0.7738 | val loss 1.3813 macro_f1 0.7095 pos_f1 0.6335 pr_auc 0.4502 roc_auc 0.8127
+Epoch 009 | frozen=0 | train loss 0.9565 macro_f1 0.7717 pos_f1 0.8184 pr_auc 0.7497 | val loss 1.6205 macro_f1 0.7113 pos_f1 0.6225 pr_auc 0.4926 roc_auc 0.8300
+Epoch 010 | frozen=0 | train loss 1.0494 macro_f1 0.7844 pos_f1 0.8251 pr_auc 0.7276 | val loss 1.9052 macro_f1 0.7264 pos_f1 0.6286 pr_auc 0.5101 roc_auc 0.8315
+[INFO] Saved best MIL checkpoint at epoch 10: val_macro_f1=0.726448
+Epoch 011 | frozen=0 | train loss 1.0022 macro_f1 0.7773 pos_f1 0.8205 pr_auc 0.7319 | val loss 2.1694 macro_f1 0.7523 pos_f1 0.6512 pr_auc 0.5000 roc_auc 0.8178
+[INFO] Saved best MIL checkpoint at epoch 11: val_macro_f1=0.752291
+Epoch 012 | frozen=0 | train loss 0.9763 macro_f1 0.7766 pos_f1 0.8185 pr_auc 0.7626 | val loss 1.9409 macro_f1 0.7117 pos_f1 0.6164 pr_auc 0.5219 roc_auc 0.8167
+Epoch 013 | frozen=0 | train loss 1.0155 macro_f1 0.7772 pos_f1 0.8155 pr_auc 0.7463 | val loss 1.6721 macro_f1 0.7304 pos_f1 0.6389 pr_auc 0.4861 roc_auc 0.8261
+Epoch 014 | frozen=0 | train loss 1.0963 macro_f1 0.7386 pos_f1 0.8043 pr_auc 0.7516 | val loss 1.5799 macro_f1 0.7242 pos_f1 0.6294 pr_auc 0.5153 roc_auc 0.8265
+Epoch 015 | frozen=0 | train loss 0.9419 macro_f1 0.7829 pos_f1 0.8305 pr_auc 0.7831 | val loss 1.7707 macro_f1 0.6539 pos_f1 0.5697 pr_auc 0.4470 roc_auc 0.7943
+Epoch 016 | frozen=0 | train loss 0.8622 macro_f1 0.8118 pos_f1 0.8411 pr_auc 0.7728 | val loss 2.0861 macro_f1 0.7413 pos_f1 0.6357 pr_auc 0.5287 roc_auc 0.8281
+Epoch 017 | frozen=0 | train loss 0.8973 macro_f1 0.8176 pos_f1 0.8417 pr_auc 0.7616 | val loss 2.2463 macro_f1 0.7838 pos_f1 0.6885 pr_auc 0.5454 roc_auc 0.8260
+[INFO] Saved best MIL checkpoint at epoch 17: val_macro_f1=0.783753
+Epoch 018 | frozen=0 | train loss 0.9493 macro_f1 0.7961 pos_f1 0.8317 pr_auc 0.7513 | val loss 1.6992 macro_f1 0.7158 pos_f1 0.6207 pr_auc 0.5193 roc_auc 0.8253
+Epoch 019 | frozen=0 | train loss 0.9757 macro_f1 0.7845 pos_f1 0.8214 pr_auc 0.7222 | val loss 2.3411 macro_f1 0.7746 pos_f1 0.6774 pr_auc 0.5295 roc_auc 0.8233
+Epoch 020 | frozen=0 | train loss 0.8318 macro_f1 0.8312 pos_f1 0.8536 pr_auc 0.7672 | val loss 2.4171 macro_f1 0.7611 pos_f1 0.6614 pr_auc 0.5545 roc_auc 0.8019
+Epoch 021 | frozen=0 | train loss 0.9046 macro_f1 0.8151 pos_f1 0.8393 pr_auc 0.7473 | val loss 1.7046 macro_f1 0.6800 pos_f1 0.5963 pr_auc 0.4617 roc_auc 0.8035
+Epoch 022 | frozen=0 | train loss 0.9373 macro_f1 0.7837 pos_f1 0.8151 pr_auc 0.7119 | val loss 2.2240 macro_f1 0.7501 pos_f1 0.6515 pr_auc 0.5055 roc_auc 0.8145
+Epoch 023 | frozen=0 | train loss 0.8661 macro_f1 0.8266 pos_f1 0.8562 pr_auc 0.7775 | val loss 2.3196 macro_f1 0.7589 pos_f1 0.6560 pr_auc 0.5141 roc_auc 0.8151
+Epoch 024 | frozen=0 | train loss 0.8770 macro_f1 0.8089 pos_f1 0.8394 pr_auc 0.7439 | val loss 2.4996 macro_f1 0.7589 pos_f1 0.6560 pr_auc 0.5193 roc_auc 0.8052
+Epoch 025 | frozen=0 | train loss 0.8167 macro_f1 0.8249 pos_f1 0.8540 pr_auc 0.7907 | val loss 2.4788 macro_f1 0.7746 pos_f1 0.6774 pr_auc 0.5303 roc_auc 0.8056
+Epoch 026 | frozen=0 | train loss 0.9308 macro_f1 0.8111 pos_f1 0.8478 pr_auc 0.7876 | val loss 2.3279 macro_f1 0.7633 pos_f1 0.6613 pr_auc 0.5329 roc_auc 0.8021
+Epoch 027 | frozen=0 | train loss 0.8714 macro_f1 0.8163 pos_f1 0.8450 pr_auc 0.7792 | val loss 2.0468 macro_f1 0.7328 pos_f1 0.6324 pr_auc 0.5157 roc_auc 0.8052
+Epoch 028 | frozen=0 | train loss 0.8804 macro_f1 0.8037 pos_f1 0.8437 pr_auc 0.7812 | val loss 2.1828 macro_f1 0.7436 pos_f1 0.6412 pr_auc 0.5271 roc_auc 0.8054
+Epoch 029 | frozen=0 | train loss 0.8416 macro_f1 0.8188 pos_f1 0.8430 pr_auc 0.7475 | val loss 2.3912 macro_f1 0.7678 pos_f1 0.6667 pr_auc 0.5284 roc_auc 0.8065
+Epoch 030 | frozen=0 | train loss 0.8636 macro_f1 0.8189 pos_f1 0.8492 pr_auc 0.7702 | val loss 2.1443 macro_f1 0.7349 pos_f1 0.6316 pr_auc 0.5205 roc_auc 0.8071
+Epoch 031 | frozen=0 | train loss 0.7947 macro_f1 0.8207 pos_f1 0.8471 pr_auc 0.7944 | val loss 2.2665 macro_f1 0.7392 pos_f1 0.6364 pr_auc 0.5272 roc_auc 0.8098
+Epoch 032 | frozen=0 | train loss 0.8545 macro_f1 0.8131 pos_f1 0.8422 pr_auc 0.7876 | val loss 2.3259 macro_f1 0.7746 pos_f1 0.6774 pr_auc 0.5307 roc_auc 0.8108
+Epoch 033 | frozen=0 | train loss 0.9447 macro_f1 0.8002 pos_f1 0.8308 pr_auc 0.7682 | val loss 2.1803 macro_f1 0.7349 pos_f1 0.6316 pr_auc 0.5297 roc_auc 0.8073
+Epoch 034 | frozen=0 | train loss 0.8495 macro_f1 0.8167 pos_f1 0.8441 pr_auc 0.7739 | val loss 2.1371 macro_f1 0.7349 pos_f1 0.6316 pr_auc 0.5227 roc_auc 0.8071
+Epoch 035 | frozen=0 | train loss 0.7975 macro_f1 0.8256 pos_f1 0.8562 pr_auc 0.8267 | val loss 2.1919 macro_f1 0.7479 pos_f1 0.6462 pr_auc 0.5302 roc_auc 0.8073
+Epoch 036 | frozen=0 | train loss 0.7981 macro_f1 0.8343 pos_f1 0.8517 pr_auc 0.7546 | val loss 2.2213 macro_f1 0.7436 pos_f1 0.6412 pr_auc 0.5287 roc_auc 0.8080
+Epoch 037 | frozen=0 | train loss 0.8435 macro_f1 0.8212 pos_f1 0.8501 pr_auc 0.8017 | val loss 2.0707 macro_f1 0.7328 pos_f1 0.6324 pr_auc 0.5153 roc_auc 0.8078
+Epoch 038 | frozen=0 | train loss 0.8877 macro_f1 0.8156 pos_f1 0.8401 pr_auc 0.7652 | val loss 2.1879 macro_f1 0.7567 pos_f1 0.6562 pr_auc 0.5233 roc_auc 0.8083
+Epoch 039 | frozen=0 | train loss 0.8738 macro_f1 0.8121 pos_f1 0.8424 pr_auc 0.7739 | val loss 2.1868 macro_f1 0.7500 pos_f1 0.6457 pr_auc 0.5205 roc_auc 0.8081
+Epoch 040 | frozen=0 | train loss 0.9023 macro_f1 0.8058 pos_f1 0.8343 pr_auc 0.7701 | val loss 2.0796 macro_f1 0.7264 pos_f1 0.6222 pr_auc 0.5194 roc_auc 0.8081
+Epoch 041 | frozen=0 | train loss 0.8176 macro_f1 0.8218 pos_f1 0.8416 pr_auc 0.7905 | val loss 2.1559 macro_f1 0.7479 pos_f1 0.6462 pr_auc 0.5231 roc_auc 0.8083
+Epoch 042 | frozen=0 | train loss 0.8026 macro_f1 0.8271 pos_f1 0.8530 pr_auc 0.7747 | val loss 2.1978 macro_f1 0.7523 pos_f1 0.6512 pr_auc 0.5255 roc_auc 0.8088
+Epoch 043 | frozen=0 | train loss 0.8682 macro_f1 0.8263 pos_f1 0.8550 pr_auc 0.8136 | val loss 2.1793 macro_f1 0.7567 pos_f1 0.6562 pr_auc 0.5239 roc_auc 0.8073
+Epoch 044 | frozen=0 | train loss 0.8417 macro_f1 0.8254 pos_f1 0.8508 pr_auc 0.7699 | val loss 2.1939 macro_f1 0.7611 pos_f1 0.6614 pr_auc 0.5238 roc_auc 0.8068
+Epoch 045 | frozen=0 | train loss 0.8441 macro_f1 0.8212 pos_f1 0.8501 pr_auc 0.7899 | val loss 2.1562 macro_f1 0.7479 pos_f1 0.6462 pr_auc 0.5237 roc_auc 0.8091
+Epoch 046 | frozen=0 | train loss 0.8252 macro_f1 0.8266 pos_f1 0.8562 pr_auc 0.7902 | val loss 2.1786 macro_f1 0.7523 pos_f1 0.6512 pr_auc 0.5260 roc_auc 0.8087
+Epoch 047 | frozen=0 | train loss 0.7956 macro_f1 0.8251 pos_f1 0.8590 pr_auc 0.8131 | val loss 2.1525 macro_f1 0.7567 pos_f1 0.6562 pr_auc 0.5240 roc_auc 0.8083
+Epoch 048 | frozen=0 | train loss 0.8235 macro_f1 0.8145 pos_f1 0.8535 pr_auc 0.7952 | val loss 2.1672 macro_f1 0.7479 pos_f1 0.6462 pr_auc 0.5262 roc_auc 0.8083
+Epoch 049 | frozen=0 | train loss 0.8970 macro_f1 0.8104 pos_f1 0.8456 pr_auc 0.7701 | val loss 2.0864 macro_f1 0.7349 pos_f1 0.6316 pr_auc 0.5170 roc_auc 0.8085
+Epoch 050 | frozen=0 | train loss 0.8539 macro_f1 0.8170 pos_f1 0.8435 pr_auc 0.7933 | val loss 2.1458 macro_f1 0.7567 pos_f1 0.6562 pr_auc 0.5238 roc_auc 0.8087
+Binary score diagnostics:
+{
+  "positive_class": "1",
+  "positive_count": 55,
+  "negative_count": 163,
+  "positive_prevalence": 0.25229357798165136,
+  "probability_column": "prob_1",
+  "average_precision": 0.5453682668492157,
+  "roc_auc": 0.8258784160624651,
+  "score_summary_by_true_class": {
+    "negative": {
+      "count": 163.0,
+      "mean": 0.2138150852,
+      "std": 0.3098008928,
+      "min": 0.0046359692,
+      "25%": 0.016790336,
+      "50%": 0.0533538274,
+      "75%": 0.3087667525,
+      "max": 0.9994953871
+    },
+    "positive": {
+      "count": 55.0,
+      "mean": 0.7133457577,
+      "std": 0.3563000595,
+      "min": 0.0162020121,
+      "25%": 0.5966174006,
+      "50%": 0.8997315764,
+      "75%": 0.9705636501,
+      "max": 0.9953020811
+    }
+  },
+  "positive_mean_minus_negative_mean": 0.4995306725550403
+}
+{
+  "0": {
+    "precision": 0.9139072847682119,
+    "recall": 0.8466257668711656,
+    "f1-score": 0.8789808917197452,
+    "support": 163.0
+  },
+  "1": {
+    "precision": 0.6268656716417911,
+    "recall": 0.7636363636363637,
+    "f1-score": 0.6885245901639344,
+    "support": 55.0
+  },
+  "accuracy": 0.8256880733944955,
+  "macro avg": {
+    "precision": 0.7703864782050015,
+    "recall": 0.8051310652537647,
+    "f1-score": 0.7837527409418399,
+    "support": 218.0
+  },
+  "weighted avg": {
+    "precision": 0.8414885291629223,
+    "recall": 0.8256880733944955,
+    "f1-score": 0.8309299899510773,
+    "support": 218.0
+  }
+}
+====================================================================================================
+MIL training completed
+Best epoch      : 17
+Best metric     : 0.783753
+Total elapsed   : 6.69 hours
+Predictions CSV : ./outputs/mil_dino_shared_seasonal_20m_rgb_no_green_no_green_cuda/classifier_predictions.csv
+====================================================================================================
+============================================================
+Step 2: Tuning MIL bag threshold
+============================================================
+Positive prevalence: 0.252294
+All-positive F1 baseline: 0.402930
+Average precision (PR-AUC): 0.545368
+ROC-AUC: 0.825878
+Best threshold by Shihuahuaco F1:
+threshold                    0.580000
+accuracy                     0.830275
+precision_shihuahuaco        0.636364
+recall_shihuahuaco           0.763636
+f1_shihuahuaco               0.694215
+pred_positive               66.000000
+positive_prevalence          0.252294
+f1_all_positive_baseline     0.402930
+Name: 53, dtype: float64
+============================================================
+Job finished at: Thu  7 May 04:04:18 BST 2026
+MIL output      : ./outputs/mil_dino_shared_seasonal_20m_rgb_no_green_no_green_cuda
+Diagnostics     : ./outputs/mil_dino_shared_seasonal_20m_rgb_no_green_no_green_cuda/binary_score_diagnostics.json
+Thresholds      : ./outputs/mil_dino_shared_seasonal_20m_rgb_no_green_no_green_cuda/threshold_tuning.csv
+============================================================

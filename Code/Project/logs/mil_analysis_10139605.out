@@ -1,0 +1,136 @@
+============================================================
+Job started at: Fri  8 May 14:18:35 BST 2026
+Running on node: gpu15.pri.stanage.alces.network
+MIL output dir : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda
+PCA output dir : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last
+Python 3.10.20
+Fri May  8 14:18:35 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:C1:00.0 Off |                    0 |
+| N/A   31C    P0             60W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+============================================================
+[INFO] Building TIFF index...
+[INFO] Indexed TIFF folders: 22
+[INFO] Indexed TIFF files  : 310
+[INFO] Resolving MIL bags for valid_points_val.shp...
+[INFO] Resolved bags: 218
+[INFO] Failed rows  : 0
+[INFO] Bag labels   : {0: 163, 1: 55}
+{
+  "num_instances": 3706,
+  "num_bags": 218,
+  "pca_explained_variance_ratio": [
+    0.12393056601285934,
+    0.07422975450754166
+  ],
+  "pca_explained_variance_ratio_sum": 0.198160320520401,
+  "selected_average_precision": 0.5953095457693878,
+  "selected_roc_auc": 0.8660345789180145,
+  "selected_instance_average_precision": 0.8165585952090036,
+  "selected_instance_roc_auc": 0.9348577802565533,
+  "selected_status_counts": {
+    "TN": 129,
+    "TP": 46,
+    "FP": 34,
+    "FN": 9
+  },
+  "selected_offset_m_by_true_class": {
+    "0": {
+      "count": 163.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 0.0,
+      "75%": 0.0,
+      "max": 0.0
+    },
+    "1": {
+      "count": 55.0,
+      "mean": 14.0000001422,
+      "std": 6.2657210124,
+      "min": 0.0,
+      "25%": 10.0000000888,
+      "50%": 10.0000004031,
+      "75%": 20.0000001776,
+      "max": 20.0000009424
+    }
+  }
+}
+Instance PCA CSV : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/mil_instance_pca.csv
+Selected PCA CSV : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/mil_selected_pca.csv
+Output directory : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_top_confident/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_top_confident/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_positives/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_positives/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_negatives/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_negatives/mil_debug_patches.csv
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_largest_offsets/contact_sheet.html
+outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_largest_offsets/mil_debug_patches.csv
+============================================================
+Analysis finished at: Fri  8 May 14:31:15 BST 2026
+Summary:
+{
+  "num_instances": 3706,
+  "num_bags": 218,
+  "pca_explained_variance_ratio": [
+    0.12393056601285934,
+    0.07422975450754166
+  ],
+  "pca_explained_variance_ratio_sum": 0.198160320520401,
+  "selected_average_precision": 0.5953095457693878,
+  "selected_roc_auc": 0.8660345789180145,
+  "selected_instance_average_precision": 0.8165585952090036,
+  "selected_instance_roc_auc": 0.9348577802565533,
+  "selected_status_counts": {
+    "TN": 129,
+    "TP": 46,
+    "FP": 34,
+    "FN": 9
+  },
+  "selected_offset_m_by_true_class": {
+    "0": {
+      "count": 163.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 0.0,
+      "75%": 0.0,
+      "max": 0.0
+    },
+    "1": {
+      "count": 55.0,
+      "mean": 14.0000001422,
+      "std": 6.2657210124,
+      "min": 0.0,
+      "25%": 10.0000000888,
+      "50%": 10.0000004031,
+      "75%": 20.0000001776,
+      "max": 20.0000009424
+    }
+  }
+}
+PCA plots and CSVs: outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last
+Top confident sheet: outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_top_confident/contact_sheet.html
+False positives   : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_positives/contact_sheet.html
+False negatives   : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_false_negatives/contact_sheet.html
+Largest offsets   : outputs/mil_dino_shared_seasonal_20m_rgb_green_keep_50_white_boost_green50_white_p160_cuda/pca_val_last/debug_largest_offsets/contact_sheet.html
+============================================================

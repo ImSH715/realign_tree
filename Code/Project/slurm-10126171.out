@@ -1,0 +1,5 @@
+gpu15.pri.stanage.alces.network
+ls: cannot access /shared: No such file or directory
+ls: cannot access /shared/ai4eo: No such file or directory
+ls: cannot access /shared/ai4eo/Shared/2025_Forge/OSINFOR_data/2023: No such file or directory
+find: ‘/shared/ai4eo/Shared/2025_Forge/OSINFOR_data/2023’: No such file or directory

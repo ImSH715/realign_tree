@@ -1,0 +1,30 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+SSL Epoch 1/20:   0%|          | 0/1424 [00:00<?, ?it/s]SSL Epoch 1/20:   0%|          | 0/1424 [00:04<?, ?it/s]
+Traceback (most recent call last):
+  File "/users/aca21jo/project/realign_tree/Code/Project/train_encoder.py", line 657, in <module>
+    main()
+  File "/users/aca21jo/project/realign_tree/Code/Project/train_encoder.py", line 541, in main
+    train_metrics = train_ssl_one_epoch(
+  File "/users/aca21jo/project/realign_tree/Code/Project/train_encoder.py", line 160, in train_ssl_one_epoch
+    feats = [model.encode(v) for v in views]
+  File "/users/aca21jo/project/realign_tree/Code/Project/train_encoder.py", line 160, in <listcomp>
+    feats = [model.encode(v) for v in views]
+  File "/users/aca21jo/project/realign_tree/Code/Project/src/models/encoder.py", line 211, in encode
+    return self.backbone(x)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/users/aca21jo/project/realign_tree/Code/Project/src/models/backbones.py", line 58, in forward
+    feat = self.model.forward_features(x)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/timm/models/vision_transformer.py", line 1238, in forward_features
+    x = self.patch_embed(x)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/timm/layers/patch_embed.py", line 121, in forward
+    _assert(H == self.img_size[0], f"Input height ({H}) doesn't match model ({self.img_size[0]}).")
+  File "/users/aca21jo/.conda/envs/lejepa_gpu/lib/python3.10/site-packages/torch/__init__.py", line 2040, in _assert
+    assert condition, message
+AssertionError: Input height (96) doesn't match model (224).

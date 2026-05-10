@@ -1,0 +1,30 @@
+============================================================
+Job started at: Wed  6 May 15:35:37 BST 2026
+Running on node: gpu11.pri.stanage.alces.network
+Python: /users/aca21jo/.conda/envs/lejepa_gpu/bin/python
+Python 3.10.20
+Wed May  6 15:35:37 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:01:00.0 Off |                    0 |
+| N/A   39C    P0             64W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+============================================================
+Training roots:
+  /mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023
+  /mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos
+Missing training root: /mnt/parscratch/users/aca21jo/ai4eo/Shared/2025_Forge/OSINFOR_data/2023

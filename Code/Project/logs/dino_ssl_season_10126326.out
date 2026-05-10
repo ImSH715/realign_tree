@@ -1,0 +1,124 @@
+============================================================
+Job started at: Wed  6 May 17:24:42 BST 2026
+Running on node: gpu13.pri.stanage.alces.network
+Python: /users/aca21jo/.conda/envs/lejepa_gpu/bin/python
+Python 3.10.20
+Wed May  6 17:24:42 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.163.01             Driver Version: 550.163.01     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:01:00.0 Off |                    0 |
+| N/A   35C    P0             60W /  500W |       1MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+============================================================
+Source roots:
+  /mnt/parscratch/users/aca21jo/ai4eo_shared/Shared/2025_Forge/OSINFOR_data/2023
+  /mnt/parscratch/users/aca21jo/ai4eo_shared/Shared/2025_Turing_L/datasets/Osinfor/Ortomosaicos
+============================================================
+Building seasonal TIFF symlink subset
+============================================================
+Found TIFFs     : 216
+Selected TIFFs  : 126
+Included months : [8, 9, 10, 11]
+Subset root     : /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11
+Symlink TIFF dir: /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs
+Manifest        : /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tif_subset_manifest.csv
+Subset TIFF count:
+126
+============================================================
+Phase 1: DINOv2 SSL pretraining on seasonal shared orthomosaics
+============================================================
+====================================================================================================
+Recursive TIFF scan
+Train roots       :
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs
+Found TIFF files  : 126
+====================================================================================================
+First 10 TIFF files:
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000053_2023-12_16-CON-P-MAD-A-037-04_07082023_005_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000054_2023-12_16-CON-P-MAD-A-037-04_07082023_006_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000055_2023-12_16-CON-P-MAD-A-037-04_07082023_007_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000056_2023-12_16-CON-P-MAD-A-037-04_13082023_008_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000057_2023-12_16-CON-P-MAD-A-037-04_13082023_009_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000058_2023-12_16-CON-P-MAD-A-037-04_13082023_010_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000059_2023-13_16-CON-P-MAD-A-037-04_02082023_001_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000060_2023-13_16-CON-P-MAD-A-037-04_03082023_002_IDW_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000061_2023-13_16-CON-P-MAD-A-037-04_03082023_003_idw_transparent_mosaic_group1.tif
+  /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000062_2023-13_16-CON-P-MAD-A-037-04_03082023_004_idw_transparent_mosaic_group1.tif
+====================================================================================================
+[WARN] Skipping unreadable TIFF in training set: /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11/tifs/000115_2023-19_25-PUCC-DE-CPC001-13_25102023_001_orto_pv17_idw_transparent_mosaic_group1.tif
+====================================================================================================
+Phase 1 started
+Backbone              : vit_small_patch14_dinov2.lvd142m
+Pretrained backbone   : True
+Device                : cuda
+AMP enabled           : True
+Train TIFF files      : 126
+Patches per image     : 96
+Train samples         : 12000
+SSL epochs            : 20
+Patch size            : 224
+Global image size     : 224
+Local image size      : 224
+Extraction enabled    : False
+====================================================================================================
+[SSL][Epoch 1/20] total=19.9321 align=0.0039 var=0.6776 cov=2.0208 slice=0.9672 proxy_eval=19.5382 lr=6.67e-06
+[INFO] Saved best checkpoint: proxy_loss=19.538191
+[SSL][Epoch 2/20] total=19.3077 align=0.0037 var=0.6425 cov=2.2677 slice=0.9728 proxy_eval=19.2295 lr=1.00e-05
+[INFO] Saved best checkpoint: proxy_loss=19.229502
+[SSL][Epoch 3/20] total=19.1573 align=0.0035 var=0.6351 cov=2.3085 slice=0.9675 proxy_eval=19.0452 lr=1.00e-05
+[INFO] Saved best checkpoint: proxy_loss=19.045179
+[SSL][Epoch 4/20] total=19.0714 align=0.0033 var=0.6316 cov=2.3247 slice=0.9533 proxy_eval=18.9719 lr=9.91e-06
+[INFO] Saved best checkpoint: proxy_loss=18.971859
+[SSL][Epoch 5/20] total=19.0304 align=0.0036 var=0.6301 cov=2.3312 slice=0.9440 proxy_eval=18.9475 lr=9.66e-06
+[INFO] Saved best checkpoint: proxy_loss=18.947550
+[SSL][Epoch 6/20] total=19.0128 align=0.0036 var=0.6292 cov=2.3363 slice=0.9426 proxy_eval=18.9301 lr=9.25e-06
+[INFO] Saved best checkpoint: proxy_loss=18.930109
+[SSL][Epoch 7/20] total=18.9888 align=0.0036 var=0.6281 cov=2.3405 slice=0.9411 proxy_eval=18.8729 lr=8.70e-06
+[INFO] Saved best checkpoint: proxy_loss=18.872896
+[SSL][Epoch 8/20] total=18.9836 align=0.0037 var=0.6280 cov=2.3393 slice=0.9400 proxy_eval=18.9142 lr=8.02e-06
+[SSL][Epoch 9/20] total=18.9629 align=0.0037 var=0.6270 cov=2.3462 slice=0.9389 proxy_eval=18.8449 lr=7.23e-06
+[INFO] Saved best checkpoint: proxy_loss=18.844937
+[SSL][Epoch 10/20] total=18.9399 align=0.0037 var=0.6260 cov=2.3488 slice=0.9379 proxy_eval=18.8956 lr=6.37e-06
+[SSL][Epoch 11/20] total=18.9606 align=0.0037 var=0.6271 cov=2.3413 slice=0.9370 proxy_eval=18.8705 lr=5.47e-06
+[SSL][Epoch 12/20] total=18.9387 align=0.0037 var=0.6259 cov=2.3500 slice=0.9362 proxy_eval=18.8419 lr=4.54e-06
+[INFO] Saved best checkpoint: proxy_loss=18.841868
+[SSL][Epoch 13/20] total=18.9136 align=0.0037 var=0.6249 cov=2.3515 slice=0.9356 proxy_eval=18.8288 lr=3.64e-06
+[INFO] Saved best checkpoint: proxy_loss=18.828773
+[SSL][Epoch 14/20] total=18.9064 align=0.0037 var=0.6245 cov=2.3544 slice=0.9351 proxy_eval=18.8136 lr=2.78e-06
+[INFO] Saved best checkpoint: proxy_loss=18.813649
+[SSL][Epoch 15/20] total=18.9081 align=0.0037 var=0.6245 cov=2.3571 slice=0.9350 proxy_eval=18.8078 lr=1.99e-06
+[INFO] Saved best checkpoint: proxy_loss=18.807811
+[SSL][Epoch 16/20] total=18.9106 align=0.0037 var=0.6247 cov=2.3555 slice=0.9347 proxy_eval=18.8201 lr=1.31e-06
+[SSL][Epoch 17/20] total=18.9083 align=0.0037 var=0.6247 cov=2.3536 slice=0.9345 proxy_eval=18.8142 lr=7.58e-07
+[SSL][Epoch 18/20] total=18.9040 align=0.0037 var=0.6243 cov=2.3579 slice=0.9344 proxy_eval=18.8037 lr=3.47e-07
+[INFO] Saved best checkpoint: proxy_loss=18.803722
+[SSL][Epoch 19/20] total=18.9121 align=0.0037 var=0.6248 cov=2.3532 slice=0.9343 proxy_eval=18.8600 lr=9.50e-08
+[SSL][Epoch 20/20] total=18.8889 align=0.0037 var=0.6238 cov=2.3556 slice=0.9342 proxy_eval=18.8274 lr=1.00e-08
+
+====================================================================================================
+Phase 1 completed
+Best checkpoint      : ./outputs/phase1_dino_ssl_shared_seasonal/phase1_encoder_best.pth
+Last checkpoint      : ./outputs/phase1_dino_ssl_shared_seasonal/phase1_encoder_last.pth
+Embedding CSV        : skipped
+Best proxy loss      : 18.8037
+Total elapsed        : 01:57:49
+====================================================================================================
+============================================================
+Job finished at: Wed  6 May 19:22:56 BST 2026
+DINO SSL output: ./outputs/phase1_dino_ssl_shared_seasonal -> /mnt/parscratch/users/aca21jo/realign_outputs/phase1_dino_ssl_shared_seasonal
+Seasonal subset : /mnt/parscratch/users/aca21jo/realign_outputs/tif_subsets/shared_ortho_months_08_11
+============================================================
