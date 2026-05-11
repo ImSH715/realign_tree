@@ -31,8 +31,8 @@ SLURM_DEPENDENCY="${SLURM_DEPENDENCY:-}"
 SBATCH_DEP_ARGS=()
 SBATCH_DEP_TEXT=""
 if [ -n "$SLURM_DEPENDENCY" ]; then
-  SBATCH_DEP_ARGS=(--dependency "$SLURM_DEPENDENCY")
-  SBATCH_DEP_TEXT="--dependency $SLURM_DEPENDENCY "
+  SBATCH_DEP_ARGS=("--dependency=$SLURM_DEPENDENCY")
+  SBATCH_DEP_TEXT="--dependency=$SLURM_DEPENDENCY "
 fi
 
 mkdir -p "$SCRIPT_DIR/results" 2>/dev/null || true

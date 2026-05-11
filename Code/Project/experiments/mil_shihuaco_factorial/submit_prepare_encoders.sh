@@ -32,6 +32,7 @@ for encoder in $ENCODERS; do
   for optional_var in \
     DINO3_BACKBONE_NAME DINO3_PRETRAINED DINO3_PHASE1_NAME DINO3_BINARY_NAME \
     LEJEPA_BACKBONE_NAME LEJEPA_PRETRAINED LEJEPA_PHASE1_NAME LEJEPA_BINARY_NAME \
+    DINO_CONDA_ENV LEJEPA_CONDA_ENV \
     SSL_EPOCHS BINARY_EPOCHS BINARY_FREEZE_EPOCHS TRAIN_IMAGE_MODE EVAL_IMAGE_MODE; do
     if [ -n "${!optional_var:-}" ]; then
       export_vars="${export_vars},${optional_var}=${!optional_var}"

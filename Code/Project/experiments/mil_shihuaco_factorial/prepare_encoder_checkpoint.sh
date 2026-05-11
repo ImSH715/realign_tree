@@ -74,6 +74,27 @@ first_existing() {
   return 1
 }
 
+conda_env_exists() {
+  local env_name="$1"
+  conda env list | awk '{print $1}' | grep -Fxq "$env_name"
+}
+
+pick_conda_env() {
+  local explicit_env="$1"
+  local primary_env="$2"
+  local fallback_env="$3"
+
+  if [ -n "$explicit_env" ]; then
+    printf "%s\n" "$explicit_env"
+  elif conda_env_exists "$primary_env"; then
+    printf "%s\n" "$primary_env"
+  elif conda_env_exists "$fallback_env"; then
+    printf "%s\n" "$fallback_env"
+  else
+    printf "%s\n" "$primary_env"
+  fi
+}
+
 build_seasonal_subset() {
   if [ -d "$SUBSET_ROOT/tifs" ]; then
     echo "Using existing seasonal subset: $SUBSET_ROOT/tifs"
@@ -222,14 +243,16 @@ setup_modules
 ENCODER="$(normalise_name "$ENCODER")"
 case "$ENCODER" in
   lejepa|le-jepa)
-    conda activate "${LEJEPA_CONDA_ENV:-lejepa}"
+    CONDA_ENV="$(pick_conda_env "${LEJEPA_CONDA_ENV:-}" "lejepa" "lejepa_gpu")"
+    conda activate "$CONDA_ENV"
     PHASE1_NAME="${LEJEPA_PHASE1_NAME:-phase1_lejepa_ssl_large_gpu}"
     BINARY_NAME="${LEJEPA_BINARY_NAME:-binary_lejepa_shared_seasonal_rgb_balanced_cuda}"
     BACKBONE_NAME="${LEJEPA_BACKBONE_NAME:-vit_base_patch16_224}"
     PRETRAINED="${LEJEPA_PRETRAINED:-1}"
     ;;
   dino3|dinov3)
-    conda activate "${DINO_CONDA_ENV:-lejepa_gpu}"
+    CONDA_ENV="$(pick_conda_env "${DINO_CONDA_ENV:-}" "lejepa_gpu" "lejepa")"
+    conda activate "$CONDA_ENV"
     PHASE1_NAME="${DINO3_PHASE1_NAME:-phase1_dino3_ssl_shared_seasonal}"
     BINARY_NAME="${DINO3_BINARY_NAME:-binary_dino3_shared_seasonal_rgb_balanced_cuda}"
     BACKBONE_NAME="${DINO3_BACKBONE_NAME:-}"
@@ -255,6 +278,7 @@ echo "Encoder       : $ENCODER"
 echo "Stage         : $STAGE"
 echo "Backbone      : $BACKBONE_NAME"
 echo "Pretrained    : $PRETRAINED"
+echo "Conda env     : $CONDA_ENV"
 echo "Phase1 output : ./outputs/$PHASE1_NAME"
 echo "Binary output : ./outputs/$BINARY_NAME"
 echo "Python        : $(which python)"
