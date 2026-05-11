@@ -5,6 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
+export PROJECT_DIR
+export FACTORIAL_SCRIPT_DIR="$SCRIPT_DIR"
 
 JOB_SCRIPT="$SCRIPT_DIR/job_one_mil.sh"
 SWEEP_SCRIPT="$SCRIPT_DIR/job_encoder_sweep.sh"
@@ -48,14 +50,14 @@ if [ "$SUBMIT_MODE" = "model_pooling_sweep" ]; then
       count=$((count + 1))
       job_name="mf_${encoder}_${pooling}"
       export POOLINGS="$pooling"
-      export_vars="ALL,EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},POOLINGS=${pooling},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
+      export_vars="ALL,PROJECT_DIR=${PROJECT_DIR},FACTORIAL_SCRIPT_DIR=${SCRIPT_DIR},EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},POOLINGS=${pooling},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
       out_path="$SCRATCH_LOG_ROOT/${job_name}_%j.out"
       err_path="$SCRATCH_LOG_ROOT/${job_name}_%j.err"
 
       if [ "$DRY_RUN" = "1" ]; then
-        echo "[$count] sbatch --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
+        echo "[$count] sbatch --chdir $PROJECT_DIR --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
       else
-        sbatch --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+        sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
       fi
     done
   done
@@ -63,14 +65,14 @@ elif [ "$SUBMIT_MODE" = "encoder_sweep" ]; then
   for encoder in "${ENCODER_LIST[@]}"; do
     count=$((count + 1))
     job_name="mf_sweep_${encoder}"
-    export_vars="ALL,EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
+    export_vars="ALL,PROJECT_DIR=${PROJECT_DIR},FACTORIAL_SCRIPT_DIR=${SCRIPT_DIR},EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
     out_path="$SCRATCH_LOG_ROOT/${job_name}_%j.out"
     err_path="$SCRATCH_LOG_ROOT/${job_name}_%j.err"
 
     if [ "$DRY_RUN" = "1" ]; then
-      echo "[$count] sbatch --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
+      echo "[$count] sbatch --chdir $PROJECT_DIR --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
     else
-      sbatch --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+      sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
     fi
   done
 else
@@ -81,15 +83,15 @@ else
           for seed in "${SEED_LIST[@]}"; do
             run_name="${encoder}_${image_mode}_patch${patch_size}_${pooling}_bag${BAG_INSTANCES}_seed${seed}"
             job_name="mf_${encoder}_${patch_size}_${pooling}"
-            export_vars="ALL,EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},TRAIN_IMAGE_MODE=${image_mode},EVAL_IMAGE_MODE=${image_mode},PATCH_SIZE_PX=${patch_size},POOLING=${pooling},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SEED=${seed},RUN_NAME=${run_name},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
+            export_vars="ALL,PROJECT_DIR=${PROJECT_DIR},FACTORIAL_SCRIPT_DIR=${SCRIPT_DIR},EXPERIMENT_NAME=${EXPERIMENT_NAME},ENCODER=${encoder},TRAIN_IMAGE_MODE=${image_mode},EVAL_IMAGE_MODE=${image_mode},PATCH_SIZE_PX=${patch_size},POOLING=${pooling},BAG_LAYOUT=${BAG_LAYOUT},BAG_INSTANCES=${BAG_INSTANCES},CONV_KERNEL_SIZE=${CONV_KERNEL_SIZE},SEED=${seed},RUN_NAME=${run_name},SCRATCH_EXP_ROOT=${SCRATCH_EXP_ROOT}"
             out_path="$SCRATCH_LOG_ROOT/${job_name}_%j.out"
             err_path="$SCRATCH_LOG_ROOT/${job_name}_%j.err"
 
             count=$((count + 1))
             if [ "$DRY_RUN" = "1" ]; then
-              echo "[$count] sbatch --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $JOB_SCRIPT"
+              echo "[$count] sbatch --chdir $PROJECT_DIR --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $JOB_SCRIPT"
             else
-              sbatch --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$JOB_SCRIPT"
+              sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$JOB_SCRIPT"
             fi
           done
         done

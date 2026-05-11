@@ -40,7 +40,7 @@ count_run_dirs() {
     printf "0"
     return
   fi
-  find "$RESULTS_ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d " "
+  find "$RESULTS_ROOT" -mindepth 1 -maxdepth 1 -type d ! -name "slurm_logs" ! -name ".*" | wc -l | tr -d " "
 }
 
 echo "============================================================"

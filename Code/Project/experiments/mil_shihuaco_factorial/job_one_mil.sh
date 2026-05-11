@@ -9,15 +9,30 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=90:00:00
-#SBATCH --output=logs/mil_factorial/%x_%j.out
-#SBATCH --error=logs/mil_factorial/%x_%j.err
+#SBATCH --output=/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial/slurm_logs/%x_%j.out
+#SBATCH --error=/mnt/parscratch/users/aca21jo/realign_experiments/mil_shihuaco_factorial/slurm_logs/%x_%j.err
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -n "${PROJECT_DIR:-}" ]; then
+  PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+elif [ -n "${SLURM_SUBMIT_DIR:-}" ]; then
+  PROJECT_DIR="$(cd "$SLURM_SUBMIT_DIR" && pwd)"
+else
+  SCRIPT_PATH="${BASH_SOURCE[0]}"
+  SCRIPT_DIR_FALLBACK="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  PROJECT_DIR="$(cd "$SCRIPT_DIR_FALLBACK/../.." && pwd)"
+fi
+SCRIPT_DIR="${FACTORIAL_SCRIPT_DIR:-$PROJECT_DIR/experiments/mil_shihuaco_factorial}"
 cd "$PROJECT_DIR"
+
+if [ ! -f "$PROJECT_DIR/train_mil_classifier.py" ]; then
+  echo "Project directory does not contain train_mil_classifier.py: $PROJECT_DIR"
+  echo "PROJECT_DIR=$PROJECT_DIR"
+  echo "SLURM_SUBMIT_DIR=${SLURM_SUBMIT_DIR:-}"
+  exit 1
+fi
 
 # Some cluster project mounts are readable from compute nodes but do not allow
 # creating new top-level directories from batch jobs. All required run outputs
@@ -137,7 +152,7 @@ fi
 
 if [ "$BAG_LAYOUT" = "grid" ]; then
   case "$BAG_INSTANCES" in
-    1|9|25|49|81|121|169) ;;
+    9|25|49|81|121|169) ;;
     *)
       echo "Grid layout requires BAG_INSTANCES to be an odd square, for example 9, 25, or 49."
       exit 1

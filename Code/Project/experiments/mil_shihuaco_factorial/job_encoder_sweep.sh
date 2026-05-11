@@ -15,9 +15,25 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -n "${PROJECT_DIR:-}" ]; then
+  PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+elif [ -n "${SLURM_SUBMIT_DIR:-}" ]; then
+  PROJECT_DIR="$(cd "$SLURM_SUBMIT_DIR" && pwd)"
+else
+  SCRIPT_PATH="${BASH_SOURCE[0]}"
+  SCRIPT_DIR_FALLBACK="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  PROJECT_DIR="$(cd "$SCRIPT_DIR_FALLBACK/../.." && pwd)"
+fi
+SCRIPT_DIR="${FACTORIAL_SCRIPT_DIR:-$PROJECT_DIR/experiments/mil_shihuaco_factorial}"
 cd "$PROJECT_DIR"
+
+if [ ! -f "$SCRIPT_DIR/job_one_mil.sh" ]; then
+  echo "Could not find job_one_mil.sh at: $SCRIPT_DIR/job_one_mil.sh"
+  echo "PROJECT_DIR=$PROJECT_DIR"
+  echo "FACTORIAL_SCRIPT_DIR=${FACTORIAL_SCRIPT_DIR:-}"
+  echo "SLURM_SUBMIT_DIR=${SLURM_SUBMIT_DIR:-}"
+  exit 1
+fi
 
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-mil_shihuaco_factorial}"
 ENCODER="${ENCODER:-dino2}"
@@ -82,6 +98,8 @@ for image_mode in "${IMAGE_MODE_LIST[@]}"; do
           SEED="$seed" \
           RUN_NAME="$run_name" \
           EXPERIMENT_NAME="$EXPERIMENT_NAME" \
+          PROJECT_DIR="$PROJECT_DIR" \
+          FACTORIAL_SCRIPT_DIR="$SCRIPT_DIR" \
           bash "$SCRIPT_DIR/job_one_mil.sh"; then
           echo "Completed run: $run_name"
         else
