@@ -309,7 +309,13 @@ def main() -> None:
     args = parser.parse_args()
 
     results_root = Path(args.results_root)
-    run_dirs = sorted(path for path in results_root.iterdir() if path.is_dir()) if results_root.exists() else []
+    run_dirs = []
+    if results_root.exists():
+        run_dirs = sorted(
+            path
+            for path in results_root.iterdir()
+            if path.is_dir() and path.name != "slurm_logs" and not path.name.startswith(".")
+        )
     rows = sort_rows(collect_run(path) for path in run_dirs)
 
     output_csv = Path(args.output_csv)

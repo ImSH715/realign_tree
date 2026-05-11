@@ -342,9 +342,13 @@ class MILPointBagDataset(Dataset):
                 )
                 if self.max_black_fraction < 1.0 or self.max_bright_fraction < 1.0:
                     black_fraction, bright_fraction = patch_quality_fractions(img)
-                    if black_fraction > self.max_black_fraction:
-                        continue
-                    if bright_fraction > self.max_bright_fraction:
+                    is_low_quality = (
+                        black_fraction > self.max_black_fraction
+                        or bright_fraction > self.max_bright_fraction
+                    )
+                    # Grid bags are spatial tensors for convolutional MIL, so
+                    # dropping candidates would scramble the 2D neighbourhood.
+                    if is_low_quality and self.bag_layout != "grid":
                         continue
                 tensors.append(self.transform(img))
                 kept_offsets.append((float(dx), float(dy)))
