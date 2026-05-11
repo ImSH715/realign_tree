@@ -70,6 +70,41 @@ DINO3_INIT_CKPT=./outputs/my_dino3_run/phase1_encoder_best.pth \
   bash experiments/mil_shihuaco_factorial/submit_factorial.sh
 ```
 
+## Prepare Missing Encoders
+
+The MIL jobs need compatible encoder checkpoints. If LeJEPA or DINOv3 are
+missing from `./outputs`, prepare them before requeueing those MIL runs.
+
+LeJEPA can use the existing ViT recipe:
+
+```bash
+ENCODERS="lejepa" DRY_RUN=1 bash experiments/mil_shihuaco_factorial/submit_prepare_encoders.sh
+ENCODERS="lejepa" bash experiments/mil_shihuaco_factorial/submit_prepare_encoders.sh
+```
+
+For DINOv3, first list the DINOv3 model names available in the active `timm`
+environment:
+
+```bash
+module load Anaconda3
+conda activate lejepa_gpu
+python -c "import timm; print('\n'.join(timm.list_models('*dino*3*')))"
+```
+
+Then pass the chosen name:
+
+```bash
+DINO3_BACKBONE_NAME="<timm-dino3-model-name>" \
+ENCODERS="dino3" \
+bash experiments/mil_shihuaco_factorial/submit_prepare_encoders.sh
+```
+
+The prep job runs phase-1 SSL if needed, then binary Shihuahuaco adaptation.
+The MIL init checkpoints it creates are:
+
+- `./outputs/binary_lejepa_shared_seasonal_rgb_balanced_cuda/phase1_encoder_best.pth`
+- `./outputs/binary_dino3_shared_seasonal_rgb_balanced_cuda/phase1_encoder_best.pth`
+
 ## Collect Results
 
 After jobs finish:
