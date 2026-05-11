@@ -29,6 +29,14 @@ for encoder in $ENCODERS; do
   out_path="$SCRATCH_LOG_ROOT/${job_name}_%j.out"
   err_path="$SCRATCH_LOG_ROOT/${job_name}_%j.err"
   export_vars="ALL,PROJECT_DIR=${PROJECT_DIR},FACTORIAL_SCRIPT_DIR=${SCRIPT_DIR},ENCODER=${encoder},STAGE=${STAGE}"
+  for optional_var in \
+    DINO3_BACKBONE_NAME DINO3_PRETRAINED DINO3_PHASE1_NAME DINO3_BINARY_NAME \
+    LEJEPA_BACKBONE_NAME LEJEPA_PRETRAINED LEJEPA_PHASE1_NAME LEJEPA_BINARY_NAME \
+    SSL_EPOCHS BINARY_EPOCHS BINARY_FREEZE_EPOCHS TRAIN_IMAGE_MODE EVAL_IMAGE_MODE; do
+    if [ -n "${!optional_var:-}" ]; then
+      export_vars="${export_vars},${optional_var}=${!optional_var}"
+    fi
+  done
 
   if [ "$DRY_RUN" = "1" ]; then
     echo "[$count] sbatch --chdir $PROJECT_DIR --job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $JOB_SCRIPT"
