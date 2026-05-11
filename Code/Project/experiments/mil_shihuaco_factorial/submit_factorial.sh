@@ -28,10 +28,8 @@ DRY_RUN="${DRY_RUN:-0}"
 SLURM_TIME="${SLURM_TIME:-90:00:00}"
 SLURM_DEPENDENCY="${SLURM_DEPENDENCY:-}"
 
-SBATCH_DEP_ARGS=()
 SBATCH_DEP_TEXT=""
 if [ -n "$SLURM_DEPENDENCY" ]; then
-  SBATCH_DEP_ARGS=("--dependency=$SLURM_DEPENDENCY")
   SBATCH_DEP_TEXT="--dependency=$SLURM_DEPENDENCY "
 fi
 
@@ -65,7 +63,11 @@ if [ "$SUBMIT_MODE" = "model_pooling_sweep" ]; then
       if [ "$DRY_RUN" = "1" ]; then
         echo "[$count] sbatch --chdir $PROJECT_DIR ${SBATCH_DEP_TEXT}--job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
       else
-        sbatch --chdir "$PROJECT_DIR" "${SBATCH_DEP_ARGS[@]}" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+        if [ -n "$SLURM_DEPENDENCY" ]; then
+          sbatch --chdir "$PROJECT_DIR" --dependency="$SLURM_DEPENDENCY" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+        else
+          sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+        fi
       fi
     done
   done
@@ -80,7 +82,11 @@ elif [ "$SUBMIT_MODE" = "encoder_sweep" ]; then
     if [ "$DRY_RUN" = "1" ]; then
       echo "[$count] sbatch --chdir $PROJECT_DIR ${SBATCH_DEP_TEXT}--job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $SWEEP_SCRIPT"
     else
-      sbatch --chdir "$PROJECT_DIR" "${SBATCH_DEP_ARGS[@]}" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+      if [ -n "$SLURM_DEPENDENCY" ]; then
+        sbatch --chdir "$PROJECT_DIR" --dependency="$SLURM_DEPENDENCY" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+      else
+        sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$SWEEP_SCRIPT"
+      fi
     fi
   done
 else
@@ -99,7 +105,11 @@ else
             if [ "$DRY_RUN" = "1" ]; then
               echo "[$count] sbatch --chdir $PROJECT_DIR ${SBATCH_DEP_TEXT}--job-name $job_name --time $SLURM_TIME --output $out_path --error $err_path --export $export_vars $JOB_SCRIPT"
             else
-              sbatch --chdir "$PROJECT_DIR" "${SBATCH_DEP_ARGS[@]}" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$JOB_SCRIPT"
+              if [ -n "$SLURM_DEPENDENCY" ]; then
+                sbatch --chdir "$PROJECT_DIR" --dependency="$SLURM_DEPENDENCY" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$JOB_SCRIPT"
+              else
+                sbatch --chdir "$PROJECT_DIR" --job-name "$job_name" --time "$SLURM_TIME" --output "$out_path" --error "$err_path" --export="$export_vars" "$JOB_SCRIPT"
+              fi
             fi
           done
         done
