@@ -70,6 +70,28 @@ DINO3_INIT_CKPT=./outputs/my_dino3_run/phase1_encoder_best.pth \
   bash experiments/mil_shihuaco_factorial/submit_factorial.sh
 ```
 
+## Shortcut Audit Run
+
+After visual inspection, the convolutional MIL head should be treated as a
+bag-level context classifier rather than a direct coordinate selector. The
+focused shortcut audit run retrains only the strongest DINOv2 configuration
+with the stricter dirt-path suppression in `train_supervised_encoder.py` and
+the raw-instance coordinate selection in `train_mil_classifier.py`.
+
+```bash
+DRY_RUN=1 bash experiments/mil_shihuaco_factorial/submit_dino2_shortcut_audit.sh
+bash experiments/mil_shihuaco_factorial/submit_dino2_shortcut_audit.sh
+```
+
+Defaults:
+
+- `RUN_NAME=dino2_rgb_white_boost_patch160_conv_lse_bag25_seed42_shortcut_audit`
+- `EPOCHS=25`
+- `MONITOR_METRIC=val_average_precision`
+- `POOLING=conv_lse`
+- `BAG_LAYOUT=grid`
+- `BAG_INSTANCES=25`
+
 ## Prepare Missing Encoders
 
 The MIL jobs need compatible encoder checkpoints. If LeJEPA or DINOv3 are

@@ -539,12 +539,12 @@ IMAGE_MODE_TRANSFORMS = {
     "rgb_sat_25": {"green_keep": 1.0, "sat_keep": 0.25},
     "rgb_green_keep_50_sat_50": {"green_keep": 0.50, "sat_keep": 0.50},
     "rgb_green_keep_25_sat_50": {"green_keep": 0.25, "sat_keep": 0.50},
-    "rgb_white_boost": {"green_keep": 1.0, "sat_keep": 1.0, "white_boost": 0.65},
-    "rgb_green_mean_white_boost": {"green_keep": 0.0, "sat_keep": 1.0, "white_boost": 0.65},
-    "rgb_green_keep_50_white_boost": {"green_keep": 0.50, "sat_keep": 1.0, "white_boost": 0.65},
-    "rgb_green_keep_25_white_boost": {"green_keep": 0.25, "sat_keep": 1.0, "white_boost": 0.65},
-    "rgb_green_keep_50_sat_50_white_boost": {"green_keep": 0.50, "sat_keep": 0.50, "white_boost": 0.65},
-    "rgb_green_keep_25_sat_50_white_boost": {"green_keep": 0.25, "sat_keep": 0.50, "white_boost": 0.65},
+    "rgb_white_boost": {"green_keep": 1.0, "sat_keep": 1.0, "white_boost": 0.65, "dirt_suppression": 0.45},
+    "rgb_green_mean_white_boost": {"green_keep": 0.0, "sat_keep": 1.0, "white_boost": 0.65, "dirt_suppression": 0.45},
+    "rgb_green_keep_50_white_boost": {"green_keep": 0.50, "sat_keep": 1.0, "white_boost": 0.65, "dirt_suppression": 0.45},
+    "rgb_green_keep_25_white_boost": {"green_keep": 0.25, "sat_keep": 1.0, "white_boost": 0.65, "dirt_suppression": 0.45},
+    "rgb_green_keep_50_sat_50_white_boost": {"green_keep": 0.50, "sat_keep": 0.50, "white_boost": 0.65, "dirt_suppression": 0.45},
+    "rgb_green_keep_25_sat_50_white_boost": {"green_keep": 0.25, "sat_keep": 0.50, "white_boost": 0.65, "dirt_suppression": 0.45},
 }
 
 
@@ -572,8 +572,38 @@ def apply_rgb_mode(img, image_mode):
         white_score = white_branch_score(original)
         arr = arr + white_boost * white_score[:, :, None] * (255.0 - arr)
 
+    dirt_suppression = float(cfg.get("dirt_suppression", 0.0))
+    if dirt_suppression > 0.0:
+        dirt_score = bright_dirt_path_score(original)
+        arr = arr * (1.0 - dirt_suppression * dirt_score[:, :, None])
+
     arr = np.clip(arr, 0, 255).astype(np.uint8)
     return Image.fromarray(arr)
+
+
+def vegetation_context(arr):
+    arr = arr.astype(np.float32) / 255.0
+    r = arr[:, :, 0]
+    g = arr[:, :, 1]
+    b = arr[:, :, 2]
+
+    exg = 2.0 * g - r - b
+    green_ratio = g / (r + g + b + 1e-6)
+    vegetation_mask = (
+        (g > r + 0.04)
+        & (g > b + 0.04)
+        & (exg > 0.08)
+        & (green_ratio > 0.36)
+    )
+
+    patch_vegetation_fraction = float(vegetation_mask.mean())
+    patch_vegetation_gate = np.clip((patch_vegetation_fraction - 0.08) / 0.14, 0.0, 1.0)
+
+    local_radius = max(6, int(round(min(arr.shape[:2]) * 0.07)))
+    local_vegetation = box_filter_mean(vegetation_mask.astype(np.float32), radius=local_radius)
+    local_vegetation_gate = np.clip((local_vegetation - 0.08) / 0.18, 0.0, 1.0)
+
+    return vegetation_mask, local_vegetation, patch_vegetation_gate, local_vegetation_gate
 
 
 def white_branch_score(arr):
@@ -587,27 +617,43 @@ def white_branch_score(arr):
     whiteness = maxc * (1.0 - saturation)
     white_score = np.clip((whiteness - 0.52) / 0.38, 0.0, 1.0)
 
-    exg = 2.0 * g - r - b
-    green_ratio = g / (r + g + b + 1e-6)
-    vegetation_mask = (
-        (g > r + 0.03)
-        & (g > b + 0.03)
-        & (exg > 0.05)
-        & (green_ratio > 0.34)
-    )
-
-    patch_vegetation_fraction = float(vegetation_mask.mean())
-    patch_vegetation_gate = np.clip((patch_vegetation_fraction - 0.03) / 0.07, 0.0, 1.0)
-
-    local_radius = max(4, int(round(min(arr.shape[:2]) * 0.04)))
-    local_vegetation = box_filter_mean(vegetation_mask.astype(np.float32), radius=local_radius)
-    local_vegetation_gate = np.clip((local_vegetation - 0.015) / 0.08, 0.0, 1.0)
+    _, _, patch_vegetation_gate, local_vegetation_gate = vegetation_context(arr * 255.0)
 
     yellow_cast = np.clip((((r + g) * 0.5 - b) - 0.10) / 0.25, 0.0, 1.0)
     red_not_below_green = np.clip((r - g + 0.04) / 0.12, 0.0, 1.0)
     non_yellow_gate = 1.0 - (yellow_cast * red_not_below_green)
+    blue_balance_gate = np.clip((b / (maxc + 1e-6) - 0.64) / 0.18, 0.0, 1.0)
 
-    return white_score * patch_vegetation_gate * local_vegetation_gate * non_yellow_gate
+    return white_score * patch_vegetation_gate * local_vegetation_gate * non_yellow_gate * blue_balance_gate
+
+
+def bright_dirt_path_score(arr):
+    arr = arr.astype(np.float32) / 255.0
+    r = arr[:, :, 0]
+    g = arr[:, :, 1]
+    b = arr[:, :, 2]
+    maxc = arr.max(axis=2)
+    minc = arr.min(axis=2)
+    saturation = (maxc - minc) / (maxc + 1e-6)
+
+    vegetation_mask, local_vegetation, _, _ = vegetation_context(arr * 255.0)
+    warm_yellow = np.clip((((r + g) * 0.5 - b) - 0.08) / 0.22, 0.0, 1.0)
+    red_green_balanced = np.clip((r - g + 0.08) / 0.16, 0.0, 1.0)
+    blue_deficit = np.clip((0.72 - b / (maxc + 1e-6)) / 0.24, 0.0, 1.0)
+    bright = np.clip((maxc - 0.42) / 0.34, 0.0, 1.0)
+    not_gray_white = np.clip((saturation - 0.16) / 0.22, 0.0, 1.0)
+    not_vegetation_pixel = 1.0 - vegetation_mask.astype(np.float32)
+    weak_local_canopy = 1.0 - np.clip((local_vegetation - 0.10) / 0.22, 0.0, 1.0)
+
+    return (
+        warm_yellow
+        * red_green_balanced
+        * blue_deficit
+        * bright
+        * not_gray_white
+        * not_vegetation_pixel
+        * weak_local_canopy
+    )
 
 
 def box_filter_mean(arr: np.ndarray, radius: int) -> np.ndarray:

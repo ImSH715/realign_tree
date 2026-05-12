@@ -79,6 +79,10 @@ LR_HEAD="${LR_HEAD:-1e-4}"
 MONITOR_METRIC="${MONITOR_METRIC:-val_macro_f1}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 SEED="${SEED:-42}"
+PATIENCE="${PATIENCE:-0}"
+SAVE_EVERY="${SAVE_EVERY:-0}"
+MAX_BLACK_FRACTION="${MAX_BLACK_FRACTION:-0.20}"
+MAX_BRIGHT_FRACTION="${MAX_BRIGHT_FRACTION:-0.35}"
 
 IMAGERY_ROOT="${IMAGERY_ROOT:-/mnt/parscratch/users/aca21jo/2025_Forge/OSINFOR_data/01. Ortomosaicos/2023}"
 TRAIN_SHP="${TRAIN_SHP:-./outputs/splits_binary/valid_points_train.shp}"
@@ -287,12 +291,12 @@ python train_mil_classifier.py \
   --lr_head "$LR_HEAD" \
   --weight_decay 5e-4 \
   --freeze_encoder_epochs "$FREEZE_ENCODER_EPOCHS" \
-  --patience 0 \
-  --save_every 0 \
+  --patience "$PATIENCE" \
+  --save_every "$SAVE_EVERY" \
   --balanced_sampler \
   --train_repeat_factor "$TRAIN_REPEAT_FACTOR" \
-  --max_black_fraction 0.20 \
-  --max_bright_fraction 0.35 \
+  --max_black_fraction "$MAX_BLACK_FRACTION" \
+  --max_bright_fraction "$MAX_BRIGHT_FRACTION" \
   --monitor_metric "$MONITOR_METRIC" \
   --num_workers "$NUM_WORKERS" \
   --seed "$SEED" \

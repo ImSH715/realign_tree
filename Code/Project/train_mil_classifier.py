@@ -596,7 +596,8 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
         instance_probs = torch.sigmoid(instance_logits)
         raw_instance_probs = torch.sigmoid(raw_instance_logits)
         preds = (probs >= 0.5).long()
-        best_instance = instance_logits.argmax(dim=1).detach().cpu()
+        best_instance = raw_instance_logits.argmax(dim=1).detach().cpu()
+        best_context_instance = instance_logits.argmax(dim=1).detach().cpu()
 
         y_true_batch = y.detach().cpu().long()
         probs_cpu = probs.detach().cpu()
@@ -609,6 +610,7 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
         for j in range(len(y_true_batch)):
             sample = dataset.samples[int(idxs_cpu[j])]
             best_i = int(best_instance[j])
+            best_context_i = int(best_context_instance[j])
             dx_px = float(offsets_cpu[j, best_i, 0])
             dy_px = float(offsets_cpu[j, best_i, 1])
             prob_1 = float(probs_cpu[j])
@@ -627,6 +629,15 @@ def evaluate_to_files(model, head, dataset, loader, device, cfg: Config):
                 "best_instance_prob_1": best_instance_prob_1,
                 "best_raw_instance_prob_1": best_raw_instance_prob_1,
                 "best_instance": best_i,
+                "best_context_instance": best_context_i,
+                "best_context_instance_prob_1": float(instance_probs_cpu[j, best_context_i]),
+                "best_context_raw_instance_prob_1": float(raw_instance_probs_cpu[j, best_context_i]),
+                "best_context_dx_px": float(offsets_cpu[j, best_context_i, 0]),
+                "best_context_dy_px": float(offsets_cpu[j, best_context_i, 1]),
+                "best_context_dx_m": float(offsets_cpu[j, best_context_i, 0]) * sample["pixel_size_x"],
+                "best_context_dy_m": float(offsets_cpu[j, best_context_i, 1]) * sample["pixel_size_y"],
+                "best_context_px": sample["center_px"] + float(offsets_cpu[j, best_context_i, 0]),
+                "best_context_py": sample["center_py"] + float(offsets_cpu[j, best_context_i, 1]),
                 "best_dx_px": dx_px,
                 "best_dy_px": dy_px,
                 "best_dx_m": dx_px * sample["pixel_size_x"],

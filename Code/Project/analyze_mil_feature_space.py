@@ -151,7 +151,8 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
         raw_instance_probs = torch.sigmoid(raw_instance_logits).detach().cpu().numpy()
         bag_probs = torch.sigmoid(bag_logits).detach().cpu().numpy()
         bag_preds = (bag_probs >= 0.5).astype(np.int64)
-        best_instances = instance_logits.argmax(dim=1).detach().cpu().numpy()
+        best_instances = raw_instance_logits.argmax(dim=1).detach().cpu().numpy()
+        best_context_instances = instance_logits.argmax(dim=1).detach().cpu().numpy()
         feat_np = feats.detach().cpu().numpy().reshape(b, n, -1)
 
         y_np = y.detach().cpu().numpy().astype(np.int64)
@@ -161,6 +162,7 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
         for j in range(b):
             sample = dataset.samples[int(idx_np[j])]
             best_i = int(best_instances[j])
+            best_context_i = int(best_context_instances[j])
             for i in range(n):
                 dx_px = float(offsets_np[j, i, 0])
                 dy_px = float(offsets_np[j, i, 1])
@@ -171,6 +173,7 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
                     "source_index": sample["source_index"],
                     "instance_index": int(i),
                     "is_selected": int(i == best_i),
+                    "is_context_selected": int(i == best_context_i),
                     "y_true": int(y_np[j]),
                     "y_pred": int(bag_preds[j]),
                     "status": selected_status({"y_true": int(y_np[j]), "y_pred": int(bag_preds[j])}),
@@ -180,6 +183,10 @@ def extract_rows(model, head, dataset, loader, device, cfg, save_embeddings=Fals
                     "selected_instance_prob_1": float(instance_probs[j, best_i]),
                     "selected_raw_instance_prob_1": float(raw_instance_probs[j, best_i]),
                     "selected_instance": best_i,
+                    "selected_context_instance_prob_1": float(instance_probs[j, best_context_i]),
+                    "selected_context_raw_instance_prob_1": float(raw_instance_probs[j, best_context_i]),
+                    "selected_context_instance": best_context_i,
+                    "selection_disagrees_with_context": int(best_i != best_context_i),
                     "dx_px": dx_px,
                     "dy_px": dy_px,
                     "dx_m": dx_m,

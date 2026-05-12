@@ -4,7 +4,7 @@ Create visual debug sheets for MIL corrections.
 Input is the mil_instance_pca.csv produced by analyze_mil_feature_space.py.
 Each debug image shows:
 - a larger context crop with the original point, all candidate positions, and
-  the selected correction,
+  the selected raw-instance correction,
 - the original centered patch,
 - the selected corrected patch.
 """
@@ -109,10 +109,16 @@ def context_panel(src, group, selected, context_size_m, output_size):
         r = 3 if int(row.get("is_selected", 0)) == 0 else 5
         draw.ellipse((x - r, y - r, x + r, y + r), fill=(255, 210, 0, alpha), outline=(0, 0, 0, 160))
 
+    if "is_context_selected" in group.columns:
+        context_selected = group[group["is_context_selected"] == 1]
+        for _, row in context_selected.iterrows():
+            x, y = to_context(row["px"], row["py"])
+            draw_cross(draw, x, y, (255, 132, 0, 255), radius=10, width=2)
+
     draw_cross(draw, output_size / 2, output_size / 2, (255, 45, 85, 255), radius=13, width=3)
     bx, by = to_context(best_px, best_py)
     draw_cross(draw, bx, by, (0, 220, 255, 255), radius=13, width=3)
-    panel_label(img, "context: magenta=original cyan=selected")
+    panel_label(img, "context: magenta=original cyan=raw selected orange=context selected")
     return img
 
 
@@ -159,7 +165,13 @@ def compose_debug_image(group, selected, args, out_path):
     offset_m = float(selected.get("offset_m", 0.0))
     lines = [
         f"bag={int(selected['bag_index'])} true={int(selected['y_true'])} pred={int(selected['y_pred'])} status={selected.get('status', '')}",
-        f"bag_prob={float(selected['bag_prob_1']):.3f} selected_prob={float(selected['selected_instance_prob_1']):.3f} offset={offset_m:.1f}m",
+        (
+            f"bag_prob={float(selected['bag_prob_1']):.3f} "
+            f"raw_sel={float(selected.get('selected_raw_instance_prob_1', selected.get('selected_instance_prob_1', 0.0))):.3f} "
+            f"ctx_at_sel={float(selected.get('selected_instance_prob_1', 0.0)):.3f} "
+            f"ctx_best={float(selected.get('selected_context_instance_prob_1', 0.0)):.3f} "
+            f"offset={offset_m:.1f}m"
+        ),
         f"{selected.get('folder', '')} | {selected.get('file', '')}",
     ]
     draw_text_box(draw, (8, 8), lines, fill=(16, 24, 40, 225))
@@ -198,12 +210,15 @@ def write_html(rows, output_html, image_dir, args):
         src = relpath(row["debug_image"], output_html.parent)
         title = html.escape(
             f"bag={row['bag_index']} true={row['y_true']} pred={row['y_pred']} "
-            f"bag_prob={row['bag_prob_1']:.3f} selected_prob={row['selected_instance_prob_1']:.3f} "
+            f"bag_prob={row['bag_prob_1']:.3f} "
+            f"raw_sel={row.get('selected_raw_instance_prob_1', row['selected_instance_prob_1']):.3f} "
+            f"ctx_at_sel={row['selected_instance_prob_1']:.3f} "
             f"offset={row['offset_m']:.1f}m"
         )
         caption = html.escape(
             f"bag {int(row['bag_index'])} | {row['status']} | bag {row['bag_prob_1']:.3f} | "
-            f"inst {row['selected_instance_prob_1']:.3f} | {row['offset_m']:.1f}m"
+            f"raw {row.get('selected_raw_instance_prob_1', row['selected_instance_prob_1']):.3f} | "
+            f"ctx {row['selected_instance_prob_1']:.3f} | {row['offset_m']:.1f}m"
         )
         cards.append(
             f'<figure title="{title}"><img src="{html.escape(src)}" loading="lazy" />'
