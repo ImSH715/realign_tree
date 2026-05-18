@@ -324,6 +324,8 @@ def select_rows(df, args):
         sort_values = pd.to_numeric(out[args.sort_by], errors="coerce")
         out = out.assign(_sort_values=sort_values).sort_values("_sort_values", ascending=args.ascending)
         out = out.drop(columns=["_sort_values"])
+    if args.limit_per_model <= 0:
+        return out
     return out.head(args.limit_per_model)
 
 
@@ -360,7 +362,7 @@ def parse_args():
     p.add_argument("--input_csv", required=True)
     p.add_argument("--output_dir", required=True)
     p.add_argument("--models", nargs="*", default=None, help="Optional model_run names to include.")
-    p.add_argument("--limit_per_model", type=int, default=40)
+    p.add_argument("--limit_per_model", type=int, default=40, help="Rows per model. Use 0 or negative for all rows.")
     p.add_argument("--sort_by", default="bag_prob_1")
     p.add_argument("--ascending", action="store_true")
     p.add_argument("--seed", type=int, default=42)
