@@ -13,6 +13,7 @@ Typical outputs:
 """
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 
@@ -65,14 +66,26 @@ def read_patch_from_src(src, px, py, patch_size):
 
 
 def source_key(row):
-    for key in ["source_index", "idx", "tree_id", "id", "PCA"]:
+    if "source_uid" in row and not pd.isna(row["source_uid"]):
+        return str(row["source_uid"])
+    for key in ["source_index", "idx", "tree_id", "id"]:
         if key in row and not pd.isna(row[key]):
             return safe_name(row[key], max_len=60)
-    folder = safe_name(row.get("Folder", row.get("folder", "")), max_len=30)
-    filename = safe_name(row.get("File", row.get("file", "")), max_len=40)
+    return make_source_uid(row)
+
+
+def make_source_uid(row):
+    folder = safe_name(row.get("Folder", row.get("folder", "")), max_len=18)
+    pca = safe_name(row.get("PCA", ""), max_len=18) if "PCA" in row else ""
     px = int(round(row_float(row, "center_px")))
     py = int(round(row_float(row, "center_py")))
-    return f"{folder}_{filename}_{px}_{py}"
+    image_path = str(row.get("image_path", ""))
+    digest_input = f"{image_path}|{px}|{py}|{row.get('original_x', '')}|{row.get('original_y', '')}"
+    digest = hashlib.sha1(digest_input.encode("utf-8")).hexdigest()[:10]
+    prefix = "_".join(part for part in [folder, pca] if part)
+    if prefix:
+        return f"{prefix}_{px}_{py}_{digest}"
+    return f"pt_{px}_{py}_{digest}"
 
 
 def patch_point(row, kind):
@@ -167,6 +180,8 @@ def main():
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns in {input_csv}: {missing}")
+
+    df["source_uid"] = df.apply(make_source_uid, axis=1)
 
     df = filter_rows(df, args)
     if df.empty:
