@@ -1,0 +1,6 @@
+# Amazon palm common names to check in weak label tables.
+# OSINFOR palm examples include aguaje, huasai, and ungurahui.
+Aguaje
+Huasai
+Huasaí
+Ungurahui

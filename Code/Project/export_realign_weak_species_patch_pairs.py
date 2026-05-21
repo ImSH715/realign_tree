@@ -40,6 +40,16 @@ def read_csv_flexible(path):
     raise last_error
 
 
+def read_species_file(path):
+    species = []
+    with Path(path).open("r", encoding="utf-8-sig") as f:
+        for line in f:
+            value = line.strip()
+            if value and not value.startswith("#"):
+                species.append(value)
+    return species
+
+
 def normalize_key(value):
     return str(value).strip().casefold()
 
@@ -170,6 +180,17 @@ def parse_args():
         help="Case-insensitive model_run substrings to export when exact names are inconvenient.",
     )
     p.add_argument("--weak_species", default="", help="Comparison species common name. Leave blank to infer the mode.")
+    p.add_argument(
+        "--candidate_species",
+        nargs="*",
+        default=None,
+        help="Restrict the nearest-mode search to these census common names.",
+    )
+    p.add_argument(
+        "--candidate_species_file",
+        default="",
+        help="UTF-8 text file with one candidate census common name per line.",
+    )
     p.add_argument("--target_species", default="Shihuahuaco")
     p.add_argument("--censo_species_col", default="NOMBRE_COMUN")
     p.add_argument("--censo_scientific_col", default="NOMBRE_CIENTIFICO")
@@ -215,11 +236,16 @@ def main():
     censo = dataframe_points(censo, args.censo_east_col, args.censo_north_col)
     censo["_species_norm"] = censo[args.censo_species_col].map(normalize_key)
     target_norm = normalize_key(args.target_species)
-    comparison_pool = censo[
-        censo["_species_norm"].ne(target_norm) & censo[args.censo_species_col].notna()
-    ].copy().reset_index(drop=True)
+    candidate_species = list(args.candidate_species or [])
+    if args.candidate_species_file:
+        candidate_species.extend(read_species_file(args.candidate_species_file))
+    candidate_norms = {normalize_key(value) for value in candidate_species if str(value).strip()}
+    comparison_mask = censo["_species_norm"].ne(target_norm) & censo[args.censo_species_col].notna()
+    if candidate_norms:
+        comparison_mask &= censo["_species_norm"].isin(candidate_norms)
+    comparison_pool = censo[comparison_mask].copy().reset_index(drop=True)
     if comparison_pool.empty:
-        raise ValueError("No non-target weak census species were available for nearest matching.")
+        raise ValueError("No candidate weak census species were available for nearest matching.")
     pool_coords = comparison_pool[["_east", "_north"]].to_numpy(dtype=float)
 
     nearest_any_rows = []
@@ -399,6 +425,9 @@ def main():
         "models": {str(k): int(v) for k, v in model_counts.items()},
         "realigned_rows": int(len(realign_df)),
         "target_species": args.target_species,
+        "candidate_species": sorted(candidate_species),
+        "candidate_species_file": args.candidate_species_file,
+        "candidate_species_censo_rows": int(len(comparison_pool)),
         "auto_weak_species": not bool(args.weak_species),
         "weak_species": weak_species,
         "weak_species_censo_rows": int(len(weak_pool)),
