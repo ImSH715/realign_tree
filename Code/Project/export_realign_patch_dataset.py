@@ -233,6 +233,7 @@ def main():
                         "patch_path": str(out_path),
                         "patch_kind": kind,
                         "source_key": source,
+                        "source_uid": source,
                         "model_run": "" if kind == "original" and args.include_original_once else model,
                         "image_path": image_path,
                         "patch_px": px,
